@@ -1,0 +1,10 @@
+{
+  "metricId": "ERCOT_FUELMIX_HYDRO",
+  "periodStart": 1788566400,
+  "periodEnd": 1788652800,
+  "value": 6,
+  "sourceHash": "d0c22305103ef00bb55f07c9481fef01aba951f995f25015b39879ef7fc91387",
+  "sourceFile": "data/raw/ercot_fuel_mix__all__2026-08-10__2026-09-09.json",
+  "hashAlgorithm": "sha256",
+  "computedAt": "2026-09-09T21:57:02.072002+00:00"
+}

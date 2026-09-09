@@ -1,0 +1,11 @@
+{
+  "metricId": "ERCOT_HBNORTH_DA_AVG",
+  "periodStart": 1788220800,
+  "periodEnd": 1788307200,
+  "value": 3492,
+  "sourceHash": "53dd2456248398b9a353f62f572035e67d176cba455a5cc036930e593bcf516d",
+  "sourceFile": "data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-08-10__2026-09-09.json",
+  "hashAlgorithm": "sha256",
+  "computedAt": "2026-09-09T21:56:54.543144+00:00",
+  "hoursUsed": 24
+}

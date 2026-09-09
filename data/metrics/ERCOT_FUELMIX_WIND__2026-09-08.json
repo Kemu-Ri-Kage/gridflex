@@ -1,0 +1,10 @@
+{
+  "metricId": "ERCOT_FUELMIX_WIND",
+  "periodStart": 1788825600,
+  "periodEnd": 1788912000,
+  "value": 1718,
+  "sourceHash": "d0c22305103ef00bb55f07c9481fef01aba951f995f25015b39879ef7fc91387",
+  "sourceFile": "data/raw/ercot_fuel_mix__all__2026-08-10__2026-09-09.json",
+  "hashAlgorithm": "sha256",
+  "computedAt": "2026-09-09T21:57:02.076478+00:00"
+}

@@ -1,0 +1,11 @@
+{
+  "metricId": "ERCOT_HBWEST_NEG_INTERVALS",
+  "periodStart": 1787011200,
+  "periodEnd": 1787097600,
+  "value": 0,
+  "sourceHash": "ca79059d4b5a221d83af5bc756b2530c922b603deda2aa460d019c640d789933",
+  "sourceFile": "data/raw/ercot_spp_real_time_15_min__HB_WEST__2026-08-10__2026-09-09.json",
+  "hashAlgorithm": "sha256",
+  "computedAt": "2026-09-09T21:56:58.174991+00:00",
+  "intervalsUsed": 96
+}

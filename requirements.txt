@@ -1,0 +1,3 @@
+gridstatusio>=0.6
+pandas>=2.0
+tzdata

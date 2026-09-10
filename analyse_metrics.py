@@ -19,7 +19,7 @@ Usage:
 import argparse
 import json
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -31,6 +31,7 @@ SCALES = {
     "ERCOT_HBNORTH_DA_AVG":        (100, "$/MWh"),
     "ERCOT_WEST_NORTH_DA_BASIS":   (100, "$/MWh"),
     "ERCOT_HBWEST_NEG_INTERVALS":  (1,   "intervals"),
+    "ERCOT_LOAD_WEIGHTED_DA_INDEX": (100, "$/MWh"),
 }
 
 
@@ -41,8 +42,9 @@ def load():
         rec = json.loads(path.read_text())
         rows.append({
             "metricId": rec["metricId"],
-            "day": datetime.fromtimestamp(rec["periodStart"], timezone.utc).date(),
+            "day": datetime.fromisoformat(rec["marketDay"]).date(),
             "value": rec["value"],
+            "loadWeights": rec.get("loadWeights"),
         })
     if not rows:
         raise SystemExit(
@@ -117,6 +119,62 @@ def describe(metric_id, series):
         print(f"  Median day-to-day move: {daily_change:.2f} {unit}")
 
 
+def compare_index_to_hub(df):
+    """
+    Is the statewide index actually different from North Hub alone?
+
+    This is the question that decides whether the index is worth listing.
+    If they track within a rounding error, North Hub was a fine proxy and you
+    should list it and say so. If they diverge, the index is the better number
+    and you have a real answer to "why not just use North Hub".
+    """
+    idx = df[df["metricId"] == "ERCOT_LOAD_WEIGHTED_DA_INDEX"]
+    hub = df[df["metricId"] == "ERCOT_HBNORTH_DA_AVG"]
+    if idx.empty or hub.empty:
+        return
+
+    merged = idx.merge(hub, on="day", suffixes=("_idx", "_hub"))
+    if merged.empty:
+        return
+
+    a = merged["value_idx"] / 100
+    b = merged["value_hub"] / 100
+    diff = a - b
+
+    print(f"\n{'=' * 66}")
+    print(f"STATEWIDE INDEX vs NORTH HUB ALONE   ({len(merged)} shared days)")
+    print("=" * 66)
+    print(f"  index  mean ${a.mean():7.2f}   median ${a.median():7.2f}")
+    print(f"  hub    mean ${b.mean():7.2f}   median ${b.median():7.2f}")
+    print(f"\n  difference (index - hub):")
+    print(f"    mean {diff.mean():+7.2f}    median {diff.median():+7.2f}")
+    print(f"    p5   {diff.quantile(.05):+7.2f}    p95    {diff.quantile(.95):+7.2f}")
+    print(f"    largest gap either way: {diff.abs().max():.2f}")
+    print(f"    days more than $2 apart: {(diff.abs() > 2).sum()}"
+          f" ({(diff.abs() > 2).mean():.0%})")
+    print(f"  correlation: {a.corr(b):.4f}")
+
+    if diff.abs().median() < 0.50 and a.corr(b) > 0.99:
+        print("\n  -> They track closely. North Hub is a defensible proxy;")
+        print("     the index is a better story than a better number.")
+    else:
+        print("\n  -> They diverge materially. The index is the better")
+        print("     representation of what Texas actually paid.")
+
+    # What the weights really look like, averaged over the period
+    weights = [r for r in idx["loadWeights"] if isinstance(r, dict)]
+    if weights:
+        zones = sorted(weights[0])
+        print("\n  Realised load weights (mean over the period):")
+        for z in zones:
+            vals = [w[z] for w in weights if z in w]
+            lo, hi = min(vals), max(vals)
+            print(f"    {z:<9} {sum(vals)/len(vals):>6.1%}"
+                  f"   (range {lo:.1%} to {hi:.1%})")
+        print("\n  A wide range means the weights genuinely move day to day,")
+        print("  which is the whole reason not to hardcode them.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--metric", help="analyse just one metricId")
@@ -132,6 +190,9 @@ def main():
             print(f"\n{metric_id}: no data")
             continue
         describe(metric_id, sub["value"].reset_index(drop=True))
+
+    if not args.metric:
+        compare_index_to_hub(df)
 
     print(f"\n{'=' * 66}")
     print("Pick the metric whose most balanced threshold sits closest to 50/50")

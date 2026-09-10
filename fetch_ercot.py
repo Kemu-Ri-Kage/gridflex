@@ -267,9 +267,44 @@ def to_central_day(df):
     return df
 
 
+def day_key(day):
+    """
+    YYYYMMDD as a plain integer, e.g. 20260908.
+
+    This is the identifier the oracle stores and markets look up — not an
+    instant. It sorts chronologically, reads as a date at a glance, and
+    Python and Solidity interpret it identically because it carries no
+    timezone: there is nothing to convert, so there is nothing to get wrong.
+    """
+    return int(day.strftime("%Y%m%d"))
+
+
+def day_bounds_from_df(df):
+    """
+    {market_day: (start_utc, end_utc)} — the true UTC instants bounding each
+    Central market day, read directly off the rows GridStatus returned for
+    that day rather than assumed as periodStart + 86400.
+
+    start is the earliest interval_start_utc on the day, end is the latest
+    interval_end_utc. On a normal day that span is 24 hours. On the
+    spring-forward day it's 23 (Central time skips an hour), on the
+    fall-back day it's 25 (Central time repeats one) — both come out
+    correct automatically because they're read off real interval
+    boundaries, not computed from a fixed offset.
+    """
+    df = to_central_day(df)
+    out = {}
+    for day, group in df.groupby("market_day"):
+        start = pd.to_datetime(group["interval_start_utc"], utc=True).min()
+        end = pd.to_datetime(group["interval_end_utc"], utc=True).max()
+        out[day] = (int(start.timestamp()), int(end.timestamp()))
+    return out
+
+
 def day_ahead_average(df):
     """Mean day-ahead price per market day, as USD/MWh x 100 (integer)."""
     df = to_central_day(df)
+    bounds = day_bounds_from_df(df)
     expected = EXPECTED_ROWS[DAY_AHEAD["dataset"]]
     out, skipped = {}, []
     for day, group in df.groupby("market_day"):
@@ -277,9 +312,12 @@ def day_ahead_average(df):
             skipped.append((day, len(group)))
             continue
         mean_price = group[DAY_AHEAD["price_column"]].mean()
+        start_utc, end_utc = bounds[day]
         out[day] = {
             "value": int(round(mean_price * 100)),
             "hours_used": int(len(group)),
+            "start_utc": start_utc,
+            "end_utc": end_utc,
         }
     for day, n in skipped:
         print(f"  {day}  SKIPPED - {n}/{expected} hours (incomplete day)")
@@ -296,6 +334,7 @@ def basis_spread(df_west, df_north):
     """
     west = to_central_day(df_west)
     north = to_central_day(df_north)
+    bounds = day_bounds_from_df(df_north)
     expected = EXPECTED_ROWS[BASIS["dataset"]]
     col = BASIS["price_column"]
 
@@ -306,10 +345,13 @@ def basis_spread(df_west, df_north):
 
     out = {}
     for day in sorted(set(west_daily) & set(north_daily)):
+        start_utc, end_utc = bounds[day]
         out[day] = {
             "value": int(round((west_daily[day] - north_daily[day]) * 100)),
             "west": west_daily[day],
             "north": north_daily[day],
+            "start_utc": start_utc,
+            "end_utc": end_utc,
         }
     return out
 
@@ -368,6 +410,7 @@ def load_weighted_index(price_frames, df_load):
     expected = EXPECTED_ROWS[INDEX["price_dataset"]]
 
     load = normalise_load(df_load, zones)
+    bounds = day_bounds_from_df(df_load)
 
     # price lookup: {(day, hour_utc): {zone: price}}
     prices = defaultdict(dict)
@@ -409,11 +452,14 @@ def load_weighted_index(price_frames, df_load):
         if volume[day] <= 0:
             continue
         total = volume[day]
+        start_utc, end_utc = bounds[day]
         out[day] = {
             "value": int(round(cost[day] / total * 100)),
             "hours": hours[day],
             "weights": {z: round(mwh / total, 4)
                         for z, mwh in zone_mwh[day].items()},
+            "start_utc": start_utc,
+            "end_utc": end_utc,
         }
     for day, n in skipped:
         print(f"  {day}  SKIPPED - {n}/{expected} complete hours")
@@ -423,6 +469,7 @@ def load_weighted_index(price_frames, df_load):
 def negative_intervals(df):
     """Count 15-min intervals below zero per market day."""
     df = to_central_day(df)
+    bounds = day_bounds_from_df(df)
     expected = EXPECTED_ROWS[REAL_TIME["dataset"]]
     out, skipped = {}, []
     for day, group in df.groupby("market_day"):
@@ -430,9 +477,12 @@ def negative_intervals(df):
         if len(prices) != expected:
             skipped.append((day, len(prices)))
             continue
+        start_utc, end_utc = bounds[day]
         out[day] = {
             "value": int((prices < 0).sum()),
             "intervals_used": int(len(prices)),
+            "start_utc": start_utc,
+            "end_utc": end_utc,
         }
     for day, n in skipped:
         print(f"  {day}  SKIPPED - {n}/{expected} intervals (incomplete day)")
@@ -442,6 +492,7 @@ def negative_intervals(df):
 def fuel_shares(df):
     """Share of total generation by fuel per market day, as percent x 100."""
     df = to_central_day(df)
+    bounds = day_bounds_from_df(df)
     fuels = [c for c in df.columns
              if c not in ("interval_start_utc", "interval_end_utc", "market_day")
              and pd.api.types.is_numeric_dtype(df[c])]
@@ -456,9 +507,12 @@ def fuel_shares(df):
         grand = totals.sum()
         if grand <= 0:
             continue
+        start_utc, end_utc = bounds[day]
         out[day] = {
-            fuel.upper(): int(round(totals[fuel] / grand * 10000))
-            for fuel in fuels
+            "shares": {fuel.upper(): int(round(totals[fuel] / grand * 10000))
+                       for fuel in fuels},
+            "start_utc": start_utc,
+            "end_utc": end_utc,
         }
     return out
 
@@ -467,17 +521,31 @@ def fuel_shares(df):
 # WRITE
 # --------------------------------------------------------------------------
 
-def write_metric(metric_id, day, value, source_hash, source_files, extra=None):
+def write_metric(metric_id, day, value, source_hash, source_files,
+                  start_utc, end_utc, extra=None):
     """
     One JSON file per metric per day. This is exactly what publish.py will
     later hand to the oracle contract.
+
+    dayKey (YYYYMMDD int) is the identifier the oracle stores and markets
+    look up — it carries no timezone, so nothing about it can be
+    misinterpreted by converting it. marketDayStartUtc/marketDayEndUtc are
+    the true UTC instants bounding that Central market day, read off the
+    actual data (see day_bounds_from_df) rather than assumed as a fixed
+    86400-second span — a span that is wrong on both DST transition days.
+
+    There is deliberately no periodStart/periodEnd field, aliased or
+    otherwise. A field that looks like an instant but is actually a day
+    identifier is exactly the trap dayKey replaces; keeping the old names
+    around "for compatibility" would just give it a second way back in.
     """
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
-    start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
     record = {
         "metricId": metric_id,
-        "periodStart": int(start.timestamp()),
-        "periodEnd": int((start + timedelta(days=1)).timestamp()),
+        "dayKey": day_key(day),
+        "marketDay": str(day),
+        "marketDayStartUtc": start_utc,
+        "marketDayEndUtc": end_utc,
         "value": value,
         "sourceHash": source_hash,
         "sourceFiles": source_files,   # exact files, in hash order
@@ -520,7 +588,8 @@ def main():
         location=DAY_AHEAD["location"])
     for day, result in day_ahead_average(df_da).items():
         write_metric(DAY_AHEAD["metric_id"], day, result["value"],
-                     hash_da, files_da, {"hoursUsed": result["hours_used"]})
+                     hash_da, files_da, result["start_utc"], result["end_utc"],
+                     {"hoursUsed": result["hours_used"]})
         print(f"  {day}  ${result['value'] / 100:8.2f}/MWh"
               f"   ({result['hours_used']} hours)")
 
@@ -540,6 +609,7 @@ def main():
     for day, result in basis_spread(df_west, df_da).items():
         write_metric(BASIS["metric_id"], day, result["value"],
                      basis_hash, basis_files,
+                     result["start_utc"], result["end_utc"],
                      {"westAvg": round(result["west"], 2),
                       "northAvg": round(result["north"], 2)})
         print(f"  {day}  {result['value'] / 100:+8.2f}/MWh"
@@ -552,7 +622,7 @@ def main():
         location=REAL_TIME["location"])
     for day, result in negative_intervals(df_rt).items():
         write_metric(REAL_TIME["metric_id"], day, result["value"],
-                     hash_rt, files_rt,
+                     hash_rt, files_rt, result["start_utc"], result["end_utc"],
                      {"intervalsUsed": result["intervals_used"]})
         print(f"  {day}  {result['value']:3d} negative"
               f"   (of {result['intervals_used']} intervals)")
@@ -580,6 +650,7 @@ def main():
         for day, result in load_weighted_index(price_frames, df_load).items():
             write_metric(INDEX["metric_id"], day, result["value"],
                          index_hash, files,
+                         result["start_utc"], result["end_utc"],
                          {"hoursUsed": result["hours"],
                           "loadWeights": result["weights"]})
             w = result["weights"]
@@ -591,10 +662,12 @@ def main():
         print("\nFuel mix")
         df_fm, hash_fm, files_fm = fetch(
             client, FUEL_MIX["dataset"], start, end)
-        for day, shares in fuel_shares(df_fm).items():
+        for day, result in fuel_shares(df_fm).items():
+            shares = result["shares"]
             for fuel, share in shares.items():
                 write_metric(FUEL_MIX["metric_prefix"] + fuel, day, share,
-                             hash_fm, files_fm)
+                             hash_fm, files_fm,
+                             result["start_utc"], result["end_utc"])
             top = sorted(shares.items(), key=lambda kv: -kv[1])[:3]
             summary = "  ".join(f"{f} {v / 100:.1f}%" for f, v in top)
             print(f"  {day}  {summary}")

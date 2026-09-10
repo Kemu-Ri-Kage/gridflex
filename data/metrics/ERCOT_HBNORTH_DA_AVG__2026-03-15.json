@@ -1,7 +1,9 @@
 {
   "metricId": "ERCOT_HBNORTH_DA_AVG",
-  "periodStart": 1773532800,
-  "periodEnd": 1773619200,
+  "dayKey": 20260315,
+  "marketDay": "2026-03-15",
+  "marketDayStartUtc": 1773550800,
+  "marketDayEndUtc": 1773637200,
   "value": 1689,
   "sourceHash": "1b3ead66d0d30a6fdf6d479c4835c28ba5047c2ad6ebce37b1a2b88adbdd7c43",
   "sourceFiles": [
@@ -20,6 +22,6 @@
     "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-01__2026-09-10.json"
   ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-10T12:31:33.530800+00:00",
+  "computedAt": "2026-09-10T16:49:10.042789+00:00",
   "hoursUsed": 24
 }

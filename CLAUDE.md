@@ -51,10 +51,40 @@ code comments and it misrepresents the product.
 GridStatus.io hosted API, redistributing public ERCOT data. Direct ERCOT API
 access is geo-blocked from the UK, which is why we go through GridStatus.
 
-## Open question — not decided
+## Metric decision — settled
 
-`ERCOT_HBWEST_NEG_INTERVALS` (count of negative 15-min real-time intervals at
-HB_WEST) returns zero on most summer days, which makes a poor contract —
-little to no variance to bet on. Candidate alternative: a **HB_WEST /
-HB_NORTH basis spread** instead. Don't treat either as settled; flag this
-when it's relevant rather than assuming the current metric ships as-is.
+The MVP has **two contract metrics**: `ERCOT_HBNORTH_DA_AVG` and
+`ERCOT_WEST_NORTH_DA_BASIS`. These are the only two markets settle against.
+
+`ERCOT_LOAD_WEIGHTED_DA_INDEX` (the statewide load-weighted day-ahead price)
+and `ERCOT_HBWEST_NEG_INTERVALS` (negative real-time interval count) are
+**feed data only** — published, shown on the site, never settled against.
+`ERCOT_HBWEST_NEG_INTERVALS` sits at zero on ~61% of days, which is why it
+was rejected as a contract metric in the first place. A contract on the
+statewide index is the next listing after the hackathon — not in scope for
+the MVP, don't build toward it as if it were.
+
+`shared/metrics.md` is the full methodology reference for all four metrics
+and states clearly which two are contract vs feed. If a task touches metric
+definitions or settlement logic, check it against that document.
+
+## Metric file schema — no timestamps as identifiers
+
+Metric files use `dayKey` (uint32, `YYYYMMDD`, e.g. `20260908`) as the
+identifier the oracle stores and markets look up, plus `marketDay` (ISO
+date string) for humans and `marketDayStartUtc`/`marketDayEndUtc` (true UTC
+instants of Central midnight to Central midnight, computed from the actual
+interval data — 23h on the spring-forward day, 25h on the fall-back day).
+
+There is **no `periodStart`/`periodEnd`**, and never re-add them, even as
+aliases. The prior scheme stored midnight UTC of the Central date as
+`periodStart` — an instant that is *not* the same as Central midnight (for
+8 September it was 2026-09-07 19:00 Central), so anything that converted it
+back to Central got the wrong day. A field that looks like a timestamp but
+is actually a day identifier is exactly that trap; `dayKey` exists so there
+is nothing to misinterpret. See `tests/test_market_day.py` for the proof.
+
+Contracts cannot settle on the two DST changeover days each year — those
+days fail the completeness check (23 or 25 hourly rows, not 24) and are
+skipped entirely, by design. This is documented as a known limitation in
+`shared/metrics.md`, not a bug to fix.

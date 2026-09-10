@@ -1,7 +1,9 @@
 {
   "metricId": "ERCOT_WEST_NORTH_DA_BASIS",
-  "periodStart": 1761868800,
-  "periodEnd": 1761955200,
+  "dayKey": 20251031,
+  "marketDay": "2025-10-31",
+  "marketDayStartUtc": 1761886800,
+  "marketDayEndUtc": 1761973200,
   "value": 338,
   "sourceHash": "4261d4f5a665594c0285008125b7fef07ff6b48db7f714929fff26f3cbf5e9d3",
   "sourceFiles": [
@@ -33,7 +35,7 @@
     "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-01__2026-09-10.json"
   ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-10T12:31:33.601278+00:00",
+  "computedAt": "2026-09-10T16:49:10.263801+00:00",
   "westAvg": 31.74,
   "northAvg": 28.36
 }

@@ -27,31 +27,51 @@ On Windows PowerShell, set the key with:
 Each metric file is what `publish.py` will hand to the oracle contract:
 
     {
-      "metricId":    "ERCOT_HBNORTH_DA_AVG",
-      "periodStart": 1788739200,
-      "periodEnd":   1788825600,
-      "value":       3000,
-      "sourceHash":  "9f2b...",
-      "hashAlgorithm": "sha256"
+      "metricId":          "ERCOT_HBNORTH_DA_AVG",
+      "dayKey":             20260908,
+      "marketDay":          "2026-09-08",
+      "marketDayStartUtc":  1788843600,
+      "marketDayEndUtc":    1788930000,
+      "value":              3957,
+      "sourceHash":         "75999d01...",
+      "sourceFiles":        ["ercot_spp_day_ahead_hourly__HB_NORTH__..."],
+      "hashAlgorithm":      "sha256"
     }
 
+`dayKey` is the identifier the oracle stores and markets look up — a plain
+`YYYYMMDD` integer, not a timestamp, so there is no timezone conversion that
+can shift it by a day. `marketDayStartUtc`/`marketDayEndUtc` are the true
+UTC instants of Central midnight to Central midnight for that day, computed
+from the actual data. There is no `periodStart`/`periodEnd` field — see
+`shared/metrics.md` for why that scheme was replaced.
+
 ## Metrics
+
+**MVP contract metrics — the only two things markets settle against:**
 
 | metricId | Meaning | Unit |
 |---|---|---|
 | `ERCOT_HBNORTH_DA_AVG` | mean of 24 hourly day-ahead prices at HB_NORTH | USD/MWh x 100 |
 | `ERCOT_WEST_NORTH_DA_BASIS` | daily mean HB_WEST day-ahead minus mean HB_NORTH day-ahead | USD/MWh x 100 |
-| `ERCOT_LOAD_WEIGHTED_DA_INDEX` | statewide load-weighted day-ahead price (see below) | USD/MWh x 100 |
-| `ERCOT_HBWEST_NEG_INTERVALS` | 15-min real-time intervals below zero at HB_WEST (feed only, see below) | count, 0-96 |
-| `ERCOT_FUELMIX_<FUEL>` | share of daily generation by fuel (feed only) | percent x 100 |
+
+**Feed metrics — published, shown on the site, never settled against:**
+
+| metricId | Meaning | Unit |
+|---|---|---|
+| `ERCOT_LOAD_WEIGHTED_DA_INDEX` | statewide load-weighted day-ahead price (see below). A contract on this is the next listing after the hackathon, not part of the MVP. | USD/MWh x 100 |
+| `ERCOT_HBWEST_NEG_INTERVALS` | 15-min real-time intervals below zero at HB_WEST. Rejected as a contract metric — see "Metric decision" below. | count, 0-96 |
+| `ERCOT_FUELMIX_<FUEL>` | share of daily generation by fuel | percent x 100 |
 
 A "day" is a Central Prevailing Time calendar day, because that is how ERCOT
-defines a market day. Timestamps are stored as UTC unix seconds.
+defines a market day. `dayKey` encodes it directly; `marketDayStartUtc`/
+`marketDayEndUtc` are UTC unix seconds.
 
 Queries pass `timezone="US/Central"` so that start/end mean Central midnights.
 Without this, a UTC-day query straddles two market days and produces averages
 over partial days. Any day that does not have its full row count (24 hourly,
-96 quarter-hourly, 288 five-minute) is skipped and reported, never written.
+96 quarter-hourly, 288 five-minute) is skipped and reported, never written —
+which permanently excludes the two DST transition days each year from both
+contract metrics. See `shared/metrics.md` for the full writeup.
 
 ## Verification
 
@@ -103,7 +123,7 @@ Change the `DAY_AHEAD` and `REAL_TIME` blocks at the top of `fetch_ercot.py`.
 GridStatus carries PJM, CAISO, MISO, NYISO, ISONE and SPP through the same
 client, so a new zone is a dataset id, a location, and a metricId prefix.
 
-## Metric decision, 10 September
+## Metric decision, 10 September — settled
 
 A year of data settled the open question. `ERCOT_HBWEST_NEG_INTERVALS` sits at
 exactly zero on ~61% of days, so every candidate threshold collapses to the
@@ -115,9 +135,19 @@ day-ahead spread. It measures the same West Texas congestion, splits close to
 50/50 at a sensible threshold, and moves meaningfully day to day. Congestion
 rights trade on exactly this spread in the real market.
 
+**The MVP ships with exactly these two contract metrics** —
+`ERCOT_HBNORTH_DA_AVG` and `ERCOT_WEST_NORTH_DA_BASIS` — and nothing else
+settles against. `ERCOT_LOAD_WEIGHTED_DA_INDEX` (added after this decision;
+see below) is feed data for the hackathon build. A contract on the
+statewide index is the next listing after the hackathon.
+
 Run `python analyse_metrics.py` to reproduce the comparison.
 
 ## The statewide index
+
+**Feed metric, not a contract in the MVP.** `ERCOT_LOAD_WEIGHTED_DA_INDEX`
+is published and shown on the site; it doesn't settle anything yet. A
+contract on it is the next listing after the hackathon.
 
 `ERCOT_LOAD_WEIGHTED_DA_INDEX` answers "what did Texas actually pay for power
 today". Total cost divided by total volume:

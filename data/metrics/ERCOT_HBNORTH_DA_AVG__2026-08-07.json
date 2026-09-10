@@ -1,25 +1,18 @@
 {
   "metricId": "ERCOT_HBNORTH_DA_AVG",
-  "periodStart": 1786060800,
-  "periodEnd": 1786147200,
+  "dayKey": 20260807,
+  "marketDay": "2026-08-07",
+  "marketDayStartUtc": 1786078800,
+  "marketDayEndUtc": 1786165200,
   "value": 2722,
-  "sourceHash": "1b3ead66d0d30a6fdf6d479c4835c28ba5047c2ad6ebce37b1a2b88adbdd7c43",
+  "sourceHash": "75999d0173983de904ad23e09e4b2de1536fa0929e23ae4700359d53593913c4",
   "sourceFiles": [
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2025-09-10__2025-10-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2025-10-01__2025-11-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2025-11-01__2025-12-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2025-12-01__2026-01-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-01-01__2026-02-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-02-01__2026-03-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-03-01__2026-04-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-04-01__2026-05-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-05-01__2026-06-01.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-06-01__2026-07-01.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-06-12__2026-07-01.json",
     "ercot_spp_day_ahead_hourly__HB_NORTH__2026-07-01__2026-08-01.json",
     "ercot_spp_day_ahead_hourly__HB_NORTH__2026-08-01__2026-09-01.json",
     "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-01__2026-09-10.json"
   ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-10T12:31:33.541531+00:00",
+  "computedAt": "2026-09-10T16:49:17.974324+00:00",
   "hoursUsed": 24
 }

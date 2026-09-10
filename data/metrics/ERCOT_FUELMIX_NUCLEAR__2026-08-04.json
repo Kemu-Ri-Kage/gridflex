@@ -1,10 +1,17 @@
 {
   "metricId": "ERCOT_FUELMIX_NUCLEAR",
-  "periodStart": 1785801600,
-  "periodEnd": 1785888000,
+  "dayKey": 20260804,
+  "marketDay": "2026-08-04",
+  "marketDayStartUtc": 1785819600,
+  "marketDayEndUtc": 1785905400,
   "value": 681,
   "sourceHash": "071ffb035cb77b52424fab5ecbc2ea96193bf678d13ec87e8d6de0d23e652b41",
-  "sourceFile": "4 chunk(s): ercot_fuel_mix__all__2026-06-12__2026-07-01.json .. ercot_fuel_mix__all__2026-09-01__2026-09-10.json",
+  "sourceFiles": [
+    "ercot_fuel_mix__all__2026-06-12__2026-07-01.json",
+    "ercot_fuel_mix__all__2026-07-01__2026-08-01.json",
+    "ercot_fuel_mix__all__2026-08-01__2026-09-01.json",
+    "ercot_fuel_mix__all__2026-09-01__2026-09-10.json"
+  ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-10T11:56:48.587120+00:00"
+  "computedAt": "2026-09-10T16:49:28.054683+00:00"
 }

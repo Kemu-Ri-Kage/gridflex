@@ -1,10 +1,17 @@
 {
   "metricId": "ERCOT_FUELMIX_NATURAL_GAS",
-  "periodStart": 1785024000,
-  "periodEnd": 1785110400,
+  "dayKey": 20260726,
+  "marketDay": "2026-07-26",
+  "marketDayStartUtc": 1785042000,
+  "marketDayEndUtc": 1785128100,
   "value": 3799,
   "sourceHash": "071ffb035cb77b52424fab5ecbc2ea96193bf678d13ec87e8d6de0d23e652b41",
-  "sourceFile": "4 chunk(s): ercot_fuel_mix__all__2026-06-12__2026-07-01.json .. ercot_fuel_mix__all__2026-09-01__2026-09-10.json",
+  "sourceFiles": [
+    "ercot_fuel_mix__all__2026-06-12__2026-07-01.json",
+    "ercot_fuel_mix__all__2026-07-01__2026-08-01.json",
+    "ercot_fuel_mix__all__2026-08-01__2026-09-01.json",
+    "ercot_fuel_mix__all__2026-09-01__2026-09-10.json"
+  ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-10T11:56:48.582822+00:00"
+  "computedAt": "2026-09-10T16:49:28.046012+00:00"
 }

@@ -1,7 +1,9 @@
 {
   "metricId": "ERCOT_LOAD_WEIGHTED_DA_INDEX",
-  "periodStart": 1759363200,
-  "periodEnd": 1759449600,
+  "dayKey": 20251002,
+  "marketDay": "2025-10-02",
+  "marketDayStartUtc": 1759381200,
+  "marketDayEndUtc": 1759467600,
   "value": 3742,
   "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
   "sourceFiles": [
@@ -72,7 +74,7 @@
     "ercot_load_by_forecast_zone__all__2026-09-01__2026-09-10.json"
   ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-10T12:31:34.398429+00:00",
+  "computedAt": "2026-09-10T16:49:11.413828+00:00",
   "hoursUsed": 24,
   "loadWeights": {
     "north": 0.3215,

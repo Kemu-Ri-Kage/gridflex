@@ -34,6 +34,7 @@ import hashlib
 import json
 import os
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -77,12 +78,50 @@ FUEL_MIX = {
     "metric_prefix": "ERCOT_FUELMIX_",
 }
 
+# ---- Load-weighted statewide index --------------------------------------
+#
+# What did Texas actually pay for electricity today?
+#
+# You cannot answer that by averaging the four zone prices equally: a zone
+# that consumes 4 GW would count the same as one consuming 20 GW. The honest
+# construction is total cost divided by total volume:
+#
+#     index = SUM over hours,zones ( price[h,z] * load[h,z] )
+#             ---------------------------------------------
+#             SUM over hours,zones ( load[h,z] )
+#
+# That weights by consumption in space AND time automatically — a 3pm hour
+# with 70 GW flowing counts more than a 4am hour with 40 GW, which is correct,
+# because more money changed hands. Weights are never hardcoded: they come
+# from ERCOT's published hourly load, so they follow real shifts in demand
+# (Houston's summer afternoon peak, West Texas's data-centre growth) without
+# anyone maintaining a table.
+#
+# Prices come from LOAD ZONES (LZ_*), not trading hubs (HB_*). Load zones are
+# where consumption is metered and where load actually settles, so they are
+# the prices the weights belong to.
+
+INDEX = {
+    "price_dataset": "ercot_spp_day_ahead_hourly",
+    "load_dataset": "ercot_load_by_forecast_zone",
+    "price_column": "spp",
+    "metric_id": "ERCOT_LOAD_WEIGHTED_DA_INDEX",
+    # settlement point name -> the zone name used in the load data
+    "zones": {
+        "LZ_NORTH":   "north",
+        "LZ_SOUTH":   "south",
+        "LZ_WEST":    "west",
+        "LZ_HOUSTON": "houston",
+    },
+}
+
 # Rows expected in one complete market day. Partial days are skipped so a
 # half-day never gets written as if it were a full one.
 EXPECTED_ROWS = {
-    "ercot_spp_day_ahead_hourly": 24,    # hourly
-    "ercot_spp_real_time_15_min": 96,    # 15-minute
-    "ercot_fuel_mix": 288,               # 5-minute
+    "ercot_spp_day_ahead_hourly": 24,      # hourly
+    "ercot_spp_real_time_15_min": 96,      # 15-minute
+    "ercot_fuel_mix": 288,                 # 5-minute
+    "ercot_load_by_forecast_zone": 24,     # hourly
 }
 
 # Contract metrics demand a complete day: a settlement number computed from a
@@ -202,8 +241,11 @@ def fetch(client, dataset, start, end, location=None, tag=""):
     for path in paths:
         digest.update(path.read_bytes())
 
-    label = f"{len(paths)} chunk(s): {paths[0].name} .. {paths[-1].name}"
-    return combined, digest.hexdigest(), label
+    # Return every filename, in hash order. A truncated label is useless for
+    # verification: data/raw/ accumulates overlapping chunks from runs with
+    # different --days values, so "glob everything for this dataset" gives the
+    # wrong set. The exact ordered list is the only thing that reproduces.
+    return combined, digest.hexdigest(), [p.name for p in paths]
 
 
 # --------------------------------------------------------------------------
@@ -272,6 +314,112 @@ def basis_spread(df_west, df_north):
     return out
 
 
+def normalise_load(df, zones):
+    """
+    Return load as {(market_day, hour_utc): {zone: MW}}.
+
+    GridStatus may hand this back wide (one column per zone) or long (a zone
+    column plus a value column), so detect rather than assume — a silent shape
+    change here would corrupt every weight.
+    """
+    df = to_central_day(df)
+    ts = pd.to_datetime(df["interval_start_utc"], utc=True)
+
+    lower = {c.lower(): c for c in df.columns}
+    wide_cols = {z: lower[z] for z in zones.values() if z in lower}
+
+    out = defaultdict(dict)
+
+    if len(wide_cols) == len(zones):                       # wide format
+        for i, key in enumerate(zip(df["market_day"], ts)):
+            for zone, col in wide_cols.items():
+                value = df[col].iloc[i]
+                if pd.notna(value):
+                    out[key][zone] = float(value)
+        return out
+
+    zone_col = next((lower[c] for c in ("zone", "location", "forecast_zone")
+                     if c in lower), None)
+    value_col = next((lower[c] for c in ("load", "value", "mw", "demand")
+                      if c in lower), None)
+    if not zone_col or not value_col:
+        raise SystemExit(
+            "Cannot read the load data: expected one column per zone, or a "
+            f"zone column plus a value column. Got: {list(df.columns)}"
+        )
+
+    for i, key in enumerate(zip(df["market_day"], ts)):    # long format
+        zone = str(df[zone_col].iloc[i]).strip().lower()
+        if zone in set(zones.values()):
+            out[key][zone] = float(df[value_col].iloc[i])
+    return out
+
+
+def load_weighted_index(price_frames, df_load):
+    """
+    Total cost / total volume, per market day.
+
+    price_frames: {settlement_point: DataFrame}
+    Returns {day: {"value": int (USD/MWh x100), "hours": int,
+                   "weights": {zone: share}}}
+    """
+    zones = INDEX["zones"]
+    col = INDEX["price_column"]
+    expected = EXPECTED_ROWS[INDEX["price_dataset"]]
+
+    load = normalise_load(df_load, zones)
+
+    # price lookup: {(day, hour_utc): {zone: price}}
+    prices = defaultdict(dict)
+    for point, df in price_frames.items():
+        zone = zones[point]
+        df = to_central_day(df)
+        ts = pd.to_datetime(df["interval_start_utc"], utc=True)
+        for i, key in enumerate(zip(df["market_day"], ts)):
+            prices[key][zone] = float(df[col].iloc[i])
+
+    cost, volume, hours = defaultdict(float), defaultdict(float), defaultdict(int)
+    zone_mwh = defaultdict(lambda: defaultdict(float))
+
+    for key, zone_prices in prices.items():
+        zone_load = load.get(key)
+        if not zone_load:
+            continue
+        # Every zone must be present on both sides for this hour to count.
+        # A missing zone would silently drop its consumption from the
+        # denominator and bias the index toward whoever is left.
+        if set(zone_prices) != set(zones.values()):
+            continue
+        if set(zone_load) != set(zones.values()):
+            continue
+
+        day = key[0]
+        hours[day] += 1
+        for zone, price in zone_prices.items():
+            mwh = zone_load[zone]          # 1 hour of MW = MWh
+            cost[day] += price * mwh
+            volume[day] += mwh
+            zone_mwh[day][zone] += mwh
+
+    out, skipped = {}, []
+    for day in sorted(cost):
+        if hours[day] != expected:
+            skipped.append((day, hours[day]))
+            continue
+        if volume[day] <= 0:
+            continue
+        total = volume[day]
+        out[day] = {
+            "value": int(round(cost[day] / total * 100)),
+            "hours": hours[day],
+            "weights": {z: round(mwh / total, 4)
+                        for z, mwh in zone_mwh[day].items()},
+        }
+    for day, n in skipped:
+        print(f"  {day}  SKIPPED - {n}/{expected} complete hours")
+    return out
+
+
 def negative_intervals(df):
     """Count 15-min intervals below zero per market day."""
     df = to_central_day(df)
@@ -319,7 +467,7 @@ def fuel_shares(df):
 # WRITE
 # --------------------------------------------------------------------------
 
-def write_metric(metric_id, day, value, source_hash, source_file, extra=None):
+def write_metric(metric_id, day, value, source_hash, source_files, extra=None):
     """
     One JSON file per metric per day. This is exactly what publish.py will
     later hand to the oracle contract.
@@ -332,7 +480,7 @@ def write_metric(metric_id, day, value, source_hash, source_file, extra=None):
         "periodEnd": int((start + timedelta(days=1)).timestamp()),
         "value": value,
         "sourceHash": source_hash,
-        "sourceFile": source_file,
+        "sourceFiles": source_files,   # exact files, in hash order
         "hashAlgorithm": "sha256",
         "computedAt": datetime.now(timezone.utc).isoformat(),
     }
@@ -353,6 +501,9 @@ def main():
                         help="how many days back from yesterday (default 1)")
     parser.add_argument("--skip-fuelmix", action="store_true",
                         help="skip the fuel mix feed to save row budget")
+    parser.add_argument("--skip-index", action="store_true",
+                        help="skip the load-weighted statewide index "
+                             "(5 extra queries per month chunk)")
     args = parser.parse_args()
 
     end_date = datetime.now(timezone.utc).date()
@@ -364,21 +515,31 @@ def main():
 
     # ---- day-ahead price ------------------------------------------------
     print("Day-ahead prices, HB_NORTH")
-    df_da, hash_da, file_da = fetch(
+    df_da, hash_da, files_da = fetch(
         client, DAY_AHEAD["dataset"], start, end,
         location=DAY_AHEAD["location"])
     for day, result in day_ahead_average(df_da).items():
         write_metric(DAY_AHEAD["metric_id"], day, result["value"],
-                     hash_da, file_da, {"hoursUsed": result["hours_used"]})
+                     hash_da, files_da, {"hoursUsed": result["hours_used"]})
         print(f"  {day}  ${result['value'] / 100:8.2f}/MWh"
               f"   ({result['hours_used']} hours)")
 
-    # ---- west-north basis spread (candidate metric) ----------------------
+    # ---- west-north basis spread ------------------------------------------
     print("\nWest-North day-ahead basis")
-    df_west, hash_w, file_w = fetch(
+    df_west, hash_w, files_w = fetch(
         client, BASIS["dataset"], start, end, location=BASIS["location"])
+
+    # The basis is West MINUS North, so its source hash has to cover both
+    # legs. Hashing only West would let someone verify half the inputs to a
+    # number and believe they had verified all of it — worse than publishing
+    # no hash at all. Same combining rule as the index: hash the leg hashes
+    # in a fixed order.
+    basis_hash = hashlib.sha256((hash_w + hash_da).encode()).hexdigest()
+    basis_files = files_w + files_da
+
     for day, result in basis_spread(df_west, df_da).items():
-        write_metric(BASIS["metric_id"], day, result["value"], hash_w, file_w,
+        write_metric(BASIS["metric_id"], day, result["value"],
+                     basis_hash, basis_files,
                      {"westAvg": round(result["west"], 2),
                       "northAvg": round(result["north"], 2)})
         print(f"  {day}  {result['value'] / 100:+8.2f}/MWh"
@@ -386,25 +547,54 @@ def main():
 
     # ---- real-time negative intervals -----------------------------------
     print("\nReal-time negative intervals, HB_WEST")
-    df_rt, hash_rt, file_rt = fetch(
+    df_rt, hash_rt, files_rt = fetch(
         client, REAL_TIME["dataset"], start, end,
         location=REAL_TIME["location"])
     for day, result in negative_intervals(df_rt).items():
         write_metric(REAL_TIME["metric_id"], day, result["value"],
-                     hash_rt, file_rt,
+                     hash_rt, files_rt,
                      {"intervalsUsed": result["intervals_used"]})
         print(f"  {day}  {result['value']:3d} negative"
               f"   (of {result['intervals_used']} intervals)")
 
+    # ---- load-weighted statewide index -----------------------------------
+    if not args.skip_index:
+        print("\nLoad-weighted ERCOT index (4 load zones, hourly weights)")
+        price_frames, hashes, files = {}, [], []
+        for point in INDEX["zones"]:
+            df_z, h_z, f_z = fetch(
+                client, INDEX["price_dataset"], start, end, location=point)
+            price_frames[point] = df_z
+            hashes.append(h_z)
+            files.extend(f_z)
+
+        df_load, h_load, f_load = fetch(
+            client, INDEX["load_dataset"], start, end)
+        hashes.append(h_load)
+        files.extend(f_load)
+
+        # One hash covering every input the index depends on, in a fixed
+        # order, so the whole calculation is reproducible from the raw cache.
+        index_hash = hashlib.sha256("".join(hashes).encode()).hexdigest()
+
+        for day, result in load_weighted_index(price_frames, df_load).items():
+            write_metric(INDEX["metric_id"], day, result["value"],
+                         index_hash, files,
+                         {"hoursUsed": result["hours"],
+                          "loadWeights": result["weights"]})
+            w = result["weights"]
+            print(f"  {day}  ${result['value'] / 100:8.2f}/MWh   "
+                  + "  ".join(f"{z[:3].upper()} {s:.0%}" for z, s in sorted(w.items())))
+
     # ---- fuel mix (feed only) -------------------------------------------
     if not args.skip_fuelmix:
         print("\nFuel mix")
-        df_fm, hash_fm, file_fm = fetch(
+        df_fm, hash_fm, files_fm = fetch(
             client, FUEL_MIX["dataset"], start, end)
         for day, shares in fuel_shares(df_fm).items():
             for fuel, share in shares.items():
                 write_metric(FUEL_MIX["metric_prefix"] + fuel, day, share,
-                             hash_fm, file_fm)
+                             hash_fm, files_fm)
             top = sorted(shares.items(), key=lambda kv: -kv[1])[:3]
             summary = "  ".join(f"{f} {v / 100:.1f}%" for f, v in top)
             print(f"  {day}  {summary}")

@@ -3,9 +3,23 @@
   "periodStart": 1786838400,
   "periodEnd": 1786924800,
   "value": 0,
-  "sourceHash": "577ffee319549004434368ce39ae62b9a91a1e6c0d4606caac333d9e16807980",
-  "sourceFile": "4 chunk(s): ercot_spp_real_time_15_min__HB_WEST__2026-06-12__2026-07-01.json .. ercot_spp_real_time_15_min__HB_WEST__2026-09-01__2026-09-10.json",
+  "sourceHash": "6ceb0f4f1f5046c9d3cbb3fad2eee43ba1a7a0906d4ee1386e7caea7013f7eb4",
+  "sourceFiles": [
+    "ercot_spp_real_time_15_min__HB_WEST__2025-09-10__2025-10-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2025-10-01__2025-11-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2025-11-01__2025-12-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2025-12-01__2026-01-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-01-01__2026-02-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-02-01__2026-03-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-03-01__2026-04-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-04-01__2026-05-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-05-01__2026-06-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-06-01__2026-07-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-07-01__2026-08-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-08-01__2026-09-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-09-01__2026-09-10.json"
+  ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-10T11:56:39.030172+00:00",
+  "computedAt": "2026-09-10T12:31:33.748264+00:00",
   "intervalsUsed": 96
 }

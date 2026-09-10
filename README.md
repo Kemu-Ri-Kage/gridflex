@@ -41,6 +41,7 @@ Each metric file is what `publish.py` will hand to the oracle contract:
 |---|---|---|
 | `ERCOT_HBNORTH_DA_AVG` | mean of 24 hourly day-ahead prices at HB_NORTH | USD/MWh x 100 |
 | `ERCOT_WEST_NORTH_DA_BASIS` | daily mean HB_WEST day-ahead minus mean HB_NORTH day-ahead | USD/MWh x 100 |
+| `ERCOT_LOAD_WEIGHTED_DA_INDEX` | statewide load-weighted day-ahead price (see below) | USD/MWh x 100 |
 | `ERCOT_HBWEST_NEG_INTERVALS` | 15-min real-time intervals below zero at HB_WEST (feed only, see below) | count, 0-96 |
 | `ERCOT_FUELMIX_<FUEL>` | share of daily generation by fuel (feed only) | percent x 100 |
 
@@ -55,10 +56,22 @@ over partial days. Any day that does not have its full row count (24 hourly,
 ## Verification
 
 Fetches are chunked by calendar month, so a long range produces several files
-in `data/raw/`. `sourceHash` is the SHA-256 of those chunk files concatenated
-in date order:
+in `data/raw/`. Every metric record lists the exact files it depends on, in
+hash order, under `sourceFiles`. `sourceHash` is the SHA-256 of those files
+concatenated in that order:
 
-    cat data/raw/<dataset>__<location>__*.json | shasum -a 256
+    cd data/raw && cat <the sourceFiles list, in order> | shasum -a 256
+
+Use the listed files, not a glob. `data/raw/` accumulates overlapping chunks
+from runs with different `--days` values, so `<dataset>__<location>__*.json`
+matches more files than the metric actually used.
+
+**Derived metrics hash every leg.** `ERCOT_WEST_NORTH_DA_BASIS` is West minus
+North, so its hash covers both legs: `sha256(hash_west + hash_north)`.
+`ERCOT_LOAD_WEIGHTED_DA_INDEX` covers all four zone price series plus the load
+series, in fixed order. Hashing only some inputs to a number would let someone
+verify half of it and believe they had verified all of it — worse than
+publishing no hash at all.
 
 Month chunking exists for three reasons: a year of 15-minute prices in one
 response trips a brotli decode bug in the HTTP stack (reproduced, not a
@@ -103,3 +116,54 @@ day-ahead spread. It measures the same West Texas congestion, splits close to
 rights trade on exactly this spread in the real market.
 
 Run `python analyse_metrics.py` to reproduce the comparison.
+
+## The statewide index
+
+`ERCOT_LOAD_WEIGHTED_DA_INDEX` answers "what did Texas actually pay for power
+today". Total cost divided by total volume:
+
+    index = SUM over hours,zones ( price[h,z] * load[h,z] )
+            ---------------------------------------------
+            SUM over hours,zones ( load[h,z] )
+
+Four load zones — LZ_NORTH, LZ_SOUTH, LZ_WEST, LZ_HOUSTON — priced from
+`ercot_spp_day_ahead_hourly`, weighted by actual hourly consumption from
+`ercot_load_by_forecast_zone`.
+
+Three choices worth defending:
+
+**Weights are never hardcoded.** They come from ERCOT's published hourly load,
+so they track real shifts in demand — Houston's summer afternoon peak, West
+Texas's data-centre growth — with nobody maintaining a table. Each stored
+reading carries that day's realised `loadWeights` so the calculation can be
+checked after the fact.
+
+**Load zones, not trading hubs.** Hubs (HB_*) are pricing reference points;
+load zones (LZ_*) are where consumption is metered and where load settles. If
+you are weighting by consumption, those are the prices the weights belong to.
+
+**Cost over volume, not an average of hourly averages.** Summing cost and
+volume across the whole day weights peak hours more heavily, which is correct:
+more megawatt-hours changed hands at 3pm than at 4am.
+
+An hour is only counted if all four zones have both a price and a load figure.
+A missing zone is dropped rather than reweighted across the rest, because
+silently reweighting biases the index toward whoever is left.
+
+### Resolution floor
+
+There is no 1-minute Texas power price, and this is not a data limitation.
+ERCOT's dispatch engine clears roughly every 5 minutes and settles on 15-minute
+intervals, so prices are constructed at those intervals and no finer.
+
+| Series | Finest resolution |
+|---|---|
+| SCED locational prices | 5 minutes |
+| Real-time settlement prices | 15 minutes |
+| Day-ahead prices | 1 hour |
+| Load by zone | 1 hour |
+| Fuel mix | 5 minutes |
+
+Interpolating to a finer grid is fine for a chart and never acceptable for
+settlement: settling on an interpolated price means settling on a number ERCOT
+never published, which destroys the verification argument.

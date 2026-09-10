@@ -3,10 +3,10 @@
   "periodStart": 1787443200,
   "periodEnd": 1787529600,
   "value": 85,
-  "sourceHash": "7290d2793104781c5b3a89322747c4200e2f2d2b56f891efe5f91d4f40519296",
-  "sourceFile": "13 chunk(s): ercot_spp_day_ahead_hourly__HB_WEST__2025-09-10__2025-10-01.json .. ercot_spp_day_ahead_hourly__HB_WEST__2026-09-01__2026-09-10.json",
+  "sourceHash": "dd903acd50a98a66243ef45edd09359e7c6b17a85c50ba81de71aae4f01375af",
+  "sourceFile": "4 chunk(s): ercot_spp_day_ahead_hourly__HB_WEST__2026-06-12__2026-07-01.json .. ercot_spp_day_ahead_hourly__HB_WEST__2026-09-01__2026-09-10.json",
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-10T11:52:47.404457+00:00",
+  "computedAt": "2026-09-10T11:56:37.209769+00:00",
   "westAvg": 33.85,
   "northAvg": 33.0
 }

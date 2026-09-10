@@ -60,6 +60,18 @@ REAL_TIME = {
     "metric_id": "ERCOT_HBWEST_NEG_INTERVALS",
 }
 
+# Candidate replacement for the negative-interval metric. The day-ahead price
+# at HB_WEST minus the day-ahead price at HB_NORTH is the west-to-north basis:
+# it measures the same West Texas congestion that drives negative prices, but
+# it moves every single day instead of sitting at zero all summer. Congestion
+# rights are traded on exactly this spread in the real market.
+BASIS = {
+    "dataset": "ercot_spp_day_ahead_hourly",
+    "location": "HB_WEST",
+    "price_column": "spp",
+    "metric_id": "ERCOT_WEST_NORTH_DA_BASIS",
+}
+
 FUEL_MIX = {
     "dataset": "ercot_fuel_mix",
     "metric_prefix": "ERCOT_FUELMIX_",
@@ -72,6 +84,12 @@ EXPECTED_ROWS = {
     "ercot_spp_real_time_15_min": 96,    # 15-minute
     "ercot_fuel_mix": 288,               # 5-minute
 }
+
+# Contract metrics demand a complete day: a settlement number computed from a
+# partial day is a wrong number, and someone gets paid on it. The fuel mix is
+# display only and its values are ratios, so one missing 5-minute reading out
+# of 288 is immaterial. Different jobs, different tolerances.
+FUELMIX_MIN_COVERAGE = 0.95
 
 RAW_DIR = Path("data/raw")
 METRICS_DIR = Path("data/metrics")
@@ -94,45 +112,98 @@ def get_client() -> GridStatusClient:
             "then run:  export $(cat .env | xargs)   (mac/linux)\n"
             "or set it in your shell on Windows."
         )
-    return GridStatusClient(api_key=key)
+    client = GridStatusClient(api_key=key)
+
+    # Belt and braces on top of month chunking: ask the server not to send
+    # brotli-compressed responses at all. The decode bug we hit lives in the
+    # brotli path, and gzip is plenty fast for this volume.
+    try:
+        client.session.headers["Accept-Encoding"] = "gzip, deflate"
+    except AttributeError:
+        pass          # client internals changed; chunking still protects us
+
+    return client
 
 
-def fetch(client, dataset, start, end, location=None, tag=""):
+def month_chunks(start, end):
     """
-    Pull one dataset for one date range, cache the raw result to disk, and
-    return it as a DataFrame.
+    Split a date range into calendar-month pieces.
 
-    Caching matters: you will run this many times while debugging, and every
-    re-fetch spends rows from the free allowance. If the cache file already
-    exists we read it instead of hitting the API.
+    Three reasons this matters. A year of 15-minute prices in one response is
+    large enough to trip a brotli decode bug in the HTTP stack (we hit it, it
+    reproduces). Smaller responses stay well clear of it. A failure halfway
+    through costs one month rather than the whole pull. And each chunk caches
+    separately, so re-running only fetches what is missing.
     """
+    s = pd.Timestamp(start)
+    e = pd.Timestamp(end)
+    out = []
+    while s < e:
+        nxt = min((s + pd.offsets.MonthBegin(1)).normalize(), e)
+        if nxt <= s:                      # same month, go straight to the end
+            nxt = e
+        out.append((s.strftime("%Y-%m-%d"), nxt.strftime("%Y-%m-%d")))
+        s = nxt
+    return out
+
+
+def fetch_chunk(client, dataset, start, end, location=None):
+    """Fetch one chunk, cache the raw bytes, return (DataFrame, path)."""
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     slug = f"{dataset}__{location or 'all'}__{start}__{end}"
     cache_path = RAW_DIR / f"{slug}.json"
 
     if cache_path.exists():
-        print(f"  cached  {slug}")
-        raw_bytes = cache_path.read_bytes()
-        df = pd.read_json(cache_path.open(), orient="records")
-    else:
-        print(f"  fetching {slug} ...")
-        # timezone=CENTRAL makes start/end mean Central-time midnights, so a
-        # "day" of data is a real ERCOT market day rather than a UTC day that
-        # straddles two of them.
-        kwargs = dict(dataset=dataset, start=start, end=end,
-                      limit=None, timezone=CENTRAL)
-        if location:
-            kwargs.update(filter_column="location", filter_value=location)
-        df = client.get_dataset(**kwargs)
-        time.sleep(RATE_LIMIT_SLEEP)
+        print(f"    cached   {start} -> {end}")
+        return pd.read_json(cache_path.open(), orient="records"), cache_path
 
-        # Write the raw result exactly as received, then hash those bytes.
-        raw_text = df.to_json(orient="records", date_format="iso")
-        cache_path.write_text(raw_text)
-        raw_bytes = raw_text.encode()
+    print(f"    fetching {start} -> {end} ...")
+    # timezone=CENTRAL makes start/end mean Central-time midnights, so a "day"
+    # of data is a real ERCOT market day rather than a UTC day that straddles
+    # two of them.
+    kwargs = dict(dataset=dataset, start=start, end=end,
+                  limit=None, timezone=CENTRAL)
+    if location:
+        kwargs.update(filter_column="location", filter_value=location)
 
-    source_hash = hashlib.sha256(raw_bytes).hexdigest()
-    return df, source_hash, str(cache_path)
+    df = client.get_dataset(**kwargs)
+    time.sleep(RATE_LIMIT_SLEEP)
+
+    cache_path.write_text(df.to_json(orient="records", date_format="iso"))
+    return df, cache_path
+
+
+def fetch(client, dataset, start, end, location=None, tag=""):
+    """
+    Pull one dataset for a date range, month by month, and return it as a
+    single DataFrame along with a source hash and the list of cache files.
+
+    The source hash covers the concatenated raw bytes of every chunk, in date
+    order. Anyone can reproduce it:
+
+        cat data/raw/<dataset>__<loc>__*.json | shasum -a 256
+
+    Caching matters: you will run this many times while debugging, and every
+    re-fetch spends rows from the free monthly allowance.
+    """
+    frames, paths = [], []
+    for chunk_start, chunk_end in month_chunks(start, end):
+        df, path = fetch_chunk(client, dataset, chunk_start, chunk_end, location)
+        if len(df):
+            frames.append(df)
+        paths.append(path)
+
+    if not frames:
+        raise SystemExit(f"No data returned for {dataset} between {start} and {end}.")
+
+    combined = pd.concat(frames, ignore_index=True)
+
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(path.read_bytes())
+
+    label = f"{len(paths)} chunk(s): {paths[0].name} .. {paths[-1].name}"
+    return combined, digest.hexdigest(), label
 
 
 # --------------------------------------------------------------------------
@@ -173,6 +244,34 @@ def day_ahead_average(df):
     return out
 
 
+def basis_spread(df_west, df_north):
+    """
+    Daily mean(HB_WEST day-ahead) - mean(HB_NORTH day-ahead), USD/MWh x 100.
+
+    Negative basis means West Texas is cheaper than North: too much wind and
+    solar for the lines out of the region. The more negative, the worse the
+    congestion. Positive basis means the flow has reversed.
+    """
+    west = to_central_day(df_west)
+    north = to_central_day(df_north)
+    expected = EXPECTED_ROWS[BASIS["dataset"]]
+    col = BASIS["price_column"]
+
+    west_daily = {d: g[col].mean() for d, g in west.groupby("market_day")
+                  if len(g) == expected}
+    north_daily = {d: g[col].mean() for d, g in north.groupby("market_day")
+                   if len(g) == expected}
+
+    out = {}
+    for day in sorted(set(west_daily) & set(north_daily)):
+        out[day] = {
+            "value": int(round((west_daily[day] - north_daily[day]) * 100)),
+            "west": west_daily[day],
+            "north": north_daily[day],
+        }
+    return out
+
+
 def negative_intervals(df):
     """Count 15-min intervals below zero per market day."""
     df = to_central_day(df)
@@ -199,9 +298,11 @@ def fuel_shares(df):
              if c not in ("interval_start_utc", "interval_end_utc", "market_day")
              and pd.api.types.is_numeric_dtype(df[c])]
     expected = EXPECTED_ROWS[FUEL_MIX["dataset"]]
+    minimum = int(expected * FUELMIX_MIN_COVERAGE)
     out = {}
     for day, group in df.groupby("market_day"):
-        if len(group) != expected:
+        if len(group) < minimum:
+            print(f"  {day}  SKIPPED - {len(group)}/{expected} readings")
             continue
         totals = group[fuels].sum()
         grand = totals.sum()
@@ -271,6 +372,17 @@ def main():
                      hash_da, file_da, {"hoursUsed": result["hours_used"]})
         print(f"  {day}  ${result['value'] / 100:8.2f}/MWh"
               f"   ({result['hours_used']} hours)")
+
+    # ---- west-north basis spread (candidate metric) ----------------------
+    print("\nWest-North day-ahead basis")
+    df_west, hash_w, file_w = fetch(
+        client, BASIS["dataset"], start, end, location=BASIS["location"])
+    for day, result in basis_spread(df_west, df_da).items():
+        write_metric(BASIS["metric_id"], day, result["value"], hash_w, file_w,
+                     {"westAvg": round(result["west"], 2),
+                      "northAvg": round(result["north"], 2)})
+        print(f"  {day}  {result['value'] / 100:+8.2f}/MWh"
+              f"   (W {result['west']:6.2f}  N {result['north']:6.2f})")
 
     # ---- real-time negative intervals -----------------------------------
     print("\nReal-time negative intervals, HB_WEST")

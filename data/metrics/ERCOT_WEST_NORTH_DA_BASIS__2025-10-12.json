@@ -1,0 +1,12 @@
+{
+  "metricId": "ERCOT_WEST_NORTH_DA_BASIS",
+  "periodStart": 1760227200,
+  "periodEnd": 1760313600,
+  "value": -265,
+  "sourceHash": "7290d2793104781c5b3a89322747c4200e2f2d2b56f891efe5f91d4f40519296",
+  "sourceFile": "13 chunk(s): ercot_spp_day_ahead_hourly__HB_WEST__2025-09-10__2025-10-01.json .. ercot_spp_day_ahead_hourly__HB_WEST__2026-09-01__2026-09-10.json",
+  "hashAlgorithm": "sha256",
+  "computedAt": "2026-09-10T11:52:47.374313+00:00",
+  "westAvg": 19.58,
+  "northAvg": 22.23
+}

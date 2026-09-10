@@ -40,7 +40,8 @@ Each metric file is what `publish.py` will hand to the oracle contract:
 | metricId | Meaning | Unit |
 |---|---|---|
 | `ERCOT_HBNORTH_DA_AVG` | mean of 24 hourly day-ahead prices at HB_NORTH | USD/MWh x 100 |
-| `ERCOT_HBWEST_NEG_INTERVALS` | 15-min real-time intervals below zero at HB_WEST | count, 0-96 |
+| `ERCOT_WEST_NORTH_DA_BASIS` | daily mean HB_WEST day-ahead minus mean HB_NORTH day-ahead | USD/MWh x 100 |
+| `ERCOT_HBWEST_NEG_INTERVALS` | 15-min real-time intervals below zero at HB_WEST (feed only, see below) | count, 0-96 |
 | `ERCOT_FUELMIX_<FUEL>` | share of daily generation by fuel (feed only) | percent x 100 |
 
 A "day" is a Central Prevailing Time calendar day, because that is how ERCOT
@@ -53,10 +54,17 @@ over partial days. Any day that does not have its full row count (24 hourly,
 
 ## Verification
 
-`sourceHash` is the SHA-256 of the exact raw response cached in `data/raw/`.
-Anyone with that file can check it:
+Fetches are chunked by calendar month, so a long range produces several files
+in `data/raw/`. `sourceHash` is the SHA-256 of those chunk files concatenated
+in date order:
 
-    sha256sum data/raw/<file>.json
+    cat data/raw/<dataset>__<location>__*.json | shasum -a 256
+
+Month chunking exists for three reasons: a year of 15-minute prices in one
+response trips a brotli decode bug in the HTTP stack (reproduced, not a
+fluke); a failure costs one month rather than the whole pull; and each chunk
+caches separately so a re-run only fetches what is missing. The client also
+sends `Accept-Encoding: gzip, deflate` to stay off the brotli path entirely.
 
 SHA-256 rather than keccak256 so that anyone can verify with standard command
 line tools rather than an Ethereum library. The contract stores it as bytes32
@@ -81,3 +89,17 @@ by location. The cache in `data/raw/` means re-runs cost nothing.
 Change the `DAY_AHEAD` and `REAL_TIME` blocks at the top of `fetch_ercot.py`.
 GridStatus carries PJM, CAISO, MISO, NYISO, ISONE and SPP through the same
 client, so a new zone is a dataset id, a location, and a metricId prefix.
+
+## Metric decision, 10 September
+
+A year of data settled the open question. `ERCOT_HBWEST_NEG_INTERVALS` sits at
+exactly zero on ~61% of days, so every candidate threshold collapses to the
+same split and the question has no uncertain answer. It stays as a feed
+statistic, not a contract.
+
+The second contract metric is `ERCOT_WEST_NORTH_DA_BASIS` — the West-to-North
+day-ahead spread. It measures the same West Texas congestion, splits close to
+50/50 at a sensible threshold, and moves meaningfully day to day. Congestion
+rights trade on exactly this spread in the real market.
+
+Run `python analyse_metrics.py` to reproduce the comparison.

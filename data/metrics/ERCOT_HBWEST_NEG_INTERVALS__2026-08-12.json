@@ -3,9 +3,9 @@
   "periodStart": 1786492800,
   "periodEnd": 1786579200,
   "value": 13,
-  "sourceHash": "ca79059d4b5a221d83af5bc756b2530c922b603deda2aa460d019c640d789933",
-  "sourceFile": "data/raw/ercot_spp_real_time_15_min__HB_WEST__2026-08-10__2026-09-09.json",
+  "sourceHash": "6ceb0f4f1f5046c9d3cbb3fad2eee43ba1a7a0906d4ee1386e7caea7013f7eb4",
+  "sourceFile": "13 chunk(s): ercot_spp_real_time_15_min__HB_WEST__2025-09-10__2025-10-01.json .. ercot_spp_real_time_15_min__HB_WEST__2026-09-01__2026-09-10.json",
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-09T21:56:58.174226+00:00",
+  "computedAt": "2026-09-10T11:53:19.144316+00:00",
   "intervalsUsed": 96
 }

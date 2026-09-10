@@ -3,9 +3,9 @@
   "periodStart": 1787097600,
   "periodEnd": 1787184000,
   "value": 3570,
-  "sourceHash": "53dd2456248398b9a353f62f572035e67d176cba455a5cc036930e593bcf516d",
-  "sourceFile": "data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-08-10__2026-09-09.json",
+  "sourceHash": "1b3ead66d0d30a6fdf6d479c4835c28ba5047c2ad6ebce37b1a2b88adbdd7c43",
+  "sourceFile": "13 chunk(s): ercot_spp_day_ahead_hourly__HB_NORTH__2025-09-10__2025-10-01.json .. ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-01__2026-09-10.json",
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-09-09T21:56:54.541545+00:00",
+  "computedAt": "2026-09-10T11:52:21.832788+00:00",
   "hoursUsed": 24
 }

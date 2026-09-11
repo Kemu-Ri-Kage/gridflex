@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(.env)",
+      "Read(*.key)",
+      "Read(secrets/*)"
+    ],
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(forge test*)",
+      "Bash(python3 fetch_ercot.py*)"
+    ],
+    "ask": [
+      "Bash(git push*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git status --short | python3 -c 'import json,sys; print(json.dumps({\"systemMessage\": sys.stdin.read() or \"Working tree clean.\"}))'",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

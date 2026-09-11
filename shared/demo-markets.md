@@ -102,17 +102,26 @@ deliberate, not a shortcut — see above.
 - Outcome: unknown at listing time, by construction — this is the one
   meant to actually be uncertain when the audience sees it
 
-### 3. Finale-day market (Singapore)
+### 3. Eve-of-finale market (Singapore) — moved from 20261006, see note below
 
 > **"Will the ERCOT North Hub day-ahead average exceed $30/MWh on
-> October 6, 2026?"**
+> October 5, 2026?"**
 
 - Threshold: $30.00/MWh
-- Resolves on: **`dayKey 20261006`** (2026-10-06, the live finale date)
-- Historical base rate: same 41.0% / 50.0% split as above — 6 October
-  2025's analog was $36.01, itself a YES
+- Resolves on: **`dayKey 20261005`** (2026-10-05, the day before the live
+  finale)
+- Historical base rate: same 41.0% / 50.0% split as the rest of this
+  metric's markets — 5 October falls inside the same 17 Sep–6 Oct analog
+  window already used to calibrate $30, so no recalculation was needed
+- 5 October 2025's own analog was $22.48 — a NO. Worth saying out loud on
+  stage: this specific historical day would have resolved NO, which is the
+  honest answer to "so is $30 actually uncertain here" — yes, both
+  outcomes really happen in this window, not just the YES cited for market
+  1.
 - Good closing-moment market: list it days ahead, let it trade through the
-  finale, resolve live on stage using that morning's published metric file
+  finale build-up, resolve on stage using the metric file computed the
+  afternoon before — see the timing note below for why it isn't the finale
+  day itself.
 
 ---
 
@@ -149,16 +158,21 @@ deliberate, not a shortcut — see above.
   to the full year, because the full year includes winter/spring months
   this market cannot land in.
 
-### 3. Finale-day market (Singapore)
+### 3. Eve-of-finale market (Singapore) — moved from 20261006, see note below
 
-> **"Will the West–North day-ahead basis exceed $4/MWh on October 6,
+> **"Will the West–North day-ahead basis exceed $4/MWh on October 5,
 > 2026?"**
 
 - Threshold: $4.00/MWh
-- Resolves on: **`dayKey 20261006`** (2026-10-06)
-- Historical base rate: same 60.0% window rate as above — 6 October 2025's
-  analog was +$4.51, itself a YES by a narrow $0.51, which is exactly the
-  kind of close call that makes for a good on-stage resolution moment
+- Resolves on: **`dayKey 20261005`** (2026-10-05, the day before the live
+  finale)
+- Historical base rate: same 60.0% window rate as above — 5 October falls
+  inside the same 17 Sep–6 Oct analog window, so the rate is unchanged, no
+  recalculation needed
+- 5 October 2025's own analog was +$3.74 — a NO, and a close one: $0.26
+  short of the $4 line. Almost the mirror image of the old 6 October
+  citation (a narrow YES) — still exactly the kind of close call that makes
+  for a good on-stage resolution moment, just landing the other way
 
 ---
 
@@ -168,15 +182,57 @@ deliberate, not a shortcut — see above.
 |---|---|---|---|---|---|---|
 | 1 | `ERCOT_HBNORTH_DA_AVG` | > $30 | `20260908` | 2026-09-08 (past) | 41.0% | annual |
 | 2 | `ERCOT_HBNORTH_DA_AVG` | > $30 | `20260924` | 2026-09-24 | 41.0% / 50.0% | annual + window agree |
-| 3 | `ERCOT_HBNORTH_DA_AVG` | > $30 | `20261006` | 2026-10-06 | 41.0% / 50.0% | annual + window agree |
+| 3 | `ERCOT_HBNORTH_DA_AVG` | > $30 | `20261005` | 2026-10-05 | 41.0% / 50.0% | annual + window agree (unchanged, see note) |
 | 4 | `ERCOT_WEST_NORTH_DA_BASIS` | > $0 | `20260812` | 2026-08-12 (past) | 55.4% | annual (outside seasonal window) |
 | 5 | `ERCOT_WEST_NORTH_DA_BASIS` | > $4 | `20260924` | 2026-09-24 | 60.0% | **window** (annual rate, 17.1%, does not apply here) |
-| 6 | `ERCOT_WEST_NORTH_DA_BASIS` | > $4 | `20261006` | 2026-10-06 | 60.0% | **window** (annual rate, 17.1%, does not apply here) |
+| 6 | `ERCOT_WEST_NORTH_DA_BASIS` | > $4 | `20261005` | 2026-10-05 | 60.0% | **window** (annual rate, 17.1%, does not apply here; unchanged, see note) |
 
 Markets 1 and 4 are already-settled `dayKey`s with real `data/metrics/`
 records behind them — both usable today for a live trade → resolve →
 redeem walkthrough without waiting for a future date to arrive. Neither
 `dayKey` in the full set of six falls on a DST changeover day.
+
+### Note: why markets 3 and 6 moved from 20261006 to 20261005
+
+Both originally targeted `dayKey 20261006` — the finale date itself. That
+doesn't work, and not because of ERCOT's publication schedule (real
+day-ahead prices for 6 October post around 1:30pm Central on 5 October,
+well before the demo). The blocker is `fetch_ercot.py`'s own date
+arithmetic:
+
+```python
+end_date = datetime.now(timezone.utc).date()
+start_date = end_date - timedelta(days=args.days)
+```
+
+`end_date` is always *today in UTC*, and the fetch window is exclusive at
+that end — the pipeline only ever reaches through "yesterday" relative to
+its own UTC run-time, never "today." The demo window, 10:00–14:00 SGT on 6
+October, is 02:00–06:00 UTC on 6 October — the UTC calendar date is already
+`2026-10-06` for the entire demo. Running the pipeline at any point in that
+window, with any `--days` value, therefore stops at Central midnight 6
+October: it caps out at **5 October's** market day. 6 October is
+structurally excluded, not just late — the earliest the pipeline could ever
+include it is when UTC reaches `2026-10-07`, i.e. **2026-10-07 08:00 SGT**,
+a full day after the demo ends.
+
+`dayKey 20261005` doesn't have this problem: its data has been complete
+since the afternoon of 4 October, and the pipeline's own arithmetic makes
+it fetchable starting UTC `2026-10-06 00:00` — **2026-10-06 08:00 SGT**,
+two hours before the demo even starts, and it stays fetchable throughout.
+Because 5 October falls inside the same 17 Sep–6 Oct 2025 analog window
+already used to calibrate both metrics' thresholds, none of the crossing
+rates needed to change — only the specific-day analog citations did (now
+$22.48/NO for `ERCOT_HBNORTH_DA_AVG`, +$3.74/NO for
+`ERCOT_WEST_NORTH_DA_BASIS`, in each market's own section above).
+
+**Post-hackathon improvement, not a pre-hackathon fix:** the cutoff could
+be anchored to Central data availability instead of the UTC clock, which
+would let a market like this resolve on the finale day itself. That change
+is not happening before the hackathon — this arithmetic decides which
+market days exist at all, and changing it now, this close to the
+submission and demo dates, is exactly the kind of edit that should get its
+own dedicated testing pass, not a same-week retrofit under time pressure.
 
 ## Caveats
 

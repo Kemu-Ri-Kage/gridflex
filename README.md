@@ -1,4 +1,30 @@
-# GRIDFLEX pipeline — ERCOT data
+# GRIDFLEX — verifiable ERCOT outcome markets on X Layer
+
+GRIDFLEX publishes verifiable ERCOT electricity-market metrics on X Layer and
+uses them to settle fully collateralized YES/NO markets. It is a cash-settled
+derivatives demo: no electricity or other physical asset is tokenized or
+delivered.
+
+| Part | Location | State in this handoff |
+|---|---|---|
+| ERCOT pipeline and 2,168 metric files | repository root + `data/metrics/` | working |
+| Frozen pipeline/oracle boundary | `shared/oracle-interface.md` | implemented |
+| Oracle, collateral, and market factory | `contracts/` | deployed and verified on X Layer testnet |
+| Binary market and outcome tokens | `contracts/` | tested locally; testnet creation is next |
+| Wallet-connected interface | `web/` | builds; demo mode until testnet addresses are configured |
+
+The architecture has no application backend: the Python publisher writes to
+the oracle, the market reads the oracle, and the frontend reads and transacts
+with the contracts through the user's wallet.
+
+For the short Russian handoff and remaining testnet steps, read
+[`docs/HANDOFF_RU.md`](docs/HANDOFF_RU.md). To verify everything before sharing:
+
+```bash
+./scripts/check_all.sh
+```
+
+## ERCOT data pipeline
 
 Turns public ERCOT market data into the numbers our contracts settle on.
 
@@ -197,3 +223,72 @@ intervals, so prices are constructed at those intervals and no finer.
 Interpolating to a finer grid is fine for a chart and never acceptable for
 settlement: settling on an interpolated price means settling on a number ERCOT
 never published, which destroys the verification argument.
+
+## Solidity MVP
+
+The Foundry project in `contracts/` contains:
+
+- `GridOracle`: a single authorized testnet reporter submits a signed `int256`
+  value under `(metricId, dayKey)` and anyone can finalize it after the oracle
+  dispute window;
+- `BinaryMarket`: mints a fully collateralized YES+NO set, swaps outcomes in a
+  zero-fee constant-product pool, resolves strictly above a signed threshold,
+  and redeems the winner one-for-one;
+- a mandatory cancellation path: if no oracle reading was submitted after the
+  market grace period, each YES and NO redeems for 0.5 collateral (rounded
+  down), so a complete set returns one full unit and no user's position is
+  permanently trapped; any submitted reading can instead be finalized by anyone;
+- `MarketFactory`, `OutcomeToken`, and public-mint `MockUSDT` for the testnet
+  demonstration.
+
+Only `ERCOT_HBNORTH_DA_AVG` and `ERCOT_WEST_NORTH_DA_BASIS` may be used to
+construct MVP markets. The market's `threshold` and the oracle's `value` are
+both `int256`, because the West–North basis is frequently negative. The demo
+pool seed defaults to 10,000 MockUSDT and the swap fee is zero.
+
+Run the contract suite and regenerate the committed ABIs:
+
+```bash
+cd contracts
+forge fmt --check
+forge test
+python3 scripts/export_abi.py
+```
+
+## Web interface
+
+`web/` is a Vinext/React application using viem. With no addresses it opens in
+safe demo mode. Once the four `NEXT_PUBLIC_*_ADDRESS` values are present in
+`web/.env.local`, it connects MetaMask to X Layer testnet and can mint demo
+collateral, mint a YES+NO set, swap, resolve or cancel, and redeem.
+
+```bash
+cd web
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm build
+pnpm dev
+```
+
+## X Layer testnet
+
+- Chain ID: `1952` (mainnet `196` is rejected by the deployment scripts)
+- RPC: `https://testrpc.xlayer.tech/terigon`
+- Faucet: `https://web3.okx.com/xlayer/faucet`
+- Deployment instructions: [`shared/deployment.md`](shared/deployment.md)
+
+Core deployment from `0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902`:
+
+| Contract | Address | Deployment transaction |
+|---|---|---|
+| `GridOracle` | `0x970cefFC0e75bCa245F3337715992ad520A4D561` | `0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf` |
+| `MockUSDT` | `0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A` | `0xcacbb52fcf1e37d5582b16e78a954d985b1ba4b1ceb453301ad4962f5f1df891` |
+| `MarketFactory` | `0xE4d35CE22E74A8BA656D74245E2173C93b430243` | `0x79cc33e357bf886295651de9b5043fd950ef6b022ddac0ca381a662e818dd297` |
+
+The onchain checks confirm that all three addresses contain bytecode, the oracle reporter is the
+deployer above, the oracle dispute window is `3600`, collateral decimals are `6`, and the new
+factory starts with zero markets. Machine-readable values live in `shared/addresses.json`.
+
+Use a dedicated testnet wallet. Never commit `.env`, place a private key in a
+command, or include it in a ZIP. Private keys are stored outside this repository in an encrypted
+keystore; only public addresses and transaction hashes are shared.

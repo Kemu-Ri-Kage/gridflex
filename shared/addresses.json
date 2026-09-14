@@ -1,0 +1,16 @@
+{
+  "chainId": 1952,
+  "deployer": "0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902",
+  "reporter": "0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902",
+  "GridOracle": "0x970cefFC0e75bCa245F3337715992ad520A4D561",
+  "MarketFactory": "0xE4d35CE22E74A8BA656D74245E2173C93b430243",
+  "MockUSDT": "0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A",
+  "BinaryMarket": "",
+  "YesToken": "",
+  "NoToken": "",
+  "transactions": {
+    "GridOracle": "0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf",
+    "MockUSDT": "0xcacbb52fcf1e37d5582b16e78a954d985b1ba4b1ceb453301ad4962f5f1df891",
+    "MarketFactory": "0x79cc33e357bf886295651de9b5043fd950ef6b022ddac0ca381a662e818dd297"
+  }
+}

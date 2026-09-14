@@ -15,12 +15,20 @@ code comments and it misrepresents the product.
 
 - This Python repo is the data pipeline: fetch ERCOT data, compute metrics,
   write metric files.
-- A teammate builds the Solidity side on X Layer testnet (chain 1952): an
-  oracle contract that reads these metric files, plus a binary outcome
-  market contract. There will be a `contracts/` folder later —
-  **never edit anything in it**, that's not my scope.
+- A teammate (David) builds the Solidity side on X Layer testnet (chain
+  1952): an oracle contract that reads these metric files, plus a binary
+  outcome market contract, plus the wallet-connected frontend. `contracts/`
+  and `web/` are his — **never edit anything in either**, that's not my
+  scope.
 - I (the user) own: the pipeline, the metric definitions, the market design,
-  and the pitch. Not the Solidity.
+  and the pitch. Not the Solidity, not the frontend.
+- The oracle (`GridOracle`) is deployed on X Layer testnet at the address in
+  `shared/addresses.json` (currently
+  `0x970cefFC0e75bCa245F3337715992ad520A4D561`). That file is the source of
+  truth for all deployed addresses — don't hardcode an address anywhere
+  else; read it from there. `shared/oracle-interface.md` is the frozen
+  struct/function/event spec both sides build against; `shared/deployment.md`
+  covers how David deploys.
 
 ## Hard rules
 

@@ -20,11 +20,14 @@ fi
 echo "[1/3] Validating ERCOT metric files and market-day logic"
 "$python_bin" "$repo_root/scripts/validate_metrics.py"
 PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/gridflex-pycache" \
-  "$python_bin" -m py_compile "$repo_root/fetch_ercot.py" "$repo_root/analyse_metrics.py"
+  "$python_bin" -m py_compile \
+    "$repo_root/fetch_ercot.py" \
+    "$repo_root/analyse_metrics.py" \
+    "$repo_root/publish.py"
 (
   cd "$repo_root"
   PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/gridflex-pycache" \
-    "$python_bin" -m unittest tests.test_market_day -v
+    "$python_bin" -m unittest tests.test_market_day tests.test_publish -v
 )
 
 echo "[2/3] Testing Solidity contracts"

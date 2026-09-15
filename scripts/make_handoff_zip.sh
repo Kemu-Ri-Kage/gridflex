@@ -23,6 +23,7 @@ rsync -a \
   --exclude '__pycache__/' \
   --exclude '*.pyc' \
   --exclude 'data/raw/' \
+  --exclude 'logs/' \
   --exclude 'contracts/cache/' \
   --exclude 'contracts/out/' \
   --exclude 'contracts/broadcast/' \

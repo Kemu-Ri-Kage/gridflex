@@ -1,0 +1,35 @@
+{
+  "ERCOT_HBNORTH_DA_AVG:20250910": {
+    "blockNumber": 41033812,
+    "dayKey": 20250910,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 3,
+    "sourceHash": "1b3ead66d0d30a6fdf6d479c4835c28ba5047c2ad6ebce37b1a2b88adbdd7c43",
+    "status": "confirmed",
+    "submittedAt": "2026-09-15T17:17:28Z",
+    "txHash": "0x2ab0512f3c0846a4548dc2c6ca756aa1bee9f370921249d2db768379514ce6d6",
+    "value": 2262
+  },
+  "ERCOT_HBWEST_NEG_INTERVALS:20250910": {
+    "blockNumber": 41033816,
+    "dayKey": 20250910,
+    "metricId": "ERCOT_HBWEST_NEG_INTERVALS",
+    "nonce": 4,
+    "sourceHash": "6ceb0f4f1f5046c9d3cbb3fad2eee43ba1a7a0906d4ee1386e7caea7013f7eb4",
+    "status": "confirmed",
+    "submittedAt": "2026-09-15T17:17:31Z",
+    "txHash": "0x2b89635c2fc3564008005f7ae14ca6cefa930814142f12d8a10ba0e8449f049c",
+    "value": 0
+  },
+  "ERCOT_LOAD_WEIGHTED_DA_INDEX:20250910": {
+    "blockNumber": 41033818,
+    "dayKey": 20250910,
+    "metricId": "ERCOT_LOAD_WEIGHTED_DA_INDEX",
+    "nonce": 5,
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "status": "confirmed",
+    "submittedAt": "2026-09-15T17:17:34Z",
+    "txHash": "0xde68d8d8adf857115b8932c7cfa0ca353c290ffbcf3e970a89deec52c04f0bf2",
+    "value": 2737
+  }
+}

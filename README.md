@@ -292,3 +292,23 @@ factory starts with zero markets. Machine-readable values live in `shared/addres
 Use a dedicated testnet wallet. Never commit `.env`, place a private key in a
 command, or include it in a ZIP. Private keys are stored outside this repository in an encrypted
 keystore; only public addresses and transaction hashes are shared.
+
+### Publish oracle readings safely
+
+`publish.py` is dry-run-only unless `--live` is supplied. For the reporter wallet, prefer the
+encrypted keystore already used for deployment:
+
+```bash
+export REPORTER_KEYSTORE_PATH=/absolute/path/to/gridflex-deployer
+python3 publish.py --check
+python3 publish.py --limit 3
+python3 publish.py --live --limit 3
+```
+
+Both commands that access the key request its password without echoing it. Live mode checks chain
+ID `1952`, contract bytecode, and the oracle's immutable reporter before showing a second explicit
+`yes` confirmation. The committed `data/publish-ledger.json` makes normal reruns idempotent. Because
+this team also exchanges complete ZIP archives, live mode additionally checks every candidate
+reading on-chain and recovers missing ledger rows before sending; a stale ZIP therefore cannot
+silently reset an existing reading's one-hour dispute window. Local human-readable logs are written
+under gitignored `logs/`.

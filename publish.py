@@ -374,6 +374,7 @@ def protect_against_stale_ledger(
         if submission_limit is not None and len(safe_submit) >= submission_limit:
             break
         current = chain_reading(contract, reading)
+        time.sleep(0.5)
         if current is None:
             safe_submit.append(reading)
             continue
@@ -455,6 +456,13 @@ def submitted_entry(reading: MetricReading, nonce: int) -> dict[str, Any]:
     }
 
 
+def has_pending_submitted_entries(ledger: dict[str, dict[str, Any]]) -> bool:
+    return any(
+        isinstance(entry, dict) and entry.get("status") == "submitted"
+        for entry in ledger.values()
+    )
+
+
 def recover_submitted_entries(
     w3: Web3, contract, account, ledger: dict[str, dict[str, Any]]
 ) -> None:
@@ -467,39 +475,53 @@ def recover_submitted_entries(
         return
     pending_nonce = w3.eth.get_transaction_count(account.address, "pending")
     for key, entry in pending_entries:
-        tx_hash = entry.get("txHash")
-        if tx_hash:
-            try:
-                receipt = w3.eth.get_transaction_receipt(tx_hash)
-            except Exception:
-                receipt = None
-            if receipt is not None:
-                if receipt.status != 1:
-                    raise PublisherError(f"Interrupted transaction reverted: {tx_hash}")
-                entry["status"] = "confirmed"
-                entry["blockNumber"] = receipt.blockNumber
+        try:
+            tx_hash = entry.get("txHash")
+            if tx_hash:
+                try:
+                    receipt = w3.eth.get_transaction_receipt(tx_hash)
+                except Exception:
+                    receipt = None
+                if receipt is not None:
+                    if receipt.status != 1:
+                        raise PublisherError(f"Interrupted transaction reverted: {tx_hash}")
+                    entry["status"] = "confirmed"
+                    entry["blockNumber"] = receipt.blockNumber
+                    continue
+            metric_id, day_text = key.rsplit(":", 1)
+            probe = MetricReading(
+                path=Path("<ledger>"),
+                metric_id=metric_id,
+                day_key=int(day_text),
+                market_day_start_utc=0,
+                market_day_end_utc=0,
+                value=int(entry["value"]),
+                source_hash=normalize_hash(entry["sourceHash"]),
+            )
+            current = chain_reading(contract, probe)
+            if current and current["value"] == probe.value:
+                entry.update(ledger_entry_from_chain(probe, current))
                 continue
-        metric_id, day_text = key.rsplit(":", 1)
-        probe = MetricReading(
-            path=Path("<ledger>"),
-            metric_id=metric_id,
-            day_key=int(day_text),
-            market_day_start_utc=0,
-            market_day_end_utc=0,
-            value=int(entry["value"]),
-            source_hash=normalize_hash(entry["sourceHash"]),
-        )
-        current = chain_reading(contract, probe)
-        if current and current["value"] == probe.value:
-            entry.update(ledger_entry_from_chain(probe, current))
-            continue
-        nonce = int(entry["nonce"])
-        if pending_nonce <= nonce:
-            del ledger[key]
-            continue
-        raise PublisherError(
-            f"{key}: an interrupted transaction may still be in flight; stop and inspect nonce {nonce}."
-        )
+            nonce = int(entry["nonce"])
+            if pending_nonce <= nonce:
+                print(
+                    f"RESOLVED {key}: nonce {nonce} was never broadcast (wallet's pending "
+                    f"nonce is {pending_nonce}); removing the stale 'submitted' ledger row "
+                    "so it resubmits with a fresh nonce. See shared/publish-spec.md §2.6.",
+                    file=sys.stderr,
+                )
+                del ledger[key]
+                continue
+            raise PublisherError(
+                f"{key}: an interrupted transaction may still be in flight; stop and inspect nonce {nonce}."
+            )
+        except PublisherError:
+            raise
+        except Exception as exc:
+            raise PublisherError(
+                f"{key}: malformed ledger entry ({type(exc).__name__}: {exc}); "
+                "refusing to guess and continue."
+            ) from exc
     save_ledger(ledger)
 
 
@@ -555,24 +577,46 @@ def send_reading(
     ledger[reading.ledger_key] = submitted_entry(reading, nonce)
     save_ledger(ledger)
 
+    def broadcast(target_nonce: int, price: int):
+        tx = function.build_transaction(
+            {**base, "nonce": target_nonce, "gas": gas_limit, "gasPrice": price}
+        )
+        signed = account.sign_transaction(tx)
+        return w3.eth.send_raw_transaction(signed.raw_transaction)
+
     last_hash = ""
     for attempt in range(MAX_GAS_BUMPS + 1):
         bumped_price = int(gas_price * (1.125**attempt)) + attempt
-        tx = function.build_transaction({**base, "gas": gas_limit, "gasPrice": bumped_price})
-        signed = account.sign_transaction(tx)
         try:
-            tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+            tx_hash = broadcast(nonce, bumped_price)
         except ValueError as exc:
             message = str(exc).lower()
-            if "nonce too low" in message and attempt == 0:
-                fresh_nonce = w3.eth.get_transaction_count(account.address, "pending")
-                if fresh_nonce != nonce:
-                    raise PublisherError(
-                        f"{reading.ledger_key}: nonce changed concurrently; aborting safely."
-                    ) from exc
-            raise PublisherError(
-                f"{reading.ledger_key}: transaction send failed; aborting safely."
-            ) from exc
+            if "nonce too low" not in message or attempt != 0:
+                raise PublisherError(
+                    f"{reading.ledger_key}: transaction send failed; aborting safely."
+                ) from exc
+            # §2.8: a stale local nonce is a transient hiccup, not grounds to abort
+            # a whole run — re-sync from chain and retry exactly once.
+            fresh_nonce = w3.eth.get_transaction_count(account.address, "pending")
+            if fresh_nonce == nonce:
+                raise PublisherError(
+                    f"{reading.ledger_key}: transaction send failed; aborting safely."
+                ) from exc
+            print(
+                f"{reading.ledger_key}: nonce too low (local {nonce}, chain {fresh_nonce}); "
+                "re-syncing and retrying once.",
+                file=sys.stderr,
+            )
+            nonce = fresh_nonce
+            ledger[reading.ledger_key]["nonce"] = nonce
+            save_ledger(ledger)
+            try:
+                tx_hash = broadcast(nonce, bumped_price)
+            except ValueError as retry_exc:
+                raise PublisherError(
+                    f"{reading.ledger_key}: transaction send failed after nonce resync; "
+                    "aborting safely."
+                ) from retry_exc
         last_hash = "0x" + tx_hash.hex().removeprefix("0x")
         ledger[reading.ledger_key]["txHash"] = last_hash
         save_ledger(ledger)
@@ -707,6 +751,22 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         readings, invalid = collect_readings(args)
+
+        if not args.live and has_pending_submitted_entries(ledger):
+            # §2.6: resolve on startup, "before doing anything else" — including a
+            # dry run, since a "submitted" row from a crashed prior run otherwise
+            # gets misreported as brand-new work. Gated on has_pending_submitted_entries()
+            # so a clean ledger (the common case) still needs no key or RPC at all.
+            print(
+                "A previous run left submitted-but-unconfirmed readings; resolving "
+                "against chain before reporting an accurate plan.",
+                file=sys.stderr,
+            )
+            w3 = make_web3(rpc_url)
+            contract = load_contract(w3, oracle_address)
+            account = load_reporter_account()
+            recover_submitted_entries(w3, contract, account, ledger)
+
         plan = plan_from_ledger(readings, ledger)
 
         if args.reconcile:
@@ -751,11 +811,18 @@ def main(argv: list[str] | None = None) -> int:
         nonce = w3.eth.get_transaction_count(account.address, "pending")
         total_gas_cost = 0
         submitted = 0
+        failed = 0
+        abort_message: str | None = None
         log_path = LOGS_DIR / datetime.now(timezone.utc).strftime("publish-%Y%m%dT%H%M%SZ.log")
         for reading in plan.submit:
-            cost, nonce = send_reading(
-                w3, contract, account, reading, nonce, ledger, log_path, selectors
-            )
+            try:
+                cost, nonce = send_reading(
+                    w3, contract, account, reading, nonce, ledger, log_path, selectors
+                )
+            except PublisherError as exc:
+                failed += 1
+                abort_message = str(exc)
+                break
             total_gas_cost += cost
             submitted += 1
 
@@ -765,11 +832,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  Already published (skipped):    {plan.already_published}")
         print(f"  Already finalized (skipped):    {plan.already_finalized}")
         print(f"  Invalid files (skipped):        {len(invalid)}")
-        print("  Failed (UNEXPECTED):            0")
+        print(f"  Failed (UNEXPECTED):            {failed}")
         print(f"  Wall-clock time:                {elapsed // 60:02d}:{elapsed % 60:02d}")
         print(f"  Total gas spent:                {Web3.from_wei(total_gas_cost, 'ether'):.6f} OKB")
         print(f"  Ledger updated:                 {LEDGER_PATH}")
-        return 0
+        if abort_message is not None:
+            print(f"ERROR: {abort_message}", file=sys.stderr)
+        return 1 if (failed or invalid) else 0
     except (PublisherError, KeyboardInterrupt) as exc:
         message = "Interrupted by operator." if isinstance(exc, KeyboardInterrupt) else str(exc)
         print(f"ERROR: {message}", file=sys.stderr)

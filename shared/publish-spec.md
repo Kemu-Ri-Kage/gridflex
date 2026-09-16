@@ -284,6 +284,19 @@ through, would trigger exactly the dispute-window-reset bug this whole
 design exists to prevent — on the one reading that happened to be mid-flight
 when the process died.
 
+**Named recovery behaviour: a `submitted` row whose nonce was never
+broadcast.** If the wallet's on-chain pending nonce is still at or below a
+`submitted` entry's recorded `nonce`, that transaction never actually left
+the process — the crash happened before (or during) the RPC send itself, so
+the nonce was never consumed on-chain. In that specific case it is safe to
+delete the ledger row outright: nothing to reconcile against, and the
+reading resubmits cleanly with a fresh nonce on the next run. This is the
+one case in §2.6 that resolves *without* human inspection, so it is logged
+loudly (`RESOLVED ...` to stderr) rather than silently — contrast with the
+opposite case (pending nonce already past the entry's nonce), which means a
+transaction really may be in flight and must abort for manual inspection
+instead.
+
 ### 2.7 Detecting success vs. revert
 
 **A mined transaction is not a successful transaction.** After sending,

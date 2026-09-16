@@ -557,6 +557,43 @@ class TestSummaryPrintsOnEveryExitPath(BaseFinalizeTest):
         self.assertEqual(exit_code, 1)
         self.assertNotIn("GRIDFLEX finalize summary", buffer.getvalue())
 
+    def test_non_publisher_error_during_evaluation_still_prints_accurate_summary(self):
+        """A transport failure (not a PublisherError) partway through the
+        discovery/evaluation loop must not skip the summary, and whatever was
+        tallied before the failure must still show up correctly - the two
+        readings evaluated before the crash are one WAITING and one ALREADY
+        FINALIZED, and the third reading's chain_reading() call is what blows
+        up with a bare ConnectionError."""
+        now = 1_800_000_000
+        readings = [make_reading(day_key=20260908 + i, value=100 + i) for i in range(3)]
+        already_finalized = chain_row(readings[0].value, readings[0].source_hash, now - 10_000, True)
+        waiting = chain_row(readings[1].value, readings[1].source_hash, now - 900, False)
+        with patch.object(finalize, "collect_readings", return_value=(readings, [])), \
+                patch.object(
+                    finalize, "chain_reading",
+                    side_effect=[already_finalized, waiting, ConnectionError("RPC connection dropped")],
+                ), \
+                patch.object(finalize.time, "time", return_value=now), \
+                patch.object(finalize, "ledger_entry_from_chain", return_value={"status": "confirmed"}), \
+                patch.object(finalize, "load_ledger", return_value={}), \
+                patch.object(finalize, "save_ledger") as mock_save_ledger:
+            buffer_out = io.StringIO()
+            buffer_err = io.StringIO()
+            with contextlib.redirect_stdout(buffer_out), contextlib.redirect_stderr(buffer_err):
+                exit_code = finalize.main([])
+        output = buffer_out.getvalue()
+        self.assertEqual(exit_code, 1)
+        self.assertIn("GRIDFLEX finalize summary", output)
+        self.assertEqual(count_field("Already finalized (skipped):", output), 1)
+        self.assertEqual(count_field("Not yet eligible (skipped):", output), 1)
+        self.assertEqual(count_field("Finalized:", output), 0)
+        self.assertEqual(count_field("Failed (skipped, this reading):", output), 0)
+        self.assertIn("ConnectionError", buffer_err.getvalue())
+        # The exception fired before save_ledger's single call after the loop -
+        # matching the pre-existing behavior that a mid-loop crash already left
+        # unsaved (this fix targets the summary, not ledger persistence on abort).
+        mock_save_ledger.assert_not_called()
+
 
 class TestDryRunAndLiveConfirmation(BaseFinalizeTest):
     def setUp(self):

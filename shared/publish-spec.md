@@ -344,16 +344,16 @@ once, then once more. If still stuck after two bumps, log it as an
 UNEXPECTED failure (§2.7) and abort — do not wait indefinitely; a stuck
 transaction blocks every later nonce in the run.
 
-**Known gap, unfixed:** `send_reading`'s broadcast retry only catches
-`ValueError` (the exception type `send_raw_transaction` raises for a
-"nonce too low" rejection). A non-`ValueError` transport failure — an RPC
-connection drop, a socket timeout — isn't caught there at all, so it
-propagates unwrapped past the submission loop and skips the end-of-run
-summary (§2.11) entirely instead of being classified as an UNEXPECTED
-failure and reported. This predates today's fixes and has not been
-addressed. It should be hardened to catch transport-level exceptions
-alongside `ValueError` and route them through the same classification and
-summary path as every other UNEXPECTED failure.
+**Fixed:** `send_reading`'s broadcast retry still only catches `ValueError`
+internally (the exception type `send_raw_transaction` raises for a
+"nonce too low" rejection) — that part is unchanged. But a non-`ValueError`
+transport failure — an RPC connection drop, a socket timeout — anywhere
+inside `send_reading` no longer propagates unwrapped past the submission
+loop: `main()`'s per-reading `try` around `send_reading` now catches
+`Exception` alongside `PublisherError`, both incrementing `failed`, setting
+`abort_message`, and breaking out of the loop exactly as an UNEXPECTED
+revert does. This routes it through the same end-of-run summary (§2.11) as
+every other UNEXPECTED failure instead of skipping it.
 
 ### 2.9 Gas and RPC
 

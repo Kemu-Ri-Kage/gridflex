@@ -414,6 +414,19 @@ class TestLiveRunSummary(unittest.TestCase):
         )
         self.assertEqual(exit_code, 1)
 
+    def test_non_publisher_error_during_send_still_aborts_and_prints_summary(self):
+        """publish-spec.md §2.8, now fixed: a transport failure (not a
+        PublisherError) from send_reading must not escape past the summary -
+        it's routed through the same UNEXPECTED-failure path as any other
+        abort, with accurate partial counts."""
+        exit_code, output = self._run_live(
+            [(1_000, 11), ConnectionError("RPC connection dropped")]
+        )
+        self.assertIn("GRIDFLEX publish summary", output)
+        self.assertEqual(self._count("Submitted:", output), 1)
+        self.assertEqual(self._count("Failed (UNEXPECTED):", output), 1)
+        self.assertEqual(exit_code, 1)
+
     def test_clean_run_prints_zeros_and_exits_zero(self):
         exit_code, output = self._run_live([(1_000, 11), (1_000, 12), (1_000, 13)])
         self.assertEqual(exit_code, 0)

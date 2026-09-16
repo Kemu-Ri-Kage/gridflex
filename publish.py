@@ -823,6 +823,14 @@ def main(argv: list[str] | None = None) -> int:
                 failed += 1
                 abort_message = str(exc)
                 break
+            except Exception as exc:
+                # §2.8: a transport failure (a dropped RPC connection, a socket
+                # timeout) inside send_reading is not a PublisherError, but must
+                # still abort and report through the same UNEXPECTED path as any
+                # other failure, not escape past the summary uncaught.
+                failed += 1
+                abort_message = f"{type(exc).__name__}: {exc}"
+                break
             total_gas_cost += cost
             submitted += 1
 

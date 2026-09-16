@@ -545,17 +545,17 @@ def main(argv: list[str] | None = None) -> int:
         ledger = load_ledger()
         now = int(time.time())
         evaluations: list[Evaluation] = []
+        eligible: list[Evaluation] = []
         for reading in readings:
             time.sleep(RPC_COURTESY_SLEEP)
             evaluation = evaluate_reading(contract, dispute_window, reading, now)
             evaluations.append(evaluation)
             if evaluation.current is not None:
                 ledger[reading.ledger_key] = ledger_entry_from_chain(reading, evaluation.current)
-        save_ledger(ledger)
-
-        eligible: list[Evaluation] = []
-        for evaluation in evaluations:
-            reading = evaluation.reading
+            # Tallied inline, not in a second pass over `evaluations`, so a mid-loop
+            # exception (an RPC hiccup on reading N of ~1,448) still leaves `summary`
+            # holding accurate counts for readings 1..N-1 - required for the summary
+            # to print correctly on every exit path (finalize-spec.md §7).
             if evaluation.status == STATUS_NOT_PUBLISHED:
                 summary.not_published += 1
             elif evaluation.status == STATUS_ALREADY_FINALIZED:
@@ -584,6 +584,7 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                 eligible.append(evaluation)
+        save_ledger(ledger)
 
         print_plan(evaluations, invalid)
 
@@ -640,6 +641,14 @@ def main(argv: list[str] | None = None) -> int:
     except (PublisherError, KeyboardInterrupt) as exc:
         message = "Interrupted by operator." if isinstance(exc, KeyboardInterrupt) else str(exc)
         print(f"ERROR: {message}", file=sys.stderr)
+        if not (args.check or args.verify):
+            print_summary(summary, started, invalid)
+        return 1
+    except Exception as exc:
+        # finalize-spec.md §7: the summary must print on every exit path, including
+        # an abort - an unclassified error (a dropped RPC connection, a transport
+        # timeout) during discovery/evaluation must not skip it.
+        print(f"ERROR: unexpected failure: {type(exc).__name__}: {exc}", file=sys.stderr)
         if not (args.check or args.verify):
             print_summary(summary, started, invalid)
         return 1

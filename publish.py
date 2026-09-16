@@ -44,6 +44,7 @@ INT256_MIN = -(2**255)
 INT256_MAX = 2**255 - 1
 RECEIPT_TIMEOUT_SECONDS = 90
 MAX_GAS_BUMPS = 2
+EXPECTED_REVERT_ERROR = "ReadingAlreadyFinalized"
 
 
 class PublisherError(RuntimeError):
@@ -229,6 +230,51 @@ def make_web3(rpc_url: str) -> Web3:
 def load_contract(w3: Web3, oracle_address: str):
     abi = load_json(ABI_PATH)
     return w3.eth.contract(address=oracle_address, abi=abi)
+
+
+@dataclass(frozen=True)
+class RevertClassification:
+    is_expected: bool
+    error_name: str | None
+
+
+def build_error_selectors(abi: list[dict[str, Any]]) -> dict[str, str]:
+    """Map each custom error's 4-byte selector (hex, no 0x prefix) to its name.
+
+    Selectors are derived from the ABI's own error signatures rather than
+    hardcoded, so a contract upgrade that changes an error's argument types
+    cannot silently desync this table from `shared/abi/GridOracle.json`.
+    """
+    selectors: dict[str, str] = {}
+    for item in abi:
+        if item.get("type") != "error":
+            continue
+        types = ",".join(inp["type"] for inp in item.get("inputs", []))
+        signature = f"{item['name']}({types})"
+        selector = Web3.keccak(text=signature)[:4].hex()
+        selectors[selector.lower()] = item["name"]
+    return selectors
+
+
+def classify_revert(exc: Exception, selectors: dict[str, str]) -> RevertClassification:
+    """Classify a revert per shared/publish-spec.md §2.7.
+
+    ReadingAlreadyFinalized is EXPECTED (information, not failure). Every
+    other named error, and any revert whose selector we don't recognize, is
+    UNEXPECTED — an unknown failure is not safe to continue through.
+    """
+    data = getattr(exc, "data", None)
+    if isinstance(data, dict):
+        data = data.get("data")
+    if not isinstance(data, str):
+        return RevertClassification(is_expected=False, error_name=None)
+    hex_data = data.removeprefix("0x")
+    error_name = selectors.get(hex_data[:8].lower()) if len(hex_data) >= 8 else None
+    if error_name is None:
+        return RevertClassification(is_expected=False, error_name=None)
+    return RevertClassification(
+        is_expected=error_name == EXPECTED_REVERT_ERROR, error_name=error_name
+    )
 
 
 def load_reporter_account():
@@ -474,6 +520,7 @@ def send_reading(
     nonce: int,
     ledger: dict[str, dict[str, Any]],
     log_path: Path,
+    selectors: dict[str, str],
 ) -> tuple[int, int]:
     function = contract.functions.submitReading(
         reading.metric_hash,
@@ -488,8 +535,21 @@ def send_reading(
         estimated_gas = function.estimate_gas({"from": account.address})
         gas_price = w3.eth.gas_price
     except Exception as exc:
+        classification = classify_revert(exc, selectors)
+        if classification.is_expected:
+            current = chain_reading(contract, reading)
+            if current is not None:
+                ledger[reading.ledger_key] = ledger_entry_from_chain(reading, current)
+                save_ledger(ledger)
+            append_log(log_path, reading, "", "EXPECTED_ALREADY_FINALIZED")
+            print(
+                f"EXPECTED_ALREADY_FINALIZED {reading.ledger_key} "
+                "(finalized before submission)"
+            )
+            return 0, nonce
+        detail = classification.error_name or f"unrecognized revert ({type(exc).__name__})"
         raise PublisherError(
-            f"{reading.ledger_key}: gas estimation failed ({type(exc).__name__}); aborting."
+            f"{reading.ledger_key}: {detail} during gas estimation; aborting."
         ) from exc
     gas_limit = max(int(estimated_gas * 1.2), estimated_gas + 10_000)
     ledger[reading.ledger_key] = submitted_entry(reading, nonce)
@@ -533,16 +593,30 @@ def send_reading(
                 f"{reading.ledger_key}: still pending after two gas bumps; aborting."
             )
         if receipt.status != 1:
-            current = chain_reading(contract, reading)
-            if current and current["finalized"]:
-                ledger[reading.ledger_key]["status"] = "finalized"
-                ledger[reading.ledger_key]["blockNumber"] = receipt.blockNumber
+            try:
+                function.call({"from": account.address}, block_identifier=receipt.blockNumber)
+                replay_exc: Exception | None = None
+            except Exception as exc:
+                replay_exc = exc
+            classification = (
+                classify_revert(replay_exc, selectors)
+                if replay_exc is not None
+                else RevertClassification(is_expected=False, error_name=None)
+            )
+            if classification.is_expected:
+                current = chain_reading(contract, reading)
+                if current is not None:
+                    ledger[reading.ledger_key] = ledger_entry_from_chain(reading, current)
+                else:
+                    ledger[reading.ledger_key]["status"] = "finalized"
+                    ledger[reading.ledger_key]["blockNumber"] = receipt.blockNumber
                 save_ledger(ledger)
                 append_log(log_path, reading, last_hash, "EXPECTED_ALREADY_FINALIZED")
                 return receipt.gasUsed * bumped_price, nonce + 1
             append_log(log_path, reading, last_hash, "UNEXPECTED_REVERT")
+            detail = classification.error_name or "unrecognized revert"
             raise PublisherError(
-                f"{reading.ledger_key}: mined transaction reverted unexpectedly; aborting."
+                f"{reading.ledger_key}: mined transaction reverted unexpectedly ({detail}); aborting."
             )
         ledger[reading.ledger_key].update(
             {
@@ -657,6 +731,7 @@ def main(argv: list[str] | None = None) -> int:
         account = load_reporter_account()
         w3 = make_web3(rpc_url)
         contract = load_contract(w3, oracle_address)
+        selectors = build_error_selectors(contract.abi)
         chain_id, balance = preflight(w3, contract, account)
         recover_submitted_entries(w3, contract, account, ledger)
         plan = plan_from_ledger(readings, ledger)
@@ -679,7 +754,7 @@ def main(argv: list[str] | None = None) -> int:
         log_path = LOGS_DIR / datetime.now(timezone.utc).strftime("publish-%Y%m%dT%H%M%SZ.log")
         for reading in plan.submit:
             cost, nonce = send_reading(
-                w3, contract, account, reading, nonce, ledger, log_path
+                w3, contract, account, reading, nonce, ledger, log_path, selectors
             )
             total_gas_cost += cost
             submitted += 1

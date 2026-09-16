@@ -3,7 +3,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+from web3 import Web3
+from web3.exceptions import ContractCustomError
 
 import publish
 
@@ -140,6 +143,179 @@ class TestCliArguments(unittest.TestCase):
         args = argparse.Namespace(days=None, limit=0, start=None, end=None, check=False, live=False)
         with self.assertRaises(publish.PublisherError):
             publish.validate_args(args)
+
+
+class TestRevertClassification(unittest.TestCase):
+    """publish-spec.md §2.7: classify reverts from the contract's own ABI."""
+
+    def setUp(self):
+        self.abi = json.loads(publish.ABI_PATH.read_text())
+        self.selectors = publish.build_error_selectors(self.abi)
+
+    def _selector_for(self, error_name: str) -> str:
+        return next(sel for sel, name in self.selectors.items() if name == error_name)
+
+    def _revert(self, error_name: str) -> ContractCustomError:
+        return ContractCustomError(
+            "execution reverted", data="0x" + self._selector_for(error_name) + "00" * 28
+        )
+
+    def test_selectors_are_derived_from_abi_not_hardcoded(self):
+        # Computed independently of publish.build_error_selectors, straight from the
+        # known error signature — this fails if the classifier's derivation and the
+        # ABI ever disagree on what ReadingAlreadyFinalized's selector is.
+        expected_selector = Web3.keccak(
+            text="ReadingAlreadyFinalized(bytes32,uint32)"
+        )[:4].hex()
+        self.assertEqual(self.selectors.get(expected_selector), "ReadingAlreadyFinalized")
+
+    def test_reading_already_finalized_is_expected(self):
+        result = publish.classify_revert(self._revert("ReadingAlreadyFinalized"), self.selectors)
+        self.assertTrue(result.is_expected)
+        self.assertEqual(result.error_name, "ReadingAlreadyFinalized")
+
+    def test_unauthorized_reporter_is_unexpected(self):
+        result = publish.classify_revert(self._revert("UnauthorizedReporter"), self.selectors)
+        self.assertFalse(result.is_expected)
+        self.assertEqual(result.error_name, "UnauthorizedReporter")
+
+    def test_unrecognized_selector_is_unexpected(self):
+        exc = ContractCustomError("execution reverted", data="0xdeadbeef")
+        result = publish.classify_revert(exc, self.selectors)
+        self.assertFalse(result.is_expected)
+        self.assertIsNone(result.error_name)
+
+
+class TestSendReadingRevertHandling(unittest.TestCase):
+    """Same classifier, same outcome, whether the revert surfaces at gas
+    estimation (before broadcast) or in the mined receipt (after broadcast)."""
+
+    def setUp(self):
+        abi = json.loads(publish.ABI_PATH.read_text())
+        self.selectors = publish.build_error_selectors(abi)
+        self.reading = publish.MetricReading(
+            path=Path("metric.json"),
+            metric_id="ERCOT_HBNORTH_DA_AVG",
+            day_key=20260908,
+            market_day_start_utc=1,
+            market_day_end_utc=2,
+            value=3957,
+            source_hash="11" * 32,
+        )
+        self.account = MagicMock()
+        self.account.address = "0xReporter"
+        self.function = MagicMock()
+        self.contract = MagicMock()
+        self.contract.functions.submitReading.return_value = self.function
+        self.w3 = MagicMock()
+        self.ledger: dict = {}
+        self.log_path = Path("unused.log")
+
+    def _selector_for(self, error_name: str) -> str:
+        return next(sel for sel, name in self.selectors.items() if name == error_name)
+
+    def _revert(self, error_name: str) -> ContractCustomError:
+        return ContractCustomError(
+            "execution reverted", data="0x" + self._selector_for(error_name) + "00" * 28
+        )
+
+    def _configure_successful_broadcast(self, receipt_status: int):
+        self.function.estimate_gas.return_value = 100_000
+        self.w3.eth.gas_price = 20_000_000
+        self.function.build_transaction.return_value = {
+            "gas": 120_000,
+            "gasPrice": 20_000_000,
+        }
+        signed = MagicMock()
+        signed.raw_transaction = b"\x01\x02"
+        self.account.sign_transaction.return_value = signed
+        self.w3.eth.send_raw_transaction.return_value = b"\xaa\xbb"
+        receipt = MagicMock()
+        receipt.status = receipt_status
+        receipt.gasUsed = 100_000
+        receipt.blockNumber = 42
+        self.w3.eth.wait_for_transaction_receipt.return_value = receipt
+
+    def _send(self, nonce: int = 5):
+        return publish.send_reading(
+            self.w3,
+            self.contract,
+            self.account,
+            self.reading,
+            nonce,
+            self.ledger,
+            self.log_path,
+            self.selectors,
+        )
+
+    # 1. EXPECTED at estimate_gas: continue, mark finalized.
+    @patch.object(publish, "append_log")
+    @patch.object(publish, "save_ledger")
+    @patch.object(publish, "chain_reading")
+    def test_expected_revert_at_estimate_gas_continues_and_marks_finalized(
+        self, mock_chain_reading, mock_save_ledger, mock_append_log
+    ):
+        self.function.estimate_gas.side_effect = self._revert("ReadingAlreadyFinalized")
+        mock_chain_reading.return_value = {
+            "value": self.reading.value,
+            "sourceHash": self.reading.source_hash,
+            "publishedAt": 1_789_000_000,
+            "finalized": True,
+        }
+        cost, nonce = self._send(nonce=5)
+        self.assertEqual((cost, nonce), (0, 5))
+        self.assertEqual(self.ledger[self.reading.ledger_key]["status"], "finalized")
+        self.function.build_transaction.assert_not_called()
+
+    # 2. UNEXPECTED at estimate_gas: abort.
+    @patch.object(publish, "append_log")
+    @patch.object(publish, "save_ledger")
+    def test_unexpected_revert_at_estimate_gas_aborts(self, mock_save_ledger, mock_append_log):
+        self.function.estimate_gas.side_effect = self._revert("UnauthorizedReporter")
+        with self.assertRaises(publish.PublisherError):
+            self._send(nonce=5)
+        self.function.build_transaction.assert_not_called()
+        self.assertNotIn(self.reading.ledger_key, self.ledger)
+
+    # 3a. The same EXPECTED error, surfacing post-receipt instead: same classification.
+    @patch.object(publish, "append_log")
+    @patch.object(publish, "save_ledger")
+    @patch.object(publish, "chain_reading")
+    def test_expected_revert_post_receipt_continues_and_marks_finalized(
+        self, mock_chain_reading, mock_save_ledger, mock_append_log
+    ):
+        self._configure_successful_broadcast(receipt_status=0)
+        self.function.call.side_effect = self._revert("ReadingAlreadyFinalized")
+        mock_chain_reading.return_value = {
+            "value": self.reading.value,
+            "sourceHash": self.reading.source_hash,
+            "publishedAt": 1_789_000_000,
+            "finalized": True,
+        }
+        cost, nonce = self._send(nonce=5)
+        self.assertEqual(nonce, 6)
+        self.assertEqual(self.ledger[self.reading.ledger_key]["status"], "finalized")
+
+    # 3b. The same UNEXPECTED error, surfacing post-receipt instead: same classification.
+    @patch.object(publish, "append_log")
+    @patch.object(publish, "save_ledger")
+    def test_unexpected_revert_post_receipt_aborts(self, mock_save_ledger, mock_append_log):
+        self._configure_successful_broadcast(receipt_status=0)
+        self.function.call.side_effect = self._revert("UnauthorizedReporter")
+        with self.assertRaises(publish.PublisherError):
+            self._send(nonce=5)
+
+    # 4. Unrecognized selector: also aborts, since an unknown failure isn't safe to
+    # continue through.
+    @patch.object(publish, "append_log")
+    @patch.object(publish, "save_ledger")
+    def test_unrecognized_revert_at_estimate_gas_aborts(self, mock_save_ledger, mock_append_log):
+        self.function.estimate_gas.side_effect = ContractCustomError(
+            "execution reverted", data="0xdeadbeef"
+        )
+        with self.assertRaises(publish.PublisherError):
+            self._send(nonce=5)
+        self.function.build_transaction.assert_not_called()
 
 
 if __name__ == "__main__":

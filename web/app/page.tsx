@@ -1,11 +1,6 @@
-import {
-  Activity,
-  Bolt,
-  CheckCircle2,
-  Clock3,
-  Database,
-} from 'lucide-react';
+import { Activity, Bolt, Clock3 } from 'lucide-react';
 
+import { FeedPanel } from '@/components/feed-panel';
 import { MarketProbability, ReserveStat } from '@/components/market-live-data';
 import { TradePanel } from '@/components/trade-panel';
 import { Badge } from '@/components/ui/badge';
@@ -68,23 +63,6 @@ function PriceChart() {
     </div>
   );
 }
-
-const readings = [
-  {
-    metric: 'North Hub day-ahead',
-    id: 'ERCOT_HBNORTH_DA_AVG',
-    value: '$45.18 / MWh',
-    date: '09 Sep 2026',
-    sourceHash: '75999d0173983de904ad23e09e4b2de1536fa0929e23ae4700359d53593913c4',
-  },
-  {
-    metric: 'West–North basis',
-    id: 'ERCOT_WEST_NORTH_DA_BASIS',
-    value: '+$0.98 / MWh',
-    date: '09 Sep 2026',
-    sourceHash: 'cf1d4eef3bb74d65150876b090197cd41c00c74c3ed1f02a5b7a909f3d821df0',
-  },
-];
 
 export default function Home() {
   return (
@@ -208,51 +186,9 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card
-              className="scroll-mt-6 border-white/8 bg-card/70 ring-0"
-              id="feed"
-            >
-              <CardHeader className="border-b border-white/8 pb-4">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base text-white">
-                    <Database className="size-4 text-cyan-300" /> Verified ERCOT
-                    readings
-                  </CardTitle>
-                  <CardDescription>
-                    Daily values committed with a SHA-256 source hash.
-                  </CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="divide-y divide-white/8 pt-1">
-                {readings.map((reading) => (
-                  <div
-                    className="grid gap-3 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center"
-                    key={reading.id}
-                  >
-                    <div>
-                      <div className="font-medium text-slate-200">
-                        {reading.metric}
-                      </div>
-                      <div className="mt-1 truncate font-mono text-xs text-slate-600">
-                        {reading.id}
-                      </div>
-                    </div>
-                    <div className="font-mono text-sm text-white">
-                      {reading.value}
-                    </div>
-                    <div className="text-xs text-slate-500 sm:text-right">
-                      <div className="flex items-center gap-2 sm:justify-end">
-                        <CheckCircle2 className="size-3.5 text-[#a8ff3e]" />{' '}
-                        {reading.date}
-                      </div>
-                      <div className="mt-1 font-mono" title={reading.sourceHash}>
-                        sha256 {reading.sourceHash.slice(0, 8)}…
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <div className="scroll-mt-6" id="feed">
+              <FeedPanel />
+            </div>
           </div>
 
           <aside className="scroll-mt-6" id="trade">

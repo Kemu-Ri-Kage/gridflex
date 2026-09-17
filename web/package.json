@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
-    "lint": "oxlint app lib components/web3-provider.tsx components/wallet-button.tsx components/market-live-data.tsx components/trade-panel.tsx",
+    "lint": "oxlint app lib components/web3-provider.tsx components/wallet-button.tsx components/market-live-data.tsx components/trade-panel.tsx components/feed-panel.tsx",
     "format": "oxfmt"
   },
   "dependencies": {

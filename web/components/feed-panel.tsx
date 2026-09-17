@@ -111,10 +111,16 @@ function HbNorthChart({ series }: { series: CommittedRecord[] }) {
   );
 }
 
-/** shared/feed-spec.md §4: exactly one indicator per row, one of four states. */
-function VerificationBadge({ row }: { row: VerifiedRow }) {
+/**
+ * shared/feed-spec.md §4: exactly one indicator per row, one of four states.
+ *
+ * `now` is passed in rather than read via Date.now() here so this component
+ * stays pure during render - the impure clock read lives in FeedPanel's
+ * effect below, not in render.
+ */
+function VerificationBadge({ row, now }: { row: VerifiedRow; now: number }) {
   const { status, lastVerifiedAt } = row.verification;
-  const ago = lastVerifiedAt !== null ? formatElapsed(Date.now() - lastVerifiedAt) : null;
+  const ago = lastVerifiedAt !== null ? formatElapsed(now - lastVerifiedAt) : null;
 
   switch (status) {
     case 'VERIFIED':
@@ -157,10 +163,11 @@ export function FeedPanel() {
   const { loading, totalLocalCandidates, submittedCount, heroSeries, secondarySeries, rows } =
     useFeedData();
 
-  // Re-render periodically so "verified Xs ago" keeps advancing without a full refetch.
-  const [, forceTick] = React.useReducer((n: number) => n + 1, 0);
+  // "now" lives in state, updated from an effect, so render itself stays
+  // pure - "verified Xs ago" still advances without a full refetch.
+  const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
-    const id = window.setInterval(forceTick, 5000);
+    const id = window.setInterval(() => setNow(Date.now()), 5000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -235,7 +242,7 @@ export function FeedPanel() {
                       </a>
                     </TableCell>
                     <TableCell>
-                      <VerificationBadge row={row} />
+                      <VerificationBadge row={row} now={now} />
                     </TableCell>
                   </TableRow>
                 ))}

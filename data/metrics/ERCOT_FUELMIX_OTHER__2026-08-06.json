@@ -1,0 +1,17 @@
+{
+  "metricId": "ERCOT_FUELMIX_OTHER",
+  "dayKey": 20260806,
+  "marketDay": "2026-08-06",
+  "marketDayStartUtc": 1785992400,
+  "marketDayEndUtc": 1786078500,
+  "value": 8,
+  "sourceHash": "071ffb035cb77b52424fab5ecbc2ea96193bf678d13ec87e8d6de0d23e652b41",
+  "sourceFiles": [
+    "ercot_fuel_mix__all__2026-06-12__2026-07-01.json",
+    "ercot_fuel_mix__all__2026-07-01__2026-08-01.json",
+    "ercot_fuel_mix__all__2026-08-01__2026-09-01.json",
+    "ercot_fuel_mix__all__2026-09-01__2026-09-10.json"
+  ],
+  "hashAlgorithm": "sha256",
+  "computedAt": "2026-09-10T16:49:28.057790+00:00"
+}

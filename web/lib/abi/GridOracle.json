@@ -1,0 +1,330 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "reporter_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "disputeWindow_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "disputeWindow",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "metricId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "dayKey",
+        "type": "uint32"
+      }
+    ],
+    "name": "finalize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "metricId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "dayKey",
+        "type": "uint32"
+      }
+    ],
+    "name": "getReading",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "metricId",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "dayKey",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "marketDayStartUtc",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "marketDayEndUtc",
+            "type": "uint64"
+          },
+          {
+            "internalType": "int256",
+            "name": "value",
+            "type": "int256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "sourceHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "publishedAt",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "finalized",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct GridOracle.Reading",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "metricId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "dayKey",
+        "type": "uint32"
+      }
+    ],
+    "name": "isFinal",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "reporter",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "metricId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "dayKey",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "marketDayStartUtc",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "marketDayEndUtc",
+        "type": "uint64"
+      },
+      {
+        "internalType": "int256",
+        "name": "value",
+        "type": "int256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "sourceHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "submitReading",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "metricId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "dayKey",
+        "type": "uint32"
+      }
+    ],
+    "name": "ReadingFinalized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "metricId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "dayKey",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "int256",
+        "name": "value",
+        "type": "int256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "sourceHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "ReadingSubmitted",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "finalizableAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "DisputeWindowOpen",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDayKey",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "marketDayStartUtc",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "marketDayEndUtc",
+        "type": "uint64"
+      }
+    ],
+    "name": "InvalidMarketDay",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMetricId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSourceHash",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "metricId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "dayKey",
+        "type": "uint32"
+      }
+    ],
+    "name": "ReadingAlreadyFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "metricId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "dayKey",
+        "type": "uint32"
+      }
+    ],
+    "name": "ReadingNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "caller",
+        "type": "address"
+      }
+    ],
+    "name": "UnauthorizedReporter",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroReporter",
+    "type": "error"
+  }
+]

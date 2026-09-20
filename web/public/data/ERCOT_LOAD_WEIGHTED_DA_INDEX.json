@@ -1,0 +1,2543 @@
+[
+  {
+    "dayKey": 20250910,
+    "marketDay": "2025-09-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": "0xde68d8d8adf857115b8932c7cfa0ca353c290ffbcf3e970a89deec52c04f0bf2",
+    "value": 2737
+  },
+  {
+    "dayKey": 20250911,
+    "marketDay": "2025-09-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3085
+  },
+  {
+    "dayKey": 20250912,
+    "marketDay": "2025-09-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2857
+  },
+  {
+    "dayKey": 20250913,
+    "marketDay": "2025-09-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2716
+  },
+  {
+    "dayKey": 20250914,
+    "marketDay": "2025-09-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3514
+  },
+  {
+    "dayKey": 20250915,
+    "marketDay": "2025-09-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3770
+  },
+  {
+    "dayKey": 20250916,
+    "marketDay": "2025-09-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3864
+  },
+  {
+    "dayKey": 20250917,
+    "marketDay": "2025-09-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3426
+  },
+  {
+    "dayKey": 20250918,
+    "marketDay": "2025-09-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3560
+  },
+  {
+    "dayKey": 20250919,
+    "marketDay": "2025-09-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3486
+  },
+  {
+    "dayKey": 20250920,
+    "marketDay": "2025-09-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3104
+  },
+  {
+    "dayKey": 20250921,
+    "marketDay": "2025-09-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3050
+  },
+  {
+    "dayKey": 20250922,
+    "marketDay": "2025-09-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3477
+  },
+  {
+    "dayKey": 20250923,
+    "marketDay": "2025-09-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3952
+  },
+  {
+    "dayKey": 20250924,
+    "marketDay": "2025-09-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3442
+  },
+  {
+    "dayKey": 20250925,
+    "marketDay": "2025-09-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3896
+  },
+  {
+    "dayKey": 20250926,
+    "marketDay": "2025-09-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3194
+  },
+  {
+    "dayKey": 20250927,
+    "marketDay": "2025-09-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2933
+  },
+  {
+    "dayKey": 20250928,
+    "marketDay": "2025-09-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2998
+  },
+  {
+    "dayKey": 20250929,
+    "marketDay": "2025-09-29",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3663
+  },
+  {
+    "dayKey": 20250930,
+    "marketDay": "2025-09-30",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3760
+  },
+  {
+    "dayKey": 20251001,
+    "marketDay": "2025-10-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3761
+  },
+  {
+    "dayKey": 20251002,
+    "marketDay": "2025-10-02",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3742
+  },
+  {
+    "dayKey": 20251003,
+    "marketDay": "2025-10-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3552
+  },
+  {
+    "dayKey": 20251004,
+    "marketDay": "2025-10-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2844
+  },
+  {
+    "dayKey": 20251005,
+    "marketDay": "2025-10-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3035
+  },
+  {
+    "dayKey": 20251006,
+    "marketDay": "2025-10-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4205
+  },
+  {
+    "dayKey": 20251007,
+    "marketDay": "2025-10-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4541
+  },
+  {
+    "dayKey": 20251008,
+    "marketDay": "2025-10-08",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4661
+  },
+  {
+    "dayKey": 20251009,
+    "marketDay": "2025-10-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4042
+  },
+  {
+    "dayKey": 20251010,
+    "marketDay": "2025-10-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3614
+  },
+  {
+    "dayKey": 20251011,
+    "marketDay": "2025-10-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2881
+  },
+  {
+    "dayKey": 20251012,
+    "marketDay": "2025-10-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2784
+  },
+  {
+    "dayKey": 20251013,
+    "marketDay": "2025-10-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4191
+  },
+  {
+    "dayKey": 20251014,
+    "marketDay": "2025-10-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3965
+  },
+  {
+    "dayKey": 20251015,
+    "marketDay": "2025-10-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3840
+  },
+  {
+    "dayKey": 20251016,
+    "marketDay": "2025-10-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2650
+  },
+  {
+    "dayKey": 20251017,
+    "marketDay": "2025-10-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3551
+  },
+  {
+    "dayKey": 20251018,
+    "marketDay": "2025-10-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3931
+  },
+  {
+    "dayKey": 20251019,
+    "marketDay": "2025-10-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2388
+  },
+  {
+    "dayKey": 20251020,
+    "marketDay": "2025-10-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2769
+  },
+  {
+    "dayKey": 20251021,
+    "marketDay": "2025-10-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4537
+  },
+  {
+    "dayKey": 20251022,
+    "marketDay": "2025-10-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3005
+  },
+  {
+    "dayKey": 20251023,
+    "marketDay": "2025-10-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3424
+  },
+  {
+    "dayKey": 20251024,
+    "marketDay": "2025-10-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3637
+  },
+  {
+    "dayKey": 20251025,
+    "marketDay": "2025-10-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4730
+  },
+  {
+    "dayKey": 20251026,
+    "marketDay": "2025-10-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5340
+  },
+  {
+    "dayKey": 20251027,
+    "marketDay": "2025-10-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4110
+  },
+  {
+    "dayKey": 20251028,
+    "marketDay": "2025-10-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3081
+  },
+  {
+    "dayKey": 20251029,
+    "marketDay": "2025-10-29",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2020
+  },
+  {
+    "dayKey": 20251030,
+    "marketDay": "2025-10-30",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4025
+  },
+  {
+    "dayKey": 20251031,
+    "marketDay": "2025-10-31",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3033
+  },
+  {
+    "dayKey": 20251101,
+    "marketDay": "2025-11-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3771
+  },
+  {
+    "dayKey": 20251103,
+    "marketDay": "2025-11-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2850
+  },
+  {
+    "dayKey": 20251104,
+    "marketDay": "2025-11-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2289
+  },
+  {
+    "dayKey": 20251105,
+    "marketDay": "2025-11-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4010
+  },
+  {
+    "dayKey": 20251106,
+    "marketDay": "2025-11-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3950
+  },
+  {
+    "dayKey": 20251107,
+    "marketDay": "2025-11-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5932
+  },
+  {
+    "dayKey": 20251108,
+    "marketDay": "2025-11-08",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3957
+  },
+  {
+    "dayKey": 20251109,
+    "marketDay": "2025-11-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2329
+  },
+  {
+    "dayKey": 20251110,
+    "marketDay": "2025-11-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4232
+  },
+  {
+    "dayKey": 20251111,
+    "marketDay": "2025-11-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1874
+  },
+  {
+    "dayKey": 20251112,
+    "marketDay": "2025-11-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3716
+  },
+  {
+    "dayKey": 20251113,
+    "marketDay": "2025-11-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2910
+  },
+  {
+    "dayKey": 20251114,
+    "marketDay": "2025-11-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3034
+  },
+  {
+    "dayKey": 20251115,
+    "marketDay": "2025-11-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2934
+  },
+  {
+    "dayKey": 20251116,
+    "marketDay": "2025-11-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5016
+  },
+  {
+    "dayKey": 20251117,
+    "marketDay": "2025-11-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3469
+  },
+  {
+    "dayKey": 20251118,
+    "marketDay": "2025-11-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5463
+  },
+  {
+    "dayKey": 20251119,
+    "marketDay": "2025-11-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5371
+  },
+  {
+    "dayKey": 20251120,
+    "marketDay": "2025-11-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4213
+  },
+  {
+    "dayKey": 20251121,
+    "marketDay": "2025-11-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4491
+  },
+  {
+    "dayKey": 20251122,
+    "marketDay": "2025-11-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3936
+  },
+  {
+    "dayKey": 20251123,
+    "marketDay": "2025-11-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3751
+  },
+  {
+    "dayKey": 20251124,
+    "marketDay": "2025-11-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4251
+  },
+  {
+    "dayKey": 20251125,
+    "marketDay": "2025-11-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4420
+  },
+  {
+    "dayKey": 20251126,
+    "marketDay": "2025-11-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3237
+  },
+  {
+    "dayKey": 20251127,
+    "marketDay": "2025-11-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3259
+  },
+  {
+    "dayKey": 20251128,
+    "marketDay": "2025-11-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1956
+  },
+  {
+    "dayKey": 20251129,
+    "marketDay": "2025-11-29",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2424
+  },
+  {
+    "dayKey": 20251130,
+    "marketDay": "2025-11-30",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4343
+  },
+  {
+    "dayKey": 20251201,
+    "marketDay": "2025-12-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 7924
+  },
+  {
+    "dayKey": 20251202,
+    "marketDay": "2025-12-02",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5839
+  },
+  {
+    "dayKey": 20251203,
+    "marketDay": "2025-12-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3715
+  },
+  {
+    "dayKey": 20251204,
+    "marketDay": "2025-12-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 6091
+  },
+  {
+    "dayKey": 20251205,
+    "marketDay": "2025-12-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5563
+  },
+  {
+    "dayKey": 20251206,
+    "marketDay": "2025-12-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3667
+  },
+  {
+    "dayKey": 20251207,
+    "marketDay": "2025-12-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3181
+  },
+  {
+    "dayKey": 20251208,
+    "marketDay": "2025-12-08",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4078
+  },
+  {
+    "dayKey": 20251209,
+    "marketDay": "2025-12-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3249
+  },
+  {
+    "dayKey": 20251210,
+    "marketDay": "2025-12-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3528
+  },
+  {
+    "dayKey": 20251211,
+    "marketDay": "2025-12-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2817
+  },
+  {
+    "dayKey": 20251212,
+    "marketDay": "2025-12-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3672
+  },
+  {
+    "dayKey": 20251213,
+    "marketDay": "2025-12-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4511
+  },
+  {
+    "dayKey": 20251214,
+    "marketDay": "2025-12-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3782
+  },
+  {
+    "dayKey": 20251215,
+    "marketDay": "2025-12-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4541
+  },
+  {
+    "dayKey": 20251216,
+    "marketDay": "2025-12-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3468
+  },
+  {
+    "dayKey": 20251217,
+    "marketDay": "2025-12-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3998
+  },
+  {
+    "dayKey": 20251218,
+    "marketDay": "2025-12-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2885
+  },
+  {
+    "dayKey": 20251219,
+    "marketDay": "2025-12-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2117
+  },
+  {
+    "dayKey": 20251220,
+    "marketDay": "2025-12-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1965
+  },
+  {
+    "dayKey": 20251221,
+    "marketDay": "2025-12-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3446
+  },
+  {
+    "dayKey": 20251222,
+    "marketDay": "2025-12-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2251
+  },
+  {
+    "dayKey": 20251223,
+    "marketDay": "2025-12-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2191
+  },
+  {
+    "dayKey": 20251224,
+    "marketDay": "2025-12-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2133
+  },
+  {
+    "dayKey": 20251225,
+    "marketDay": "2025-12-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1909
+  },
+  {
+    "dayKey": 20251226,
+    "marketDay": "2025-12-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2488
+  },
+  {
+    "dayKey": 20251227,
+    "marketDay": "2025-12-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1366
+  },
+  {
+    "dayKey": 20251228,
+    "marketDay": "2025-12-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1347
+  },
+  {
+    "dayKey": 20251229,
+    "marketDay": "2025-12-29",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3273
+  },
+  {
+    "dayKey": 20251230,
+    "marketDay": "2025-12-30",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3748
+  },
+  {
+    "dayKey": 20251231,
+    "marketDay": "2025-12-31",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3018
+  },
+  {
+    "dayKey": 20260101,
+    "marketDay": "2026-01-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2106
+  },
+  {
+    "dayKey": 20260102,
+    "marketDay": "2026-01-02",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1643
+  },
+  {
+    "dayKey": 20260103,
+    "marketDay": "2026-01-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2384
+  },
+  {
+    "dayKey": 20260104,
+    "marketDay": "2026-01-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1378
+  },
+  {
+    "dayKey": 20260105,
+    "marketDay": "2026-01-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1601
+  },
+  {
+    "dayKey": 20260106,
+    "marketDay": "2026-01-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2857
+  },
+  {
+    "dayKey": 20260107,
+    "marketDay": "2026-01-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2011
+  },
+  {
+    "dayKey": 20260108,
+    "marketDay": "2026-01-08",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1548
+  },
+  {
+    "dayKey": 20260109,
+    "marketDay": "2026-01-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2582
+  },
+  {
+    "dayKey": 20260110,
+    "marketDay": "2026-01-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2022
+  },
+  {
+    "dayKey": 20260111,
+    "marketDay": "2026-01-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2763
+  },
+  {
+    "dayKey": 20260112,
+    "marketDay": "2026-01-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3157
+  },
+  {
+    "dayKey": 20260113,
+    "marketDay": "2026-01-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2609
+  },
+  {
+    "dayKey": 20260114,
+    "marketDay": "2026-01-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1727
+  },
+  {
+    "dayKey": 20260115,
+    "marketDay": "2026-01-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2657
+  },
+  {
+    "dayKey": 20260116,
+    "marketDay": "2026-01-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1608
+  },
+  {
+    "dayKey": 20260117,
+    "marketDay": "2026-01-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2382
+  },
+  {
+    "dayKey": 20260118,
+    "marketDay": "2026-01-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2714
+  },
+  {
+    "dayKey": 20260119,
+    "marketDay": "2026-01-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2434
+  },
+  {
+    "dayKey": 20260120,
+    "marketDay": "2026-01-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3576
+  },
+  {
+    "dayKey": 20260121,
+    "marketDay": "2026-01-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2950
+  },
+  {
+    "dayKey": 20260122,
+    "marketDay": "2026-01-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3433
+  },
+  {
+    "dayKey": 20260123,
+    "marketDay": "2026-01-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3961
+  },
+  {
+    "dayKey": 20260124,
+    "marketDay": "2026-01-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 17081
+  },
+  {
+    "dayKey": 20260125,
+    "marketDay": "2026-01-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 59937
+  },
+  {
+    "dayKey": 20260126,
+    "marketDay": "2026-01-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 67420
+  },
+  {
+    "dayKey": 20260127,
+    "marketDay": "2026-01-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 13904
+  },
+  {
+    "dayKey": 20260128,
+    "marketDay": "2026-01-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 7877
+  },
+  {
+    "dayKey": 20260129,
+    "marketDay": "2026-01-29",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4220
+  },
+  {
+    "dayKey": 20260130,
+    "marketDay": "2026-01-30",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5565
+  },
+  {
+    "dayKey": 20260131,
+    "marketDay": "2026-01-31",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 5987
+  },
+  {
+    "dayKey": 20260201,
+    "marketDay": "2026-02-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4140
+  },
+  {
+    "dayKey": 20260202,
+    "marketDay": "2026-02-02",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1537
+  },
+  {
+    "dayKey": 20260203,
+    "marketDay": "2026-02-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2440
+  },
+  {
+    "dayKey": 20260204,
+    "marketDay": "2026-02-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2653
+  },
+  {
+    "dayKey": 20260205,
+    "marketDay": "2026-02-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2466
+  },
+  {
+    "dayKey": 20260206,
+    "marketDay": "2026-02-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2327
+  },
+  {
+    "dayKey": 20260207,
+    "marketDay": "2026-02-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1773
+  },
+  {
+    "dayKey": 20260208,
+    "marketDay": "2026-02-08",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2326
+  },
+  {
+    "dayKey": 20260209,
+    "marketDay": "2026-02-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2480
+  },
+  {
+    "dayKey": 20260210,
+    "marketDay": "2026-02-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2353
+  },
+  {
+    "dayKey": 20260211,
+    "marketDay": "2026-02-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2767
+  },
+  {
+    "dayKey": 20260212,
+    "marketDay": "2026-02-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2063
+  },
+  {
+    "dayKey": 20260213,
+    "marketDay": "2026-02-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2023
+  },
+  {
+    "dayKey": 20260214,
+    "marketDay": "2026-02-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1892
+  },
+  {
+    "dayKey": 20260215,
+    "marketDay": "2026-02-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1815
+  },
+  {
+    "dayKey": 20260216,
+    "marketDay": "2026-02-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1314
+  },
+  {
+    "dayKey": 20260217,
+    "marketDay": "2026-02-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1022
+  },
+  {
+    "dayKey": 20260218,
+    "marketDay": "2026-02-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1656
+  },
+  {
+    "dayKey": 20260219,
+    "marketDay": "2026-02-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1732
+  },
+  {
+    "dayKey": 20260220,
+    "marketDay": "2026-02-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2130
+  },
+  {
+    "dayKey": 20260221,
+    "marketDay": "2026-02-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1370
+  },
+  {
+    "dayKey": 20260222,
+    "marketDay": "2026-02-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2161
+  },
+  {
+    "dayKey": 20260223,
+    "marketDay": "2026-02-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1739
+  },
+  {
+    "dayKey": 20260224,
+    "marketDay": "2026-02-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1035
+  },
+  {
+    "dayKey": 20260225,
+    "marketDay": "2026-02-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1617
+  },
+  {
+    "dayKey": 20260226,
+    "marketDay": "2026-02-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2082
+  },
+  {
+    "dayKey": 20260227,
+    "marketDay": "2026-02-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2189
+  },
+  {
+    "dayKey": 20260228,
+    "marketDay": "2026-02-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1317
+  },
+  {
+    "dayKey": 20260301,
+    "marketDay": "2026-03-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1488
+  },
+  {
+    "dayKey": 20260302,
+    "marketDay": "2026-03-02",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2126
+  },
+  {
+    "dayKey": 20260303,
+    "marketDay": "2026-03-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1822
+  },
+  {
+    "dayKey": 20260304,
+    "marketDay": "2026-03-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3166
+  },
+  {
+    "dayKey": 20260305,
+    "marketDay": "2026-03-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1999
+  },
+  {
+    "dayKey": 20260306,
+    "marketDay": "2026-03-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2115
+  },
+  {
+    "dayKey": 20260307,
+    "marketDay": "2026-03-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2417
+  },
+  {
+    "dayKey": 20260309,
+    "marketDay": "2026-03-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2416
+  },
+  {
+    "dayKey": 20260310,
+    "marketDay": "2026-03-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2420
+  },
+  {
+    "dayKey": 20260311,
+    "marketDay": "2026-03-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2300
+  },
+  {
+    "dayKey": 20260312,
+    "marketDay": "2026-03-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2132
+  },
+  {
+    "dayKey": 20260313,
+    "marketDay": "2026-03-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1959
+  },
+  {
+    "dayKey": 20260314,
+    "marketDay": "2026-03-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1814
+  },
+  {
+    "dayKey": 20260315,
+    "marketDay": "2026-03-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1646
+  },
+  {
+    "dayKey": 20260316,
+    "marketDay": "2026-03-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3995
+  },
+  {
+    "dayKey": 20260317,
+    "marketDay": "2026-03-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2105
+  },
+  {
+    "dayKey": 20260318,
+    "marketDay": "2026-03-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2272
+  },
+  {
+    "dayKey": 20260319,
+    "marketDay": "2026-03-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2766
+  },
+  {
+    "dayKey": 20260320,
+    "marketDay": "2026-03-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2985
+  },
+  {
+    "dayKey": 20260321,
+    "marketDay": "2026-03-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2592
+  },
+  {
+    "dayKey": 20260322,
+    "marketDay": "2026-03-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1915
+  },
+  {
+    "dayKey": 20260323,
+    "marketDay": "2026-03-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4277
+  },
+  {
+    "dayKey": 20260324,
+    "marketDay": "2026-03-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3043
+  },
+  {
+    "dayKey": 20260325,
+    "marketDay": "2026-03-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2630
+  },
+  {
+    "dayKey": 20260326,
+    "marketDay": "2026-03-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2296
+  },
+  {
+    "dayKey": 20260327,
+    "marketDay": "2026-03-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2422
+  },
+  {
+    "dayKey": 20260328,
+    "marketDay": "2026-03-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3189
+  },
+  {
+    "dayKey": 20260329,
+    "marketDay": "2026-03-29",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1431
+  },
+  {
+    "dayKey": 20260330,
+    "marketDay": "2026-03-30",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1687
+  },
+  {
+    "dayKey": 20260331,
+    "marketDay": "2026-03-31",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2032
+  },
+  {
+    "dayKey": 20260401,
+    "marketDay": "2026-04-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2421
+  },
+  {
+    "dayKey": 20260402,
+    "marketDay": "2026-04-02",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2757
+  },
+  {
+    "dayKey": 20260403,
+    "marketDay": "2026-04-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2966
+  },
+  {
+    "dayKey": 20260404,
+    "marketDay": "2026-04-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3093
+  },
+  {
+    "dayKey": 20260405,
+    "marketDay": "2026-04-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3200
+  },
+  {
+    "dayKey": 20260406,
+    "marketDay": "2026-04-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3184
+  },
+  {
+    "dayKey": 20260407,
+    "marketDay": "2026-04-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2097
+  },
+  {
+    "dayKey": 20260408,
+    "marketDay": "2026-04-08",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2354
+  },
+  {
+    "dayKey": 20260409,
+    "marketDay": "2026-04-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2155
+  },
+  {
+    "dayKey": 20260410,
+    "marketDay": "2026-04-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2660
+  },
+  {
+    "dayKey": 20260411,
+    "marketDay": "2026-04-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2994
+  },
+  {
+    "dayKey": 20260412,
+    "marketDay": "2026-04-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2599
+  },
+  {
+    "dayKey": 20260413,
+    "marketDay": "2026-04-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2968
+  },
+  {
+    "dayKey": 20260414,
+    "marketDay": "2026-04-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2782
+  },
+  {
+    "dayKey": 20260415,
+    "marketDay": "2026-04-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3358
+  },
+  {
+    "dayKey": 20260416,
+    "marketDay": "2026-04-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3118
+  },
+  {
+    "dayKey": 20260417,
+    "marketDay": "2026-04-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2368
+  },
+  {
+    "dayKey": 20260418,
+    "marketDay": "2026-04-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2292
+  },
+  {
+    "dayKey": 20260419,
+    "marketDay": "2026-04-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2061
+  },
+  {
+    "dayKey": 20260420,
+    "marketDay": "2026-04-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3291
+  },
+  {
+    "dayKey": 20260421,
+    "marketDay": "2026-04-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3998
+  },
+  {
+    "dayKey": 20260422,
+    "marketDay": "2026-04-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3201
+  },
+  {
+    "dayKey": 20260423,
+    "marketDay": "2026-04-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2673
+  },
+  {
+    "dayKey": 20260424,
+    "marketDay": "2026-04-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 7613
+  },
+  {
+    "dayKey": 20260425,
+    "marketDay": "2026-04-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3674
+  },
+  {
+    "dayKey": 20260426,
+    "marketDay": "2026-04-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3500
+  },
+  {
+    "dayKey": 20260427,
+    "marketDay": "2026-04-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 11881
+  },
+  {
+    "dayKey": 20260428,
+    "marketDay": "2026-04-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 6903
+  },
+  {
+    "dayKey": 20260429,
+    "marketDay": "2026-04-29",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4510
+  },
+  {
+    "dayKey": 20260430,
+    "marketDay": "2026-04-30",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4576
+  },
+  {
+    "dayKey": 20260501,
+    "marketDay": "2026-05-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3093
+  },
+  {
+    "dayKey": 20260502,
+    "marketDay": "2026-05-02",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3093
+  },
+  {
+    "dayKey": 20260503,
+    "marketDay": "2026-05-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1800
+  },
+  {
+    "dayKey": 20260504,
+    "marketDay": "2026-05-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1577
+  },
+  {
+    "dayKey": 20260505,
+    "marketDay": "2026-05-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3699
+  },
+  {
+    "dayKey": 20260506,
+    "marketDay": "2026-05-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4799
+  },
+  {
+    "dayKey": 20260507,
+    "marketDay": "2026-05-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2759
+  },
+  {
+    "dayKey": 20260508,
+    "marketDay": "2026-05-08",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3069
+  },
+  {
+    "dayKey": 20260509,
+    "marketDay": "2026-05-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3261
+  },
+  {
+    "dayKey": 20260510,
+    "marketDay": "2026-05-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2555
+  },
+  {
+    "dayKey": 20260511,
+    "marketDay": "2026-05-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4468
+  },
+  {
+    "dayKey": 20260512,
+    "marketDay": "2026-05-12",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2791
+  },
+  {
+    "dayKey": 20260513,
+    "marketDay": "2026-05-13",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2601
+  },
+  {
+    "dayKey": 20260514,
+    "marketDay": "2026-05-14",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2375
+  },
+  {
+    "dayKey": 20260515,
+    "marketDay": "2026-05-15",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2141
+  },
+  {
+    "dayKey": 20260516,
+    "marketDay": "2026-05-16",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 1931
+  },
+  {
+    "dayKey": 20260517,
+    "marketDay": "2026-05-17",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2155
+  },
+  {
+    "dayKey": 20260518,
+    "marketDay": "2026-05-18",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2508
+  },
+  {
+    "dayKey": 20260519,
+    "marketDay": "2026-05-19",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2959
+  },
+  {
+    "dayKey": 20260520,
+    "marketDay": "2026-05-20",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3722
+  },
+  {
+    "dayKey": 20260521,
+    "marketDay": "2026-05-21",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3243
+  },
+  {
+    "dayKey": 20260522,
+    "marketDay": "2026-05-22",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3027
+  },
+  {
+    "dayKey": 20260523,
+    "marketDay": "2026-05-23",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2446
+  },
+  {
+    "dayKey": 20260524,
+    "marketDay": "2026-05-24",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2701
+  },
+  {
+    "dayKey": 20260525,
+    "marketDay": "2026-05-25",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2493
+  },
+  {
+    "dayKey": 20260526,
+    "marketDay": "2026-05-26",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2973
+  },
+  {
+    "dayKey": 20260527,
+    "marketDay": "2026-05-27",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3598
+  },
+  {
+    "dayKey": 20260528,
+    "marketDay": "2026-05-28",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 4476
+  },
+  {
+    "dayKey": 20260529,
+    "marketDay": "2026-05-29",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3317
+  },
+  {
+    "dayKey": 20260530,
+    "marketDay": "2026-05-30",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2442
+  },
+  {
+    "dayKey": 20260531,
+    "marketDay": "2026-05-31",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2765
+  },
+  {
+    "dayKey": 20260601,
+    "marketDay": "2026-06-01",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3636
+  },
+  {
+    "dayKey": 20260602,
+    "marketDay": "2026-06-02",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3230
+  },
+  {
+    "dayKey": 20260603,
+    "marketDay": "2026-06-03",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3662
+  },
+  {
+    "dayKey": 20260604,
+    "marketDay": "2026-06-04",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3077
+  },
+  {
+    "dayKey": 20260605,
+    "marketDay": "2026-06-05",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3256
+  },
+  {
+    "dayKey": 20260606,
+    "marketDay": "2026-06-06",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3448
+  },
+  {
+    "dayKey": 20260607,
+    "marketDay": "2026-06-07",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2666
+  },
+  {
+    "dayKey": 20260608,
+    "marketDay": "2026-06-08",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2548
+  },
+  {
+    "dayKey": 20260609,
+    "marketDay": "2026-06-09",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2722
+  },
+  {
+    "dayKey": 20260610,
+    "marketDay": "2026-06-10",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 2799
+  },
+  {
+    "dayKey": 20260611,
+    "marketDay": "2026-06-11",
+    "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
+    "txHash": null,
+    "value": 3223
+  },
+  {
+    "dayKey": 20260612,
+    "marketDay": "2026-06-12",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3404
+  },
+  {
+    "dayKey": 20260613,
+    "marketDay": "2026-06-13",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2550
+  },
+  {
+    "dayKey": 20260614,
+    "marketDay": "2026-06-14",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2923
+  },
+  {
+    "dayKey": 20260615,
+    "marketDay": "2026-06-15",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3859
+  },
+  {
+    "dayKey": 20260616,
+    "marketDay": "2026-06-16",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3695
+  },
+  {
+    "dayKey": 20260617,
+    "marketDay": "2026-06-17",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2791
+  },
+  {
+    "dayKey": 20260618,
+    "marketDay": "2026-06-18",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3451
+  },
+  {
+    "dayKey": 20260619,
+    "marketDay": "2026-06-19",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4169
+  },
+  {
+    "dayKey": 20260620,
+    "marketDay": "2026-06-20",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3012
+  },
+  {
+    "dayKey": 20260621,
+    "marketDay": "2026-06-21",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2393
+  },
+  {
+    "dayKey": 20260622,
+    "marketDay": "2026-06-22",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3056
+  },
+  {
+    "dayKey": 20260623,
+    "marketDay": "2026-06-23",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3013
+  },
+  {
+    "dayKey": 20260624,
+    "marketDay": "2026-06-24",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2875
+  },
+  {
+    "dayKey": 20260625,
+    "marketDay": "2026-06-25",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2823
+  },
+  {
+    "dayKey": 20260626,
+    "marketDay": "2026-06-26",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2769
+  },
+  {
+    "dayKey": 20260627,
+    "marketDay": "2026-06-27",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2417
+  },
+  {
+    "dayKey": 20260628,
+    "marketDay": "2026-06-28",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2275
+  },
+  {
+    "dayKey": 20260629,
+    "marketDay": "2026-06-29",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2551
+  },
+  {
+    "dayKey": 20260630,
+    "marketDay": "2026-06-30",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2535
+  },
+  {
+    "dayKey": 20260701,
+    "marketDay": "2026-07-01",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2834
+  },
+  {
+    "dayKey": 20260702,
+    "marketDay": "2026-07-02",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2937
+  },
+  {
+    "dayKey": 20260703,
+    "marketDay": "2026-07-03",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2766
+  },
+  {
+    "dayKey": 20260704,
+    "marketDay": "2026-07-04",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2798
+  },
+  {
+    "dayKey": 20260705,
+    "marketDay": "2026-07-05",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3448
+  },
+  {
+    "dayKey": 20260706,
+    "marketDay": "2026-07-06",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3814
+  },
+  {
+    "dayKey": 20260707,
+    "marketDay": "2026-07-07",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3196
+  },
+  {
+    "dayKey": 20260708,
+    "marketDay": "2026-07-08",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2776
+  },
+  {
+    "dayKey": 20260709,
+    "marketDay": "2026-07-09",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2536
+  },
+  {
+    "dayKey": 20260710,
+    "marketDay": "2026-07-10",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2616
+  },
+  {
+    "dayKey": 20260711,
+    "marketDay": "2026-07-11",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3078
+  },
+  {
+    "dayKey": 20260712,
+    "marketDay": "2026-07-12",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3126
+  },
+  {
+    "dayKey": 20260713,
+    "marketDay": "2026-07-13",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3475
+  },
+  {
+    "dayKey": 20260714,
+    "marketDay": "2026-07-14",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2891
+  },
+  {
+    "dayKey": 20260715,
+    "marketDay": "2026-07-15",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2653
+  },
+  {
+    "dayKey": 20260716,
+    "marketDay": "2026-07-16",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2638
+  },
+  {
+    "dayKey": 20260717,
+    "marketDay": "2026-07-17",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2536
+  },
+  {
+    "dayKey": 20260718,
+    "marketDay": "2026-07-18",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2548
+  },
+  {
+    "dayKey": 20260719,
+    "marketDay": "2026-07-19",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2853
+  },
+  {
+    "dayKey": 20260720,
+    "marketDay": "2026-07-20",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3347
+  },
+  {
+    "dayKey": 20260721,
+    "marketDay": "2026-07-21",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 5680
+  },
+  {
+    "dayKey": 20260722,
+    "marketDay": "2026-07-22",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 6909
+  },
+  {
+    "dayKey": 20260723,
+    "marketDay": "2026-07-23",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3905
+  },
+  {
+    "dayKey": 20260724,
+    "marketDay": "2026-07-24",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3378
+  },
+  {
+    "dayKey": 20260725,
+    "marketDay": "2026-07-25",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2792
+  },
+  {
+    "dayKey": 20260726,
+    "marketDay": "2026-07-26",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2672
+  },
+  {
+    "dayKey": 20260727,
+    "marketDay": "2026-07-27",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3122
+  },
+  {
+    "dayKey": 20260728,
+    "marketDay": "2026-07-28",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3170
+  },
+  {
+    "dayKey": 20260729,
+    "marketDay": "2026-07-29",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3503
+  },
+  {
+    "dayKey": 20260730,
+    "marketDay": "2026-07-30",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3534
+  },
+  {
+    "dayKey": 20260731,
+    "marketDay": "2026-07-31",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4089
+  },
+  {
+    "dayKey": 20260801,
+    "marketDay": "2026-08-01",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3971
+  },
+  {
+    "dayKey": 20260802,
+    "marketDay": "2026-08-02",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4199
+  },
+  {
+    "dayKey": 20260803,
+    "marketDay": "2026-08-03",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2837
+  },
+  {
+    "dayKey": 20260804,
+    "marketDay": "2026-08-04",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2773
+  },
+  {
+    "dayKey": 20260805,
+    "marketDay": "2026-08-05",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2770
+  },
+  {
+    "dayKey": 20260806,
+    "marketDay": "2026-08-06",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2681
+  },
+  {
+    "dayKey": 20260807,
+    "marketDay": "2026-08-07",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2871
+  },
+  {
+    "dayKey": 20260808,
+    "marketDay": "2026-08-08",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2787
+  },
+  {
+    "dayKey": 20260809,
+    "marketDay": "2026-08-09",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2851
+  },
+  {
+    "dayKey": 20260810,
+    "marketDay": "2026-08-10",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2817
+  },
+  {
+    "dayKey": 20260811,
+    "marketDay": "2026-08-11",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2543
+  },
+  {
+    "dayKey": 20260812,
+    "marketDay": "2026-08-12",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2398
+  },
+  {
+    "dayKey": 20260813,
+    "marketDay": "2026-08-13",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2505
+  },
+  {
+    "dayKey": 20260814,
+    "marketDay": "2026-08-14",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2698
+  },
+  {
+    "dayKey": 20260815,
+    "marketDay": "2026-08-15",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2788
+  },
+  {
+    "dayKey": 20260816,
+    "marketDay": "2026-08-16",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3222
+  },
+  {
+    "dayKey": 20260817,
+    "marketDay": "2026-08-17",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4870
+  },
+  {
+    "dayKey": 20260818,
+    "marketDay": "2026-08-18",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3663
+  },
+  {
+    "dayKey": 20260819,
+    "marketDay": "2026-08-19",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3746
+  },
+  {
+    "dayKey": 20260820,
+    "marketDay": "2026-08-20",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4881
+  },
+  {
+    "dayKey": 20260821,
+    "marketDay": "2026-08-21",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4683
+  },
+  {
+    "dayKey": 20260822,
+    "marketDay": "2026-08-22",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4261
+  },
+  {
+    "dayKey": 20260823,
+    "marketDay": "2026-08-23",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3624
+  },
+  {
+    "dayKey": 20260824,
+    "marketDay": "2026-08-24",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3766
+  },
+  {
+    "dayKey": 20260825,
+    "marketDay": "2026-08-25",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4068
+  },
+  {
+    "dayKey": 20260826,
+    "marketDay": "2026-08-26",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 5948
+  },
+  {
+    "dayKey": 20260827,
+    "marketDay": "2026-08-27",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 5603
+  },
+  {
+    "dayKey": 20260828,
+    "marketDay": "2026-08-28",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4591
+  },
+  {
+    "dayKey": 20260829,
+    "marketDay": "2026-08-29",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3521
+  },
+  {
+    "dayKey": 20260830,
+    "marketDay": "2026-08-30",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 2808
+  },
+  {
+    "dayKey": 20260831,
+    "marketDay": "2026-08-31",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3305
+  },
+  {
+    "dayKey": 20260901,
+    "marketDay": "2026-09-01",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3651
+  },
+  {
+    "dayKey": 20260902,
+    "marketDay": "2026-09-02",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3836
+  },
+  {
+    "dayKey": 20260903,
+    "marketDay": "2026-09-03",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3591
+  },
+  {
+    "dayKey": 20260904,
+    "marketDay": "2026-09-04",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3280
+  },
+  {
+    "dayKey": 20260905,
+    "marketDay": "2026-09-05",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3733
+  },
+  {
+    "dayKey": 20260906,
+    "marketDay": "2026-09-06",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 3836
+  },
+  {
+    "dayKey": 20260907,
+    "marketDay": "2026-09-07",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4562
+  },
+  {
+    "dayKey": 20260908,
+    "marketDay": "2026-09-08",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4222
+  },
+  {
+    "dayKey": 20260909,
+    "marketDay": "2026-09-09",
+    "sourceHash": "738cb88b47c3fe0456e842b048a32681baade9a3e6cf54d0ee719308577f60ba",
+    "txHash": null,
+    "value": 4812
+  }
+]

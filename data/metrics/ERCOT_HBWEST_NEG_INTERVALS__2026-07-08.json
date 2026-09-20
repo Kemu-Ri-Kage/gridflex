@@ -1,0 +1,18 @@
+{
+  "metricId": "ERCOT_HBWEST_NEG_INTERVALS",
+  "dayKey": 20260708,
+  "marketDay": "2026-07-08",
+  "marketDayStartUtc": 1783486800,
+  "marketDayEndUtc": 1783573200,
+  "value": 0,
+  "sourceHash": "577ffee319549004434368ce39ae62b9a91a1e6c0d4606caac333d9e16807980",
+  "sourceFiles": [
+    "ercot_spp_real_time_15_min__HB_WEST__2026-06-12__2026-07-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-07-01__2026-08-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-08-01__2026-09-01.json",
+    "ercot_spp_real_time_15_min__HB_WEST__2026-09-01__2026-09-10.json"
+  ],
+  "hashAlgorithm": "sha256",
+  "computedAt": "2026-09-10T16:49:18.103761+00:00",
+  "intervalsUsed": 96
+}

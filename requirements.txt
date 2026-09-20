@@ -1,0 +1,4 @@
+gridstatusio>=0.6
+pandas>=2.0
+tzdata
+web3==7.16.0

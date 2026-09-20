@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.36;
+
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+/// @title Faucet collateral for the GRIDFLEX X Layer testnet demo
+/// @notice Anyone can mint this token. It has no value outside the demo.
+contract MockUSDT is ERC20 {
+    constructor() ERC20("GRIDFLEX Mock USDT", "mUSDT") { }
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}

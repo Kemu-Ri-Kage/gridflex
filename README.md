@@ -1,16 +1,16 @@
 # GRIDFLEX — verifiable ERCOT outcome markets on X Layer
 
 GRIDFLEX publishes verifiable ERCOT electricity-market metrics on X Layer and
-uses them to settle fully collateralized YES/NO markets. It is a cash-settled
-derivatives demo: no electricity or other physical asset is tokenized or
+uses them to settle fully collateralised YES/NO markets. It is a cash-settled
+derivatives demo: no electricity or other physical asset is tokenised or
 delivered.
 
 | Part | Location | State in this handoff |
 |---|---|---|
 | ERCOT pipeline and 2,168 metric files | repository root + `data/metrics/` | working |
 | Frozen pipeline/oracle boundary | `shared/oracle-interface.md` | implemented |
-| Oracle, collateral, and market factory | `contracts/` | deployed and verified on X Layer testnet |
-| Binary market and outcome tokens | `contracts/` | tested locally; testnet creation is next |
+| Oracle and collateral | `contracts/` | deployed and verified on X Layer testnet |
+| Trade-safe market factory, binary market, and outcome tokens | `contracts/` | tested locally; replacement factory deployment is next |
 | Wallet-connected interface | `web/` | builds; demo mode until testnet addresses are configured |
 | Feed page (verified readings, live on-chain check) | `web/` + `build_feed_data.py` | working; 8 confirmed on-chain readings shown today |
 
@@ -31,7 +31,8 @@ Turns public ERCOT market data into the numbers our contracts settle on.
 
 ## Setup (once)
 
-    pip install -r requirements.txt
+    python3 --version              # Python 3.10 or newer
+    python3 -m pip install -r requirements.txt
     cp .env.example .env
     # open .env and paste your GridStatus API key
 
@@ -196,7 +197,7 @@ reading carries that day's realised `loadWeights` so the calculation can be
 checked after the fact.
 
 **Load zones, not trading hubs.** Hubs (HB_*) are pricing reference points;
-load zones (LZ_*) are where consumption is metered and where load settles. If
+load zones (LZ_*) are where consumption is metred and where load settles. If
 you are weighting by consumption, those are the prices the weights belong to.
 
 **Cost over volume, not an average of hourly averages.** Summing cost and
@@ -232,7 +233,7 @@ The Foundry project in `contracts/` contains:
 - `GridOracle`: a single authorised testnet reporter submits a signed `int256`
   value under `(metricId, dayKey)` and anyone can finalise it after the oracle
   dispute window;
-- `BinaryMarket`: mints a fully collateralized YES+NO set, swaps outcomes in a
+- `BinaryMarket`: mints a fully collateralised YES+NO set, swaps outcomes in a
   zero-fee constant-product pool, resolves strictly above a signed threshold,
   and redeems the winner one-for-one;
 - a mandatory cancellation path: if no oracle reading was submitted after the

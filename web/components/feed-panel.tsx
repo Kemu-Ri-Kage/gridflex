@@ -65,7 +65,7 @@ function BasisChart({ series }: { series: CommittedRecord[] }) {
         <YAxis tickLine={false} axisLine={false} width={48} tick={{ fontSize: 11 }} />
         {/* shared/feed-spec.md §5: "visually emphasized (not just an axis
             gridline) - crossing it is the story" - so this must not share
-            the CartesianGrid's border color/opacity above. */}
+            the CartesianGrid's border colour/opacity above. */}
         <ReferenceLine y={0} stroke="var(--foreground)" strokeOpacity={0.55} strokeWidth={1.5} />
         <ChartTooltip content={<ChartTooltipContent labelKey="marketDay" />} />
         <Area
@@ -138,7 +138,7 @@ function HbNorthChart({ series }: { series: CommittedRecord[] }) {
  * effect below, not in render.
  *
  * MISMATCH is deliberately not a Badge: it renders as a solid filled block,
- * never as inline text/border color, so it can never be mistaken for a
+ * never as inline text/border colour, so it can never be mistaken for a
  * transient check failure or a passing verification pill.
  */
 function VerificationBadge({ row, now }: { row: VerifiedRow; now: number }) {

@@ -182,7 +182,7 @@ established: `fetch_ercot.py`'s monthly cache chunking can legitimately
 produce a different `sourceHash` for an unchanged `value` across two
 pipeline runs. Only a `value` mismatch is a real problem; hashing that same
 paranoia onto `sourceHash` would false-positive on ordinary, already-
-understood pipeline behavior. A `sourceHash`-only mismatch may be logged as
+understood pipeline behaviour. A `sourceHash`-only mismatch may be logged as
 a note but does not block finalization.
 
 ---

@@ -312,7 +312,7 @@ table.
 
 **Dataset and settlement points.** Prices from `ercot_spp_day_ahead_hourly`
 at four **load zones** (`LZ_NORTH`, `LZ_SOUTH`, `LZ_WEST`, `LZ_HOUSTON` —
-not trading hubs, because load zones are where consumption is metered and
+not trading hubs, because load zones are where consumption is metred and
 settles), weighted by `ercot_load_by_forecast_zone`. Computed in
 `load_weighted_index()`.
 

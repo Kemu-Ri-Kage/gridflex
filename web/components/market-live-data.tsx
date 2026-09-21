@@ -9,7 +9,7 @@ export function MarketProbability() {
   return (
     <>
       {percent.toFixed(1)}
-      <span className="text-xl text-slate-500">%</span>
+      <span className="text-xl text-muted-foreground">%</span>
     </>
   );
 }

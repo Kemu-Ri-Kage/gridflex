@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowUpRight, ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Loader2 } from 'lucide-react';
 
 import { useWeb3, type SwapQuote } from '@/components/web3-provider';
 import { Button } from '@/components/ui/button';
@@ -100,16 +100,18 @@ export function TradePanel() {
   const noPrice = 100 - yesPrice;
 
   return (
-    <Card className="sticky top-6 border-white/10 bg-[#0c1413] shadow-[0_24px_80px_rgba(0,0,0,.3)] ring-0">
-      <CardHeader className="border-b border-white/8 pb-4">
-        <CardTitle className="text-lg text-white">Take a position</CardTitle>
+    <Card className="sticky top-3 rounded-[2px] border border-border bg-card py-0 shadow-none ring-0">
+      <CardHeader className="rounded-none border-b border-border px-3 py-3">
+        <CardTitle className="text-sm font-semibold text-foreground">
+          Order ticket
+        </CardTitle>
         <CardDescription>
           Mint a complete set, then swap into the side you want.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 pt-5">
+      <CardContent className="space-y-4 px-3 py-4">
         {!configured && (
-          <div className="rounded-lg border border-amber-300/15 bg-amber-300/8 px-3 py-2 text-xs leading-5 text-amber-100/80">
+          <div className="rounded-[2px] border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">
             Demo preview — contract addresses will activate after the X Layer
             deployment.
           </div>
@@ -118,7 +120,7 @@ export function TradePanel() {
         <div className="grid grid-cols-2 gap-2">
           <Button
             aria-pressed={side === 'YES'}
-            className="h-12 border-[#a8ff3e]/40 bg-[#a8ff3e]/10 text-[#baff68] hover:bg-[#a8ff3e]/15 aria-pressed:ring-2 aria-pressed:ring-[#a8ff3e]/60"
+            className="h-10 rounded-[2px] border-border bg-background font-mono text-up shadow-none hover:bg-muted aria-pressed:border-up aria-pressed:bg-up/10 aria-pressed:ring-0"
             onClick={() => setSide('YES')}
             variant="outline"
           >
@@ -127,7 +129,7 @@ export function TradePanel() {
           </Button>
           <Button
             aria-pressed={side === 'NO'}
-            className="h-12 border-orange-300/25 bg-orange-300/8 text-orange-200 hover:bg-orange-300/12 aria-pressed:ring-2 aria-pressed:ring-orange-300/50"
+            className="h-10 rounded-[2px] border-border bg-background font-mono text-down shadow-none hover:bg-muted aria-pressed:border-down aria-pressed:bg-down/10 aria-pressed:ring-0"
             onClick={() => setSide('NO')}
             variant="outline"
           >
@@ -137,7 +139,7 @@ export function TradePanel() {
 
         <div>
           <label
-            className="mb-2 block text-sm text-slate-400"
+            className="mb-2 block text-xs text-muted-foreground"
             htmlFor="mint-amount"
           >
             Complete set amount
@@ -145,7 +147,7 @@ export function TradePanel() {
           <div className="relative">
             <Input
               aria-invalid={!validMintAmount}
-              className="h-12 border-white/10 bg-[#070b0b] pr-20 font-mono text-lg text-white"
+              className="h-10 rounded-[2px] border-border bg-background pr-20 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
               id="mint-amount"
               inputMode="decimal"
               min="0"
@@ -154,28 +156,28 @@ export function TradePanel() {
               type="number"
               value={mintAmount}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
               mUSDT
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 rounded-lg border border-white/8 bg-black/15 p-3 text-center text-xs">
+        <div className="grid grid-cols-3 gap-px rounded-[2px] border border-border bg-border text-xs">
           <div>
-            <div className="text-slate-500">mUSDT</div>
-            <div className="mt-1 truncate font-mono text-slate-200">
+            <div className="bg-card px-2 py-2 text-muted-foreground">mUSDT</div>
+            <div className="truncate bg-card px-2 pb-2 font-mono text-foreground">
               {formatToken(snapshot.collateralBalance)}
             </div>
           </div>
           <div>
-            <div className="text-slate-500">YES</div>
-            <div className="mt-1 truncate font-mono text-[#baff68]">
+            <div className="bg-card px-2 py-2 text-muted-foreground">YES</div>
+            <div className="truncate bg-card px-2 pb-2 font-mono text-up">
               {formatToken(snapshot.yesBalance)}
             </div>
           </div>
           <div>
-            <div className="text-slate-500">NO</div>
-            <div className="mt-1 truncate font-mono text-orange-200">
+            <div className="bg-card px-2 py-2 text-muted-foreground">NO</div>
+            <div className="truncate bg-card px-2 pb-2 font-mono text-down">
               {formatToken(snapshot.noBalance)}
             </div>
           </div>
@@ -183,7 +185,7 @@ export function TradePanel() {
 
         {!account ? (
           <Button
-            className="h-11 w-full bg-[#a8ff3e] text-[#061008] hover:bg-[#bdff6c]"
+            className="h-10 w-full rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
             onClick={() => void connect()}
           >
             Connect wallet to trade <ArrowUpRight data-icon="inline-end" />
@@ -191,6 +193,7 @@ export function TradePanel() {
         ) : (
           <div className="grid gap-2">
             <Button
+              className="rounded-[2px] shadow-none"
               disabled={!configured || Boolean(pendingAction)}
               onClick={() => void mintCollateral()}
               variant="outline"
@@ -198,7 +201,7 @@ export function TradePanel() {
               Get 1,000 demo mUSDT
             </Button>
             <Button
-              className="h-10 bg-[#a8ff3e] text-[#061008] hover:bg-[#bdff6c]"
+              className="h-10 rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
               disabled={!canMint}
               onClick={() => void mintSet(mintAmount)}
             >
@@ -207,7 +210,7 @@ export function TradePanel() {
 
             <div className="mt-2">
               <label
-                className="mb-2 block text-sm text-slate-400"
+                className="mb-2 block text-xs text-muted-foreground"
                 htmlFor="trade-amount"
               >
                 Trade input
@@ -215,7 +218,7 @@ export function TradePanel() {
               <div className="relative">
                 <Input
                   aria-invalid={!validTradeAmount}
-                  className="h-12 border-white/10 bg-[#070b0b] pr-20 font-mono text-lg text-white"
+                  className="h-10 rounded-[2px] border-border bg-background pr-20 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
                   id="trade-amount"
                   inputMode="decimal"
                   min="0"
@@ -224,31 +227,31 @@ export function TradePanel() {
                   type="number"
                   value={tradeAmount}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
                   {side === 'YES' ? 'NO' : 'YES'}
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 rounded-lg border border-white/8 bg-black/15 p-3 text-xs">
+            <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
               <div>
-                <div className="text-slate-500">Estimated output</div>
-                <div className="mt-1 font-mono text-slate-200">
+                <div className="text-muted-foreground">Estimated output</div>
+                <div className="mt-1 font-mono text-foreground">
                   {quote ? `${formatToken(quote.amountOut)} ${side}` : '—'}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Minimum received</div>
-                <div className="mt-1 font-mono text-slate-200">
+                <div className="text-muted-foreground">Minimum received</div>
+                <div className="mt-1 font-mono text-foreground">
                   {quote
                     ? `${formatToken(quote.minimumAmountOut)} ${side}`
                     : '—'}
                 </div>
               </div>
-              <div className="col-span-2 text-slate-500">
+              <div className="col-span-2 text-muted-foreground">
                 0.50% slippage protection · 5-minute deadline
                 {quoteUnavailable && (
-                  <span className="ml-2 text-amber-200">
+                  <span className="ml-2 text-warning">
                     Live quote unavailable.
                   </span>
                 )}
@@ -256,6 +259,7 @@ export function TradePanel() {
             </div>
 
             <Button
+              className="h-9 rounded-[2px] shadow-none"
               disabled={!canSwap}
               onClick={() => void swapToward(side, tradeAmount)}
               variant="secondary"
@@ -264,6 +268,7 @@ export function TradePanel() {
             </Button>
             <div className="grid grid-cols-3 gap-2">
               <Button
+                className="rounded-[2px] shadow-none"
                 disabled={
                   !configured ||
                   Boolean(pendingAction) ||
@@ -277,6 +282,7 @@ export function TradePanel() {
                 Resolve
               </Button>
               <Button
+                className="rounded-[2px] shadow-none"
                 disabled={
                   !configured ||
                   Boolean(pendingAction) ||
@@ -290,6 +296,7 @@ export function TradePanel() {
                 Cancel
               </Button>
               <Button
+                className="rounded-[2px] shadow-none"
                 disabled={
                   !configured ||
                   Boolean(pendingAction) ||
@@ -307,16 +314,16 @@ export function TradePanel() {
 
         <div aria-live="polite" className="min-h-5 text-xs leading-5">
           {pendingAction && (
-            <span className="flex items-center gap-2 text-cyan-200">
+            <span className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" /> {pendingAction}…
             </span>
           )}
           {!pendingAction && error && (
-            <span className="text-red-300">{error}</span>
+            <span className="text-down">{error}</span>
           )}
           {!pendingAction && !error && lastTransaction && (
             <a
-              className="inline-flex items-center gap-1.5 text-cyan-300 hover:text-cyan-200"
+              className="inline-flex items-center gap-1.5 text-foreground underline-offset-4 hover:underline"
               href={`${xLayerTestnet.blockExplorers.default.url}/tx/${lastTransaction}`}
               rel="noreferrer"
               target="_blank"
@@ -326,8 +333,7 @@ export function TradePanel() {
           )}
         </div>
 
-        <div className="flex items-start gap-2.5 border-t border-white/8 pt-4 text-xs leading-5 text-slate-500">
-          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-cyan-300" />
+        <div className="border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
           Cash-settled demo market. No electricity, stock, or physical asset is
           delivered. Cancelled markets pay 0.5 mUSDT per YES or NO token.
         </div>

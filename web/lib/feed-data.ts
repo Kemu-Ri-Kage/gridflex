@@ -43,7 +43,7 @@ export const METRIC_LABELS: Record<FeedMetricId, string> = {
 };
 
 // A separate, wallet-free public client - deliberately not reusing
-// web3-provider.tsx's internal one, since that file is David's and out of
+// web3-provider.tsx's internal one, since that file is integration-owned and out of
 // scope for this page (see shared/feed-spec.md).
 const publicClient = createPublicClient({ chain: xLayerTestnet, transport: http() });
 

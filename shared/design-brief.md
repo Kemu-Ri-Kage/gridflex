@@ -20,7 +20,7 @@ standard, including the marketing page: it exists to earn trust in a
 technical claim, not to hype a product.
 
 **If an element carries no information, remove it.** Before adding anything
-— an icon, a badge, a color, a card, a line of copy — ask what it tells the
+— an icon, a badge, a colour, a card, a line of copy — ask what it tells the
 reader that they didn't already know. If the honest answer is "nothing,
 it's decoration," it doesn't ship.
 
@@ -87,7 +87,7 @@ of scope even if it looks good.
 ## 4. Tokens
 
 Every token below already exists in `web/app/globals.css`. Reference them
-by name; do not invent new colors, radii, or spacing scales. If a design
+by name; do not invent new colours, radii, or spacing scales. If a design
 need isn't covered by an existing token, that's a design-brief gap to raise,
 not a license to add a one-off value in a component.
 
@@ -130,7 +130,7 @@ every ticker-like string. Numbers use the `tabular-nums` utility everywhere
 proportional digits in a column of numbers.
 
 **Structure:** radius is `--radius: 0.125rem` (2px) everywhere — buttons,
-cards, inputs, badges. Borders are 1px, `--border` colored. **No
+cards, inputs, badges. Borders are 1px, `--border` coloured. **No
 `box-shadow` anywhere** — depth comes from a 1px border and a background
 step (`--card` on `--background`), never a shadow.
 
@@ -170,7 +170,7 @@ still present, just demoted to small mono type.
     is a count, not a currency figure, even though it sits next to metrics
     that are.
   - `ERCOT_FUELMIX_<FUEL>` — a percentage share, feed only, display ratio.
-- **Never "tokenized energy."** GRIDFLEX is a derivatives venue; nothing is
+- **Never "tokenised energy."** GRIDFLEX is a derivatives venue; nothing is
   redeemable for electricity. This is a product-accuracy rule as much as a
   copy rule.
 - **Never "real money."** State plainly: this is **X Layer testnet**,
@@ -264,7 +264,7 @@ these are GRIDFLEX's own values):
   text-muted-foreground`, the title beside it in `text-2xl sm:text-3xl
   font-semibold tracking-tight text-foreground`, laid out on one baseline
   with a small gap — numeral visibly lighter than the title, never the
-  same weight or color.
+  same weight or colour.
 - Hero headline: `text-4xl sm:text-6xl lg:text-7xl font-semibold
   leading-[1.05] tracking-tight` (36/60/72px).
 - Body/supporting copy: `text-lg leading-8 text-muted-foreground` (18px,
@@ -302,13 +302,13 @@ TradingView's **Lightweight Charts** library, on real ERCOT real-time
 hourly data reshaped to look like a candle series, and never synthetic
 data (§6).
 
-- **Japanese candlesticks**, up/down colored with `--up` / `--down` (§4) —
+- **Japanese candlesticks**, up/down coloured with `--up` / `--down` (§4) —
   body, wick, and border all use the same up/down pair, no separate chart
   palette for candles.
 - **Timeframe row:** `15m`, `1H`, `4H`, `1D`, `1W`, in that order.
 - **Hub switcher:** `HB_NORTH`, `HB_WEST`.
 - **OHLC legend, top-left**, updating live as the crosshair moves: open,
-  high, low, close for the hovered bar, in tabular mono type, colored by
+  high, low, close for the hovered bar, in tabular mono type, coloured by
   that bar's up/down state.
 - **Price scale on the right.**
 - **Crosshair** enabled, both axes.
@@ -349,7 +349,7 @@ breakpoint:**
    dropdown/expandable row directly under the instrument bar — it does not
    sit beside the chart on a narrow screen.
 3. The chart takes full width next, at a reduced but still legible height.
-4. The order ticket (David's `trade-panel.tsx`) moves below the chart,
+4. The order ticket (`trade-panel.tsx`) moves below the chart,
    full width — never squeezed into a narrow side column on mobile.
 5. The bottom tabs (positions/history/settlement) remain a single
    horizontally-scrollable tab strip, full width.
@@ -374,7 +374,7 @@ only when every item is a pass.
    live chain read, or a live ERCOT fetch — never illustrative, sample, or
    placeholder data (§6).
 5. Every number is set in tabular mono type (`tabular-nums`, `font-mono`).
-6. Color is used only for meaning (§4) — no color choice exists purely for
+6. Colour is used only for meaning (§4) — no colour choice exists purely for
    visual variety or brand feel.
 7. MISMATCH, where it appears, is the filled dark-red block treatment —
    never an inline badge, never visually similar to a transient failure.
@@ -390,7 +390,7 @@ only when every item is a pass.
 13. Units match `shared/metrics.md` per metric exactly, including that the
     `+` sign appears only on the basis spread and negative intervals are
     never shown with a dollar sign.
-14. The word "tokenized" never appears describing GRIDFLEX's product.
+14. The word "tokenised" never appears describing GRIDFLEX's product.
 15. The phrase "real money" never appears; the page states X Layer testnet
     and MockUSDT by name wherever settlement or value is discussed.
 16. No empty/loading state is silently blank or spinner-forever — every

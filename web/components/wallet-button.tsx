@@ -16,20 +16,20 @@ export function WalletButton() {
     return (
       <Button
         aria-label="Disconnect wallet"
-        className="h-9 border-white/10 bg-white/5 px-3 font-mono text-slate-200 hover:bg-white/10"
+        className="h-8 rounded-[2px] border-border bg-background px-3 font-mono text-foreground shadow-none hover:bg-muted"
         onClick={disconnect}
         variant="outline"
       >
-        <span className="size-1.5 rounded-full bg-[#a8ff3e]" />
+        <span className="size-1.5 rounded-full bg-up" />
         {shortAddress(account)}
-        <LogOut className="ml-1 size-3.5 text-slate-500" />
+        <LogOut className="ml-1 size-3.5 text-muted-foreground" />
       </Button>
     );
   }
 
   return (
     <Button
-      className="h-9 bg-[#a8ff3e] px-4 text-[#061008] hover:bg-[#bdff6c]"
+      className="h-8 rounded-[2px] bg-primary px-4 text-primary-foreground shadow-none hover:bg-primary/85"
       disabled={Boolean(pendingAction)}
       onClick={() => void connect()}
     >

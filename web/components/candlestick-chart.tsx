@@ -54,7 +54,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
   const [timeframe, setTimeframe] = React.useState<Timeframe>('1d');
   const [sourceHash, setSourceHash] = React.useState<string | null>(null);
   // lightweight-charts draws on canvas, so it can't resolve a `var(...)`
-  // string the way DOM CSS does - colors are read once from the computed
+  // string the way DOM CSS does - colours are read once from the computed
   // stylesheet here and reused for anything drawn later (e.g. the strike
   // price line), not passed through as raw custom-property references.
   const colorsRef = React.useRef({ warning: '#e8a33d' });

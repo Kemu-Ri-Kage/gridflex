@@ -143,7 +143,7 @@ safe: it reads files, validates them, checks the ledger, and prints a plan.
 
 **Required, testable property: running `publish.py` twice in a row with no
 new metric files produces zero transactions on the second run.** This is
-the single most important behavioral guarantee in this spec — `GridOracle`
+the single most important behavioural guarantee in this spec — `GridOracle`
 does not reject a duplicate `submitReading` for an unfinalized reading, it
 *replaces* it and restarts the dispute window (see `contracts/src/GridOracle.sol`,
 `submitReading`: `if (current.finalized) revert ...` is the *only* rejection
@@ -196,7 +196,7 @@ Before submitting a reading, `publish.py`:
 3. If the ledger has no entry — submit.
 4. If the ledger has an entry and `value` differs from the file — this is a
    genuine correction. Submit the new value. (`GridOracle` allows this —
-   replacing an unfinalized reading is the documented, intended behavior for
+   replacing an unfinalized reading is the documented, intended behaviour for
    corrections; it is only a *bug* when the replacement is accidental, which
    this skip logic exists to prevent.)
 5. If the ledger has an entry with the **same `value` but a different
@@ -218,7 +218,7 @@ to resubmit a reading whose value never changed — silently resetting its
 dispute window for no reason, which is precisely the bug this entire design
 exists to prevent. **Do not "fix" this later by making rule 5 resubmit on
 hash drift** — the hash is expected to vary across runs by the pipeline's
-own documented chunking behavior; only a `value` change is a real
+own documented chunking behaviour; only a `value` change is a real
 correction.
 
 **`--reconcile` exists because the ledger can drift from truth** — it's a

@@ -39,7 +39,7 @@ repository. Operator keys belong in an encrypted keystore outside the project.
   values.
 - `GridOracle`, `MockUSDT`, `MarketFactory`, `BinaryMarket`, and `OutcomeToken`
   contracts.
-- Fully collateralized complete sets, constant-product YES/NO swaps, resolution,
+- Fully collateralised complete sets, constant-product YES/NO swaps, resolution,
   redemption, and a cancellation/refund path for missing oracle readings.
 - Wallet-connected web interface for collateral minting, position creation,
   trading, settlement, and redemption.

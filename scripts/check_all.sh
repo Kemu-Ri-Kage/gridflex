@@ -30,6 +30,11 @@ if [[ -z "$forge_bin" ]]; then
   fi
 fi
 
+if ! "$python_bin" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
+  echo "Python 3.10 or newer is required; found $($python_bin --version 2>&1)." >&2
+  exit 1
+fi
+
 echo "[1/3] Validating ERCOT data and running the complete Python test suite"
 "$python_bin" "$repo_root/scripts/validate_metrics.py"
 PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/gridflex-pycache" \

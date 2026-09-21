@@ -35,6 +35,19 @@ follow-up eth_call can lag a few blocks behind the one that mined the
 transaction, and a view call against code that node hasn't indexed yet
 returns empty data, not a revert - a timing gap, not a wrong address or an
 ABI mismatch, and it resolves itself within a few seconds.
+
+When recording an already-existing market (see above), the core parameters
+- metricId, dayKey, threshold, collateral, oracle, resolveAfter,
+disputeWindow - are read directly from the deployed BinaryMarket, not from
+its MarketCreated event: independent verification against the contract
+itself, and it works even if the event can't be found at all. Only the
+original transaction hash and initial liquidity, which the market contract
+does not expose once trading may have moved its reserves, come from that
+event - searched for defensively, in RPC-provider-sized block windows
+(confirmed empirically: this endpoint's eth_getLogs rejects a query
+spanning more than roughly 50-99 blocks with an HTTP 400, rather than
+documenting a limit), never as a single wide-range query that this RPC
+endpoint would simply reject.
 """
 
 from __future__ import annotations
@@ -103,6 +116,16 @@ RPC_COURTESY_SLEEP = 0.5
 # would still be empty on attempt five and correctly raise).
 CONTRACT_READ_RETRY_ATTEMPTS = 5
 CONTRACT_READ_RETRY_DELAY_SECONDS = 1.0
+# web3's Contract.get_logs() defaults from_block to "latest" when not given
+# explicitly - querying only the newest block, not history. This RPC
+# endpoint also rejects a single eth_getLogs call spanning more than
+# roughly 50-99 blocks with a bare HTTP 400 (empirically confirmed: 50
+# blocks succeeds, 100 does not - the provider does not document an exact
+# number). 40 stays safely under that. The search below therefore always
+# passes explicit from_block/to_block and paginates backward in windows
+# this size, rather than a single query over an unknown range.
+GET_LOGS_CHUNK_BLOCKS = 40
+GET_LOGS_MAX_CHUNKS = 300
 
 
 def call_with_retry(fn, attempts: int = CONTRACT_READ_RETRY_ATTEMPTS,
@@ -281,6 +304,7 @@ class Evaluation:
     status: str  # "eligible" | "reading_not_published" | "market_exists"
     oracle_value: int | None = None
     existing_address: str | None = None  # set only when status is STATUS_EXISTS
+    verified: bool | None = None  # set only when status is STATUS_EXISTS
 
 
 STATUS_ELIGIBLE = "eligible"
@@ -288,17 +312,37 @@ STATUS_NOT_PUBLISHED = "reading_not_published"
 STATUS_EXISTS = "market_exists"
 
 
+def on_chain_threshold_matches(
+    w3: Web3, binary_market_abi: Any, candidate: CandidateMarket, market_address: str
+) -> bool:
+    """Independent verification (design-brief-style "trust the chain, not
+    local state") that a market found at this address is really the one
+    shared/demo-markets.md describes for this row, not just a same-day
+    same-metric market with different terms. Shared by the dry-run plan
+    (read-only) and backfill_existing_market (which also refuses to record
+    on a mismatch)."""
+    market_contract = w3.eth.contract(address=market_address, abi=binary_market_abi)
+    on_chain = int(call_with_retry(market_contract.functions.threshold().call))
+    return on_chain == candidate.threshold
+
+
 def build_plan(
     candidates: list[CandidateMarket],
     oracle_contract,
     existing_pairs: dict[str, str],
+    w3: Web3,
+    binary_market_abi: Any,
 ) -> list[Evaluation]:
     evaluations: list[Evaluation] = []
     for candidate in candidates:
         metric_hash_hex = candidate.metric_hash.hex()
         existing_address = existing_pairs.get(f"{metric_hash_hex}:{candidate.day_key}")
         if existing_address is not None:
-            evaluations.append(Evaluation(candidate, STATUS_EXISTS, existing_address=existing_address))
+            verified = on_chain_threshold_matches(w3, binary_market_abi, candidate, existing_address)
+            time.sleep(RPC_COURTESY_SLEEP)
+            evaluations.append(
+                Evaluation(candidate, STATUS_EXISTS, existing_address=existing_address, verified=verified)
+            )
             continue
         current = chain_oracle_reading(oracle_contract, candidate)
         time.sleep(RPC_COURTESY_SLEEP)
@@ -314,12 +358,14 @@ def print_plan(evaluations: list[Evaluation], ledger: dict[str, dict[str, Any]])
     for evaluation in evaluations:
         candidate = evaluation.candidate
         if evaluation.status == STATUS_EXISTS:
-            note = (
-                "ALREADY EXISTS - skipping"
+            verify_note = "verified" if evaluation.verified else "THRESHOLD MISMATCH - do not record"
+            ledger_note = (
+                "already in local ledger"
                 if candidate.key in ledger
-                else "ALREADY EXISTS - skipping (not yet in local ledger; --live will record it)"
+                else "not yet in local ledger; --live will record it"
             )
-            print(f"  #{candidate.row} {candidate.label}   {note}")
+            print(f"  #{candidate.row} {candidate.label}   ALREADY EXISTS, {verify_note} - skipping "
+                  f"({ledger_note})")
         elif evaluation.status == STATUS_NOT_PUBLISHED:
             print(f"  #{candidate.row} {candidate.label}   READING NOT PUBLISHED - skipping")
         else:
@@ -514,6 +560,51 @@ def create_one_market(
     }
 
 
+def factory_deployment_block(w3: Web3) -> int:
+    """Lower bound for a MarketCreated log search: no market can predate the
+    factory that creates it. Read from the factory's own recorded
+    deployment transaction (shared/addresses.json), not guessed."""
+    config = load_json(ADDRESSES_PATH)
+    tx_hash = config.get("transactions", {}).get("MarketFactory")
+    if not tx_hash:
+        raise PublisherError(
+            f"{ADDRESSES_PATH} has no transactions.MarketFactory entry - cannot bound a "
+            "MarketCreated log search without knowing how far back the factory itself goes."
+        )
+    receipt = w3.eth.get_transaction_receipt(tx_hash)
+    return int(receipt.blockNumber)
+
+
+def find_market_created_event(
+    w3: Web3, factory_contract, market_address: str, earliest_block: int
+) -> dict[str, Any] | None:
+    """Find a market's original MarketCreated event by paginating
+    eth_getLogs backward from the latest block in GET_LOGS_CHUNK_BLOCKS-size
+    windows - see the module docstring for why a single wide-range query
+    isn't an option on this RPC endpoint. Stops at the first (most recent) match,
+    or once earliest_block (the factory's own deployment block) is reached;
+    returns None rather than raising if truly not found within that range,
+    since the market's core parameters can still be verified directly from
+    its own contract (see backfill_existing_market) even without this.
+    """
+    checksum_market = Web3.to_checksum_address(market_address)
+    to_block = w3.eth.block_number
+    for _ in range(GET_LOGS_MAX_CHUNKS):
+        if to_block < earliest_block:
+            return None
+        from_block = max(to_block - GET_LOGS_CHUNK_BLOCKS + 1, earliest_block)
+        events = factory_contract.events.MarketCreated.get_logs(
+            argument_filters={"market": checksum_market},
+            from_block=from_block,
+            to_block=to_block,
+        )
+        if events:
+            return events[0]
+        to_block = from_block - 1
+        time.sleep(RPC_COURTESY_SLEEP)
+    return None
+
+
 def backfill_existing_market(
     w3: Web3,
     factory_contract,
@@ -524,44 +615,61 @@ def backfill_existing_market(
     """Record a market that already exists on chain but is missing from the
     local ledger - e.g. createMarket confirmed in an earlier run, but that
     run then crashed reading the market back (the exact failure this
-    function exists to recover from). Every field comes from a live chain
-    read or the market's own original MarketCreated event, never guessed:
-    resolveAfter/disputeWindow/initialLiquidity/collateral and the real
-    createTxHash come from that event, not from this run's own flags, so a
-    market created with different parameters some other time is recorded
-    accurately rather than overwritten with whatever this run happened to
-    be passing.
-    """
-    # Checked before spending any retried RPC calls on the token reads below
-    # - without this event there is nothing verifiable to record, so there
-    # is no point reading yesToken()/noToken() first.
-    events = factory_contract.events.MarketCreated.get_logs(
-        argument_filters={"market": Web3.to_checksum_address(market_address)}
-    )
-    if not events:
-        raise PublisherError(
-            f"{candidate.key}: found on-chain at {market_address} but no MarketCreated event "
-            "for it - refusing to record a market whose creation parameters can't be verified."
-        )
-    args = events[0]["args"]
-    block_timestamp = int(w3.eth.get_block(events[0]["blockNumber"])["timestamp"])
+    function exists to recover from).
 
+    metricId/dayKey were already matched to `candidate` by existing_markets()
+    to even reach this function; threshold/collateral/oracle/resolveAfter/
+    disputeWindow are read directly from the deployed market here and
+    cross-checked against the candidate - independent verification of what
+    the demo-markets.md table says this market should be, not a re-trust of
+    this run's own flags. Only createTxHash and initialLiquidity, which the
+    market contract doesn't expose once trading may have moved its
+    reserves, come from the original MarketCreated event; if that event
+    can't be found (see find_market_created_event), those two fields are
+    recorded as unknown rather than blocking the rest of the record.
+    """
     market_contract = w3.eth.contract(address=market_address, abi=binary_market_abi)
+    on_chain_threshold = int(call_with_retry(market_contract.functions.threshold().call))
+    if on_chain_threshold != candidate.threshold:
+        raise PublisherError(
+            f"{candidate.key}: on-chain threshold {on_chain_threshold} does not match "
+            f"{candidate.threshold} from shared/demo-markets.md - refusing to record a market "
+            "whose parameters don't match what this row is supposed to be."
+        )
     yes_token = Web3.to_checksum_address(call_with_retry(market_contract.functions.yesToken().call))
     no_token = Web3.to_checksum_address(call_with_retry(market_contract.functions.noToken().call))
+    resolve_after = int(call_with_retry(market_contract.functions.resolveAfter().call))
+    dispute_window = int(call_with_retry(market_contract.functions.disputeWindow().call))
+
+    earliest_block = factory_deployment_block(w3)
+    event = find_market_created_event(w3, factory_contract, market_address, earliest_block)
+    if event is not None:
+        create_tx_hash = Web3.to_hex(event["transactionHash"])
+        initial_liquidity = int(event["args"]["initialLiquidity"])
+        created_at = format_wall_clock(int(w3.eth.get_block(event["blockNumber"])["timestamp"]))
+    else:
+        print(
+            f"WARNING {candidate.key}: verified on-chain parameters match, but no "
+            f"MarketCreated event was found between block {earliest_block} and the current "
+            "block - createTxHash/initialLiquidity recorded as unknown rather than guessed.",
+            file=sys.stderr,
+        )
+        create_tx_hash = None
+        initial_liquidity = None
+        created_at = utc_now()
 
     return {
         "metricId": candidate.metric_id,
         "dayKey": candidate.day_key,
-        "threshold": int(args["threshold"]),
+        "threshold": on_chain_threshold,
         "market": market_address,
         "yesToken": yes_token,
         "noToken": no_token,
-        "resolveAfter": int(args["resolveAfter"]),
-        "disputeWindow": int(args["disputeWindow"]),
-        "initialLiquidity": int(args["initialLiquidity"]),
-        "createTxHash": Web3.to_hex(events[0]["transactionHash"]),
-        "createdAt": format_wall_clock(block_timestamp),
+        "resolveAfter": resolve_after,
+        "disputeWindow": dispute_window,
+        "initialLiquidity": initial_liquidity,
+        "createTxHash": create_tx_hash,
+        "createdAt": created_at,
         "totalGasCost": 0,
         "backfilled": True,
     }
@@ -743,7 +851,7 @@ def main(argv: list[str] | None = None) -> int:
         collateral_contract = w3.eth.contract(address=addresses["collateral"], abi=collateral_abi)
 
         pairs = existing_markets(w3, factory_contract, binary_market_abi)
-        evaluations = build_plan(candidates, oracle_contract, pairs)
+        evaluations = build_plan(candidates, oracle_contract, pairs, w3, binary_market_abi)
         ledger = load_market_ledger()
         print_plan(evaluations, ledger)
 

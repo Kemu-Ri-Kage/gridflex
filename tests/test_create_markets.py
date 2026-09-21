@@ -134,46 +134,108 @@ class TestCallWithRetry(unittest.TestCase):
         self.assertEqual(calls["n"], 1)
 
 
+class TestFactoryDeploymentBlock(unittest.TestCase):
+    def test_reads_the_block_number_from_the_recorded_deployment_transaction(self):
+        w3 = MagicMock()
+        w3.eth.get_transaction_receipt.return_value = SimpleNamespace(blockNumber=41569303)
+        addresses_content = {"chainId": 1952, "transactions": {"MarketFactory": "0xdeadbeef"}}
+        with patch.object(create_markets, "load_json", return_value=addresses_content):
+            block = create_markets.factory_deployment_block(w3)
+        self.assertEqual(block, 41569303)
+        w3.eth.get_transaction_receipt.assert_called_once_with("0xdeadbeef")
+
+    def test_raises_when_addresses_json_has_no_deployment_tx(self):
+        w3 = MagicMock()
+        with patch.object(create_markets, "load_json", return_value={"transactions": {}}):
+            with self.assertRaisesRegex(PublisherError, "no transactions.MarketFactory"):
+                create_markets.factory_deployment_block(w3)
+
+
+class TestFindMarketCreatedEvent(unittest.TestCase):
+    """The pagination this RPC endpoint requires: a single wide-range
+    eth_getLogs call is rejected outright (see module docstring), so every
+    call here must carry an explicit, bounded from_block/to_block."""
+
+    def test_paginates_backward_in_bounded_windows_until_found(self):
+        w3 = MagicMock()
+        w3.eth.block_number = 1000
+        factory_contract = MagicMock()
+        found = [{"args": {}, "transactionHash": HexBytes("0x01"), "blockNumber": 900}]
+        factory_contract.events.MarketCreated.get_logs.side_effect = [[], [], found]
+
+        with patch.object(create_markets.time, "sleep"):
+            event = create_markets.find_market_created_event(
+                w3, factory_contract, "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1", earliest_block=800
+            )
+
+        self.assertIsNotNone(event)
+        self.assertEqual(factory_contract.events.MarketCreated.get_logs.call_count, 3)
+        for call in factory_contract.events.MarketCreated.get_logs.call_args_list:
+            kwargs = call.kwargs
+            self.assertIn("from_block", kwargs)
+            self.assertIn("to_block", kwargs)
+            span = kwargs["to_block"] - kwargs["from_block"] + 1
+            self.assertLessEqual(span, create_markets.GET_LOGS_CHUNK_BLOCKS)
+
+    def test_gives_up_and_returns_none_at_earliest_block_without_raising(self):
+        w3 = MagicMock()
+        w3.eth.block_number = 850
+        factory_contract = MagicMock()
+        factory_contract.events.MarketCreated.get_logs.return_value = []
+
+        with patch.object(create_markets.time, "sleep"):
+            event = create_markets.find_market_created_event(
+                w3, factory_contract, "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1", earliest_block=800
+            )
+
+        self.assertIsNone(event)
+
+
 class TestBackfillExistingMarket(unittest.TestCase):
     """Recording a market that already exists on chain but is missing from
-    the local ledger - the exact recovery this bug needed."""
+    the local ledger. Core parameters are read directly from the market
+    contract and cross-checked against the candidate; find_market_created_
+    event (tested above) supplies only the tx hash / initial liquidity
+    provenance, and its absence must not block the rest of the record."""
 
     def setUp(self):
         self.candidate = make_candidate()
         self.market_address = "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1"
-
-    def test_builds_the_record_from_the_original_creation_event_not_current_flags(self):
-        w3 = MagicMock()
-        w3.eth.get_block.return_value = {"timestamp": 1758000000}
-        market_contract = MagicMock()
-        market_contract.functions.yesToken().call.return_value = (
+        self.w3 = MagicMock()
+        self.market_contract = MagicMock()
+        self.market_contract.functions.threshold().call.return_value = 3000
+        self.market_contract.functions.yesToken().call.return_value = (
             "0x22347e66F45397bDfdA3263474ecc9f07786616c"
         )
-        market_contract.functions.noToken().call.return_value = (
+        self.market_contract.functions.noToken().call.return_value = (
             "0xce563Ebad699d7b211ED387BaF4e08cef2C33677"
         )
-        w3.eth.contract.return_value = market_contract
+        self.market_contract.functions.resolveAfter().call.return_value = 1790031068
+        self.market_contract.functions.disputeWindow().call.return_value = 0
+        self.w3.eth.contract.return_value = self.market_contract
+        self.factory_contract = MagicMock()
 
-        factory_contract = MagicMock()
-        factory_contract.events.MarketCreated.get_logs.return_value = [
-            {
-                "args": {
-                    "threshold": 3000,
-                    "resolveAfter": 1790031068,
-                    "disputeWindow": 0,
-                    "initialLiquidity": 10_000_000_000,
-                },
-                "transactionHash": HexBytes(
-                    "0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677"
-                ),
-                "blockNumber": 41571661,
-            }
-        ]
+    def test_builds_the_record_from_contract_reads_plus_the_creation_event(self):
+        event = {
+            "args": {"initialLiquidity": 10_000_000_000},
+            "transactionHash": HexBytes(
+                "0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677"
+            ),
+            "blockNumber": 41571661,
+        }
+        self.w3.eth.get_block.return_value = {"timestamp": 1758000000}
 
-        record = create_markets.backfill_existing_market(
-            w3, factory_contract, [], self.candidate, self.market_address
+        with patch.object(create_markets, "factory_deployment_block", return_value=41569303), \
+                patch.object(
+                    create_markets, "find_market_created_event", return_value=event
+                ) as mock_find:
+            record = create_markets.backfill_existing_market(
+                self.w3, self.factory_contract, [], self.candidate, self.market_address
+            )
+
+        mock_find.assert_called_once_with(
+            self.w3, self.factory_contract, self.market_address, 41569303
         )
-
         self.assertEqual(record["market"], self.market_address)
         self.assertEqual(record["metricId"], "ERCOT_HBNORTH_DA_AVG")
         self.assertEqual(record["dayKey"], 20260908)
@@ -193,18 +255,29 @@ class TestBackfillExistingMarket(unittest.TestCase):
         )
         self.assertEqual(record["totalGasCost"], 0)
         self.assertTrue(record["backfilled"])
-        factory_contract.events.MarketCreated.get_logs.assert_called_once_with(
-            argument_filters={"market": Web3.to_checksum_address(self.market_address)}
-        )
 
-    def test_refuses_to_record_without_a_verifiable_creation_event(self):
-        w3 = MagicMock()
-        factory_contract = MagicMock()
-        factory_contract.events.MarketCreated.get_logs.return_value = []
-        with self.assertRaisesRegex(PublisherError, "no MarketCreated event"):
-            create_markets.backfill_existing_market(
-                w3, factory_contract, [], self.candidate, self.market_address
-            )
+    def test_refuses_when_on_chain_threshold_does_not_match_the_candidate(self):
+        self.market_contract.functions.threshold().call.return_value = 999
+        with patch.object(create_markets, "factory_deployment_block", return_value=41569303), \
+                patch.object(create_markets, "find_market_created_event", return_value=None):
+            with self.assertRaisesRegex(PublisherError, "does not match"):
+                create_markets.backfill_existing_market(
+                    self.w3, self.factory_contract, [], self.candidate, self.market_address
+                )
+
+    def test_still_records_core_parameters_when_the_creation_event_cannot_be_found(self):
+        with patch.object(create_markets, "factory_deployment_block", return_value=41569303), \
+                patch.object(create_markets, "find_market_created_event", return_value=None):
+            buffer = io.StringIO()
+            with contextlib.redirect_stderr(buffer):
+                record = create_markets.backfill_existing_market(
+                    self.w3, self.factory_contract, [], self.candidate, self.market_address
+                )
+        self.assertEqual(record["threshold"], 3000)
+        self.assertEqual(record["resolveAfter"], 1790031068)
+        self.assertIsNone(record["createTxHash"])
+        self.assertIsNone(record["initialLiquidity"])
+        self.assertIn("WARNING", buffer.getvalue())
 
 
 class TestExistingMarketsMapsPairToAddress(unittest.TestCase):
@@ -248,6 +321,9 @@ class TestBackfillDoesNotDuplicateCreation(unittest.TestCase):
 
     def test_live_run_records_the_existing_market_and_creates_only_the_missing_one(self):
         w3 = MagicMock()
+        w3.eth.contract.return_value.functions.threshold().call.return_value = (
+            self.candidate_1.threshold
+        )
         account = SimpleNamespace(address="0x0000000000000000000000000000000000000009")
 
         backfilled_record = {
@@ -314,6 +390,9 @@ class TestBackfillDoesNotDuplicateCreation(unittest.TestCase):
 
     def test_dry_run_flags_an_existing_unrecorded_market_without_writing_anything(self):
         w3 = MagicMock()
+        w3.eth.contract.return_value.functions.threshold().call.return_value = (
+            self.candidate_1.threshold
+        )
         existing_pair_key = f"{self.candidate_1.metric_hash.hex()}:{self.candidate_1.day_key}"
 
         with patch.object(create_markets, "load_addresses", return_value=self.addresses), \
@@ -343,7 +422,8 @@ class TestBackfillDoesNotDuplicateCreation(unittest.TestCase):
         mock_backfill.assert_not_called()
         mock_create.assert_not_called()
         output = buffer.getvalue()
-        self.assertIn("ALREADY EXISTS - skipping (not yet in local ledger; --live will record it)", output)
+        self.assertIn("ALREADY EXISTS, verified - skipping", output)
+        self.assertIn("not yet in local ledger; --live will record it", output)
         self.assertIn("ELIGIBLE", output)
         self.assertIn("DRY RUN ONLY", output)
 

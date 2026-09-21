@@ -428,5 +428,258 @@ class TestBackfillDoesNotDuplicateCreation(unittest.TestCase):
         self.assertIn("DRY RUN ONLY", output)
 
 
+class TestRecordIsComplete(unittest.TestCase):
+    def test_none_is_incomplete(self):
+        self.assertFalse(create_markets.record_is_complete(None))
+
+    def test_missing_entry_key_is_incomplete(self):
+        self.assertFalse(create_markets.record_is_complete({}.get("anything")))
+
+    def test_partial_record_with_only_a_tx_hash_is_incomplete(self):
+        self.assertFalse(
+            create_markets.record_is_complete({"createTxHash": "0xabc", "market": "0xMarket"})
+        )
+
+    def test_full_record_is_complete(self):
+        self.assertTrue(
+            create_markets.record_is_complete(
+                {"yesToken": "0xYes", "noToken": "0xNo", "createTxHash": "0xabc"}
+            )
+        )
+
+
+class TestCreateOneMarketPartialLedgerWrite(unittest.TestCase):
+    """The recovery this whole feature depends on: the createTxHash must
+    already be in the ledger the instant createMarket confirms, not only
+    after the yesToken()/noToken() reads that have previously crashed."""
+
+    def test_writes_the_tx_hash_to_the_ledger_before_the_crash_prone_reads(self):
+        w3 = MagicMock()
+        account = SimpleNamespace(address="0xSigner")
+        addresses = {
+            "oracle": "0x0000000000000000000000000000000000000001",
+            "factory": "0x0000000000000000000000000000000000000002",
+            "collateral": "0x0000000000000000000000000000000000000003",
+        }
+        factory_contract = MagicMock()
+        collateral_contract = MagicMock()
+        candidate = make_candidate()
+        ledger: dict = {}
+
+        receipt = SimpleNamespace(
+            transactionHash=HexBytes(
+                "0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677"
+            )
+        )
+        factory_contract.events.MarketCreated().process_receipt.return_value = [
+            {"args": {"market": "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1"}}
+        ]
+        market_contract = MagicMock()
+        market_contract.functions.yesToken().call.side_effect = ValueError("simulated crash")
+        w3.eth.contract.return_value = market_contract
+
+        with patch.object(
+            create_markets, "send_tx",
+            side_effect=[(MagicMock(), 1), (MagicMock(), 1), (receipt, 1)],
+        ), patch.object(create_markets, "save_market_ledger") as mock_save:
+            with self.assertRaises(ValueError):
+                create_markets.create_one_market(
+                    w3, account, addresses, factory_contract, collateral_contract, [],
+                    candidate, 1790031068, 0, 10_000_000_000, Path("/tmp/x.log"), ledger,
+                )
+
+        self.assertIn(candidate.key, ledger)
+        self.assertEqual(
+            ledger[candidate.key]["createTxHash"],
+            "0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677",
+        )
+        self.assertNotIn("yesToken", ledger[candidate.key])
+        self.assertFalse(create_markets.record_is_complete(ledger[candidate.key]))
+        mock_save.assert_called_once()
+
+
+class TestEventFromKnownTxHash(unittest.TestCase):
+    """The fast path: one eth_getTransactionReceipt call, no block-range
+    search, used whenever the ledger already names the creation tx."""
+
+    def test_returns_the_event_matching_the_given_market(self):
+        w3 = MagicMock()
+        w3.eth.get_transaction_receipt.return_value = MagicMock()
+        factory_contract = MagicMock()
+        market = "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1"
+        factory_contract.events.MarketCreated().process_receipt.return_value = [
+            {"args": {"market": "0x0000000000000000000000000000000000000099"}},
+            {"args": {"market": market}},
+        ]
+
+        event = create_markets.event_from_known_tx_hash(w3, factory_contract, market, "0xabc")
+
+        self.assertIsNotNone(event)
+        self.assertEqual(Web3.to_checksum_address(event["args"]["market"]), market)
+        w3.eth.get_transaction_receipt.assert_called_once_with("0xabc")
+
+    def test_returns_none_when_the_receipt_lookup_fails(self):
+        w3 = MagicMock()
+        w3.eth.get_transaction_receipt.side_effect = Exception("not found")
+        factory_contract = MagicMock()
+
+        event = create_markets.event_from_known_tx_hash(
+            w3, factory_contract, "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1", "0xabc"
+        )
+
+        self.assertIsNone(event)
+
+    def test_returns_none_when_no_event_in_the_receipt_matches_the_market(self):
+        w3 = MagicMock()
+        w3.eth.get_transaction_receipt.return_value = MagicMock()
+        factory_contract = MagicMock()
+        factory_contract.events.MarketCreated().process_receipt.return_value = [
+            {"args": {"market": "0x0000000000000000000000000000000000000099"}},
+        ]
+
+        event = create_markets.event_from_known_tx_hash(
+            w3, factory_contract, "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1", "0xabc"
+        )
+
+        self.assertIsNone(event)
+
+
+class TestBackfillPrefersTheKnownTxHash(unittest.TestCase):
+    """backfill_existing_market must try the ledger's own createTxHash
+    (one RPC call) before ever falling back to the paginated block search
+    (many RPC calls) - this is the whole point of the optimization."""
+
+    def setUp(self):
+        self.candidate = make_candidate()
+        self.market_address = "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1"
+        self.w3 = MagicMock()
+        self.market_contract = MagicMock()
+        self.market_contract.functions.threshold().call.return_value = self.candidate.threshold
+        self.market_contract.functions.yesToken().call.return_value = (
+            "0x22347e66F45397bDfdA3263474ecc9f07786616c"
+        )
+        self.market_contract.functions.noToken().call.return_value = (
+            "0xce563Ebad699d7b211ED387BaF4e08cef2C33677"
+        )
+        self.market_contract.functions.resolveAfter().call.return_value = 1790031068
+        self.market_contract.functions.disputeWindow().call.return_value = 0
+        self.w3.eth.contract.return_value = self.market_contract
+        self.w3.eth.get_block.return_value = {"timestamp": 1758000000}
+        self.factory_contract = MagicMock()
+
+    def test_skips_the_paginated_search_when_the_known_hash_resolves(self):
+        event = {
+            "args": {"initialLiquidity": 10_000_000_000},
+            "transactionHash": HexBytes(
+                "0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677"
+            ),
+            "blockNumber": 41571661,
+        }
+        with patch.object(
+            create_markets, "event_from_known_tx_hash", return_value=event
+        ) as mock_known, \
+                patch.object(create_markets, "find_market_created_event") as mock_search:
+            record = create_markets.backfill_existing_market(
+                self.w3, self.factory_contract, [], self.candidate, self.market_address,
+                known_tx_hash="0x17b554e0...",
+            )
+
+        mock_known.assert_called_once_with(
+            self.w3, self.factory_contract, self.market_address, "0x17b554e0..."
+        )
+        mock_search.assert_not_called()
+        self.assertEqual(
+            record["createTxHash"],
+            "0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677",
+        )
+
+    def test_falls_back_to_the_paginated_search_when_the_known_hash_does_not_resolve(self):
+        with patch.object(create_markets, "event_from_known_tx_hash", return_value=None) as mock_known, \
+                patch.object(create_markets, "factory_deployment_block", return_value=1), \
+                patch.object(create_markets, "find_market_created_event", return_value=None) as mock_search:
+            record = create_markets.backfill_existing_market(
+                self.w3, self.factory_contract, [], self.candidate, self.market_address,
+                known_tx_hash="0xstale",
+            )
+
+        mock_known.assert_called_once()
+        mock_search.assert_called_once()
+        self.assertIsNone(record["createTxHash"])
+
+    def test_no_known_hash_goes_straight_to_the_paginated_search(self):
+        with patch.object(create_markets, "event_from_known_tx_hash") as mock_known, \
+                patch.object(create_markets, "factory_deployment_block", return_value=1), \
+                patch.object(create_markets, "find_market_created_event", return_value=None) as mock_search:
+            create_markets.backfill_existing_market(
+                self.w3, self.factory_contract, [], self.candidate, self.market_address,
+                known_tx_hash=None,
+            )
+
+        mock_known.assert_not_called()
+        mock_search.assert_called_once()
+
+
+class TestToBackfillIncludesPartialLedgerEntries(unittest.TestCase):
+    """main()'s selection of what to backfill must catch a partial ledger
+    entry (createTxHash saved, tokens not), not just a fully-missing one -
+    and must pass its known createTxHash through so backfill uses the fast
+    path instead of searching for it all over again."""
+
+    def test_partial_entry_is_backfilled_using_its_own_known_tx_hash(self):
+        candidate = make_candidate()
+        market_address = "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1"
+        w3 = MagicMock()
+        w3.eth.contract.return_value.functions.threshold().call.return_value = candidate.threshold
+        addresses = {
+            "chainId": create_markets.EXPECTED_CHAIN_ID,
+            "oracle": "0x0000000000000000000000000000000000000001",
+            "factory": "0x0000000000000000000000000000000000000002",
+            "collateral": "0x0000000000000000000000000000000000000003",
+        }
+        existing_pair_key = f"{candidate.metric_hash.hex()}:{candidate.day_key}"
+        partial_ledger = {candidate.key: {"createTxHash": "0xpartial", "market": market_address}}
+        backfilled_record = {
+            "metricId": candidate.metric_id, "dayKey": candidate.day_key,
+            "threshold": candidate.threshold, "market": market_address,
+            "yesToken": "0xYes", "noToken": "0xNo", "resolveAfter": 1, "disputeWindow": 0,
+            "initialLiquidity": 1, "createTxHash": "0xpartial", "createdAt": "2026-01-01T00:00:00Z",
+            "totalGasCost": 0, "backfilled": True,
+        }
+
+        with patch.object(create_markets, "load_addresses", return_value=addresses), \
+                patch.object(create_markets, "make_web3", return_value=w3), \
+                patch.object(create_markets, "load_abi", return_value=[]), \
+                patch.object(
+                    create_markets, "parse_demo_markets_candidates", return_value=[candidate]
+                ), \
+                patch.object(
+                    create_markets, "existing_markets",
+                    return_value={existing_pair_key: market_address},
+                ), \
+                patch.object(create_markets, "load_market_ledger", return_value=partial_ledger), \
+                patch.object(create_markets, "save_market_ledger"), \
+                patch.object(
+                    create_markets, "load_finalizer_account",
+                    return_value=SimpleNamespace(address="0xSigner"),
+                ), \
+                patch.object(
+                    create_markets, "preflight",
+                    return_value=(create_markets.EXPECTED_CHAIN_ID, 10**18),
+                ), \
+                patch.object(
+                    create_markets, "backfill_existing_market", return_value=backfilled_record
+                ) as mock_backfill, \
+                patch.object(create_markets, "write_addresses_file"), \
+                patch.object(create_markets, "write_web_env"), \
+                patch("builtins.input", return_value="yes"):
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                exit_code = create_markets.main(["--live"])
+
+        self.assertEqual(exit_code, 0)
+        mock_backfill.assert_called_once()
+        self.assertEqual(mock_backfill.call_args.kwargs.get("known_tx_hash"), "0xpartial")
+
+
 if __name__ == "__main__":
     unittest.main()

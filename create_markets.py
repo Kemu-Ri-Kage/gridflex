@@ -311,6 +311,20 @@ STATUS_ELIGIBLE = "eligible"
 STATUS_NOT_PUBLISHED = "reading_not_published"
 STATUS_EXISTS = "market_exists"
 
+# Fields create_one_market's *complete* record has that its early partial
+# write (createTxHash only, saved before the yesToken()/noToken() reads
+# that can crash - see create_one_market) does not.
+RECORD_COMPLETE_FIELDS = ("yesToken", "noToken")
+
+
+def record_is_complete(entry: dict[str, Any] | None) -> bool:
+    """True only for a full record - a partial one (createTxHash saved,
+    then crashed before yesToken()/noToken()) still needs completing, not
+    re-creating. record_is_complete(None) is False: no entry at all."""
+    if not isinstance(entry, dict):
+        return False
+    return all(entry.get(field) for field in RECORD_COMPLETE_FIELDS)
+
 
 def on_chain_threshold_matches(
     w3: Web3, binary_market_abi: Any, candidate: CandidateMarket, market_address: str
@@ -361,7 +375,7 @@ def print_plan(evaluations: list[Evaluation], ledger: dict[str, dict[str, Any]])
             verify_note = "verified" if evaluation.verified else "THRESHOLD MISMATCH - do not record"
             ledger_note = (
                 "already in local ledger"
-                if candidate.key in ledger
+                if record_is_complete(ledger.get(candidate.key))
                 else "not yet in local ledger; --live will record it"
             )
             print(f"  #{candidate.row} {candidate.label}   ALREADY EXISTS, {verify_note} - skipping "
@@ -502,9 +516,18 @@ def create_one_market(
     dispute_window: int,
     initial_liquidity: int,
     log_path: Path,
+    ledger: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Mint -> approve -> createMarket, matching CreateDemoMarket.s.sol's own
-    three-call sequence exactly, then read back yesToken()/noToken()."""
+    three-call sequence exactly, then read back yesToken()/noToken().
+
+    The createMarket transaction hash is written to `ledger` and saved
+    immediately once decoded - before the yesToken()/noToken() reads below,
+    which is exactly the step that has previously failed (RPC lag on a
+    just-created contract; see call_with_retry). If that still happens, a
+    later run's backfill finds this createTxHash directly in the ledger
+    instead of paginating through eth_getLogs to rediscover it.
+    """
     label = f"{candidate.key} mint"
     _, mint_cost = send_tx(
         w3, account, collateral_contract.functions.mint(account.address, initial_liquidity), label, log_path
@@ -539,6 +562,23 @@ def create_one_market(
             "aborting before guessing an address."
         )
     market_address = Web3.to_checksum_address(events[0]["args"]["market"])
+    create_tx_hash = Web3.to_hex(receipt.transactionHash)
+
+    # Partial record, saved now - see docstring. Overwritten with the
+    # complete record below once the token reads succeed.
+    ledger[candidate.key] = {
+        "metricId": candidate.metric_id,
+        "dayKey": candidate.day_key,
+        "threshold": candidate.threshold,
+        "market": market_address,
+        "resolveAfter": resolve_after,
+        "disputeWindow": dispute_window,
+        "initialLiquidity": initial_liquidity,
+        "createTxHash": create_tx_hash,
+        "createdAt": utc_now(),
+        "totalGasCost": mint_cost + approve_cost + create_cost,
+    }
+    save_market_ledger(ledger)
 
     market_contract = w3.eth.contract(address=market_address, abi=binary_market_abi)
     yes_token = Web3.to_checksum_address(call_with_retry(market_contract.functions.yesToken().call))
@@ -554,7 +594,7 @@ def create_one_market(
         "resolveAfter": resolve_after,
         "disputeWindow": dispute_window,
         "initialLiquidity": initial_liquidity,
-        "createTxHash": Web3.to_hex(receipt.transactionHash),
+        "createTxHash": create_tx_hash,
         "createdAt": utc_now(),
         "totalGasCost": mint_cost + approve_cost + create_cost,
     }
@@ -605,17 +645,41 @@ def find_market_created_event(
     return None
 
 
+def event_from_known_tx_hash(
+    w3: Web3, factory_contract, market_address: str, tx_hash: str
+) -> dict[str, Any] | None:
+    """Fast path: decode the MarketCreated event directly from a known
+    transaction's receipt - one RPC call, no block-range search at all.
+    Used when the ledger already has this market's createTxHash (see
+    create_one_market's early partial-record write, and main()'s ledger
+    lookup before calling backfill_existing_market). Returns None - falling
+    back to find_market_created_event - if the receipt doesn't exist or
+    doesn't actually contain a MarketCreated event for this exact market: a
+    stale or wrong ledger entry is never trusted blindly.
+    """
+    try:
+        receipt = w3.eth.get_transaction_receipt(tx_hash)
+    except Exception:
+        return None
+    checksum_market = Web3.to_checksum_address(market_address)
+    for event in factory_contract.events.MarketCreated().process_receipt(receipt):
+        if Web3.to_checksum_address(event["args"]["market"]) == checksum_market:
+            return event
+    return None
+
+
 def backfill_existing_market(
     w3: Web3,
     factory_contract,
     binary_market_abi: Any,
     candidate: CandidateMarket,
     market_address: str,
+    known_tx_hash: str | None = None,
 ) -> dict[str, Any]:
-    """Record a market that already exists on chain but is missing from the
-    local ledger - e.g. createMarket confirmed in an earlier run, but that
-    run then crashed reading the market back (the exact failure this
-    function exists to recover from).
+    """Record a market that already exists on chain but is missing (or only
+    partially recorded) in the local ledger - e.g. createMarket confirmed
+    in an earlier run, but that run then crashed reading the market back
+    (the exact failure this function exists to recover from).
 
     metricId/dayKey were already matched to `candidate` by existing_markets()
     to even reach this function; threshold/collateral/oracle/resolveAfter/
@@ -624,9 +688,12 @@ def backfill_existing_market(
     the demo-markets.md table says this market should be, not a re-trust of
     this run's own flags. Only createTxHash and initialLiquidity, which the
     market contract doesn't expose once trading may have moved its
-    reserves, come from the original MarketCreated event; if that event
-    can't be found (see find_market_created_event), those two fields are
-    recorded as unknown rather than blocking the rest of the record.
+    reserves, come from the original MarketCreated event: `known_tx_hash`
+    (the ledger's own partial record, when present) is tried first via
+    event_from_known_tx_hash - one RPC call - before ever falling back to
+    find_market_created_event's block-range search. If neither finds it,
+    those two fields are recorded as unknown rather than blocking the rest
+    of the record.
     """
     market_contract = w3.eth.contract(address=market_address, abi=binary_market_abi)
     on_chain_threshold = int(call_with_retry(market_contract.functions.threshold().call))
@@ -641,8 +708,12 @@ def backfill_existing_market(
     resolve_after = int(call_with_retry(market_contract.functions.resolveAfter().call))
     dispute_window = int(call_with_retry(market_contract.functions.disputeWindow().call))
 
-    earliest_block = factory_deployment_block(w3)
-    event = find_market_created_event(w3, factory_contract, market_address, earliest_block)
+    event = None
+    if known_tx_hash:
+        event = event_from_known_tx_hash(w3, factory_contract, market_address, known_tx_hash)
+    if event is None:
+        earliest_block = factory_deployment_block(w3)
+        event = find_market_created_event(w3, factory_contract, market_address, earliest_block)
     if event is not None:
         create_tx_hash = Web3.to_hex(event["transactionHash"])
         initial_liquidity = int(event["args"]["initialLiquidity"])
@@ -858,11 +929,13 @@ def main(argv: list[str] | None = None) -> int:
         eligible = [e for e in evaluations if e.status == STATUS_ELIGIBLE]
         if args.limit is not None:
             eligible = eligible[: args.limit]
-        # Markets that exist on chain but never made it into the local
-        # ledger - a prior run's createMarket succeeded, then that run
-        # crashed before recording it. Synced, never re-created.
+        # Markets that exist on chain but are missing, or only partially
+        # recorded (createTxHash saved, then crashed before yesToken()/
+        # noToken() - see create_one_market), in the local ledger. Synced,
+        # never re-created.
         to_backfill = [
-            e for e in evaluations if e.status == STATUS_EXISTS and e.candidate.key not in ledger
+            e for e in evaluations
+            if e.status == STATUS_EXISTS and not record_is_complete(ledger.get(e.candidate.key))
         ]
 
         if not args.live:
@@ -901,8 +974,10 @@ def main(argv: list[str] | None = None) -> int:
         recorded: list[dict[str, Any]] = []
         for evaluation in to_backfill:
             candidate = evaluation.candidate
+            known_tx_hash = (ledger.get(candidate.key) or {}).get("createTxHash")
             record = backfill_existing_market(
-                w3, factory_contract, binary_market_abi, candidate, evaluation.existing_address
+                w3, factory_contract, binary_market_abi, candidate, evaluation.existing_address,
+                known_tx_hash=known_tx_hash,
             )
             ledger[candidate.key] = record
             save_market_ledger(ledger)
@@ -914,7 +989,7 @@ def main(argv: list[str] | None = None) -> int:
             candidate = evaluation.candidate
             record = create_one_market(
                 w3, account, addresses, factory_contract, collateral_contract, binary_market_abi,
-                candidate, resolve_after, dispute_window, initial_liquidity, log_path,
+                candidate, resolve_after, dispute_window, initial_liquidity, log_path, ledger,
             )
             ledger[candidate.key] = record
             save_market_ledger(ledger)

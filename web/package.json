@@ -10,7 +10,7 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "test": "node --test lib/feed-verification.test.ts",
-    "lint": "oxlint app lib components/web3-provider.tsx components/wallet-button.tsx components/market-live-data.tsx components/trade-panel.tsx components/feed-panel.tsx",
+    "lint": "oxlint app lib components/landing components/web3-provider.tsx components/wallet-button.tsx components/market-live-data.tsx components/trade-panel.tsx components/feed-panel.tsx components/site-header.tsx components/candlestick-chart.tsx components/instrument-bar.tsx components/market-panel.tsx components/settlement-panel.tsx components/bottom-panel.tsx",
     "format": "oxfmt"
   },
   "dependencies": {
@@ -22,6 +22,7 @@
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.2",
     "input-otp": "1.4.2",
+    "lightweight-charts": "5.2.1",
     "lucide-react": "1.31.0",
     "react": "19.2.6",
     "react-day-picker": "9.8.1",

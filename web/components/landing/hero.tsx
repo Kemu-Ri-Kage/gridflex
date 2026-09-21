@@ -13,8 +13,8 @@ export function Hero() {
         <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
           GRIDFLEX publishes verified ERCOT power-market data onchain, with a hash of the source
           attached to every reading, then lists cash-settled contracts that resolve against it —
-          on X Layer testnet. Nothing here is redeemable for electricity; this is a derivatives
-          venue, not tokenized energy.
+          on X Layer testnet, settled in MockUSDT. Nothing here is redeemable for electricity —
+          this is a derivatives venue.
         </p>
         <div className="mt-10 flex flex-wrap items-center gap-4">
           <Link

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import gsap from 'gsap';
 import { ExternalLink } from 'lucide-react';
 
 import { explorerAddressUrl, explorerTxUrl } from '@/lib/explorer';
@@ -15,6 +16,33 @@ const STAGES: { id: StageId; label: string; dek: string }[] = [
   { id: 'publish', label: 'Publish', dek: 'Reading written to GridOracle on X Layer' },
   { id: 'settle', label: 'Settle', dek: 'Contracts resolve against the finalized reading' },
 ];
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * Crossfades evidence content on stage change (transform + opacity only,
+ * per design-brief.md §13/checklist #25) so the diagram visibly changes
+ * state rather than just swapping text. Instant under
+ * prefers-reduced-motion.
+ */
+function AnimatedEvidence({ stageKey, children }: { stageKey: StageId; children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || prefersReducedMotion()) return;
+    gsap.fromTo(el, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' });
+  }, [stageKey]);
+
+  return (
+    <div key={stageKey} ref={ref}>
+      {children}
+    </div>
+  );
+}
 
 function Mono({ children }: { children: React.ReactNode }) {
   return <span className="font-mono text-foreground">{children}</span>;
@@ -112,7 +140,7 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   return (
     <div className="space-y-3">
       <p className="text-sm leading-6 text-muted-foreground">
-        Digital options and futures resolve strictly against the finalized reading — cash-settled
+        Digital options and dated futures resolve strictly against the finalized reading — cash-settled
         on X Layer testnet, never against a live price feed a counterparty could dispute.
       </p>
       <div className="border border-border bg-background/60 p-4">
@@ -135,41 +163,65 @@ export function DataPathDiagram() {
   const [pinned, setPinned] = React.useState<StageId | null>(null);
   const [hovered, setHovered] = React.useState<StageId | null>(null);
   const active = pinned ?? hovered ?? 'source';
+  const activeIndex = STAGES.findIndex((s) => s.id === active);
+  const indicatorRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useLayoutEffect(() => {
+    const el = indicatorRef.current;
+    if (!el) return;
+    if (prefersReducedMotion()) {
+      gsap.set(el, { xPercent: activeIndex * 100 });
+      return;
+    }
+    gsap.to(el, { xPercent: activeIndex * 100, duration: 0.5, ease: 'power2.out' });
+  }, [activeIndex]);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-      <div
-        className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4"
-        role="tablist"
-      >
-        {STAGES.map((stage, i) => (
-          <button
-            aria-selected={active === stage.id}
-            className={
-              'flex flex-col gap-2 bg-card px-4 py-5 text-left transition-colors focus:outline-none ' +
-              (active === stage.id ? 'bg-accent' : 'hover:bg-accent/60')
-            }
-            key={stage.id}
-            onClick={() => setPinned(stage.id === pinned ? null : stage.id)}
-            onMouseEnter={() => setHovered(stage.id)}
-            onMouseLeave={() => setHovered(null)}
-            role="tab"
-            type="button"
-          >
-            <span className="font-mono text-xs text-muted-foreground">
-              0{i + 1}
-            </span>
-            <span className="text-base font-semibold text-foreground">{stage.label}</span>
-            <span className="text-xs leading-5 text-muted-foreground">{stage.dek}</span>
-          </button>
-        ))}
+    <div className="grid min-w-0 gap-6 lg:grid-cols-[1fr_1fr]">
+      <div className="min-w-0">
+        {/* Flow indicator — teaches that data moves Source -> Settle. Only
+            `transform` (xPercent) is animated, matching stage-column width
+            exactly so it tracks the active tile precisely at any viewport
+            width. Hidden below sm, where stages stack 2x2 and a single
+            left-to-right flow reads wrong. */}
+        <div className="relative hidden h-0.5 bg-border sm:block">
+          <div className="absolute inset-y-0 left-0 w-1/4 bg-foreground" ref={indicatorRef} />
+        </div>
+        <div
+          className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4"
+          role="tablist"
+        >
+          {STAGES.map((stage, i) => (
+            <button
+              aria-selected={active === stage.id}
+              className={
+                'flex flex-col gap-2 bg-card px-4 py-5 text-left transition-colors focus:outline-none ' +
+                (active === stage.id ? 'bg-accent' : 'hover:bg-accent/60')
+              }
+              key={stage.id}
+              onClick={() => setPinned(stage.id === pinned ? null : stage.id)}
+              onMouseEnter={() => setHovered(stage.id)}
+              onMouseLeave={() => setHovered(null)}
+              role="tab"
+              type="button"
+            >
+              <span className="font-mono text-xs text-muted-foreground">
+                0{i + 1}
+              </span>
+              <span className="text-base font-semibold text-foreground">{stage.label}</span>
+              <span className="text-xs leading-5 text-muted-foreground">{stage.dek}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="border border-border bg-card p-5">
+      <div className="min-w-0 border border-border bg-card p-5">
         <div className="mb-3 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
           Evidence — {STAGES.find((s) => s.id === active)?.label}
         </div>
-        <EvidencePanel stage={active} />
+        <AnimatedEvidence stageKey={active}>
+          <EvidencePanel stage={active} />
+        </AnimatedEvidence>
       </div>
     </div>
   );

@@ -18,8 +18,8 @@ The architecture has no application backend: the Python publisher writes to
 the oracle, the market reads the oracle, and the frontend reads and transacts
 with the contracts through the user's wallet.
 
-For the short Russian handoff and remaining testnet steps, read
-[`docs/HANDOFF_RU.md`](docs/HANDOFF_RU.md). To verify everything before sharing:
+For the current implementation status and remaining testnet steps, read
+[`docs/HANDOFF.md`](docs/HANDOFF.md). To verify the complete project:
 
 ```bash
 ./scripts/check_all.sh
@@ -229,8 +229,8 @@ never published, which destroys the verification argument.
 
 The Foundry project in `contracts/` contains:
 
-- `GridOracle`: a single authorized testnet reporter submits a signed `int256`
-  value under `(metricId, dayKey)` and anyone can finalize it after the oracle
+- `GridOracle`: a single authorised testnet reporter submits a signed `int256`
+  value under `(metricId, dayKey)` and anyone can finalise it after the oracle
   dispute window;
 - `BinaryMarket`: mints a fully collateralized YES+NO set, swaps outcomes in a
   zero-fee constant-product pool, resolves strictly above a signed threshold,
@@ -238,7 +238,7 @@ The Foundry project in `contracts/` contains:
 - a mandatory cancellation path: if no oracle reading was submitted after the
   market grace period, each YES and NO redeems for 0.5 collateral (rounded
   down), so a complete set returns one full unit and no user's position is
-  permanently trapped; any submitted reading can instead be finalized by anyone;
+  permanently trapped; any submitted reading can instead be finalised by anyone;
 - `MarketFactory`, `OutcomeToken`, and public-mint `MockUSDT` for the testnet
   demonstration.
 
@@ -338,9 +338,9 @@ python3 publish.py --live --limit 3
 Both commands that access the key request its password without echoing it. Live mode checks chain
 ID `1952`, contract bytecode, and the oracle's immutable reporter before showing a second explicit
 `yes` confirmation. The committed `data/publish-ledger.json` makes normal reruns idempotent. Because
-this team also exchanges complete ZIP archives, live mode additionally checks every candidate
-reading on-chain and recovers missing ledger rows before sending; a stale ZIP therefore cannot
-silently reset an existing reading's one-hour dispute window. Local human-readable logs are written
+multiple operators may publish from separate working copies, live mode additionally checks every
+candidate reading on-chain and recovers missing ledger rows before sending; stale local state therefore
+cannot silently reset an existing reading's one-hour dispute window. Local human-readable logs are written
 under gitignored `logs/`.
 
 ### Finalize oracle readings

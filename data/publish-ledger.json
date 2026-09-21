@@ -10,6 +10,28 @@
     "txHash": "0x2ab0512f3c0846a4548dc2c6ca756aa1bee9f370921249d2db768379514ce6d6",
     "value": 2262
   },
+  "ERCOT_HBNORTH_DA_AVG:20250911": {
+    "blockNumber": 41225674,
+    "dayKey": 20250911,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 7,
+    "sourceHash": "1b3ead66d0d30a6fdf6d479c4835c28ba5047c2ad6ebce37b1a2b88adbdd7c43",
+    "status": "confirmed",
+    "submittedAt": "2026-09-17T22:35:09Z",
+    "txHash": "0x82690293380c761b5c9a09b01983ff836a577e657a1659b455bc3145b442e193",
+    "value": 2638
+  },
+  "ERCOT_HBNORTH_DA_AVG:20260908": {
+    "blockNumber": 41226429,
+    "dayKey": 20260908,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 9,
+    "sourceHash": "75999d0173983de904ad23e09e4b2de1536fa0929e23ae4700359d53593913c4",
+    "status": "confirmed",
+    "submittedAt": "2026-09-17T22:47:44Z",
+    "txHash": "0xf6bdfc4e4c775eca150fff4d380f915411d6bf4e5389d8e3228dfbeff00cb44f",
+    "value": 3957
+  },
   "ERCOT_HBWEST_NEG_INTERVALS:20250910": {
     "blockNumber": 41033816,
     "dayKey": 20250910,
@@ -19,6 +41,17 @@
     "status": "confirmed",
     "submittedAt": "2026-09-15T17:17:31Z",
     "txHash": "0x2b89635c2fc3564008005f7ae14ca6cefa930814142f12d8a10ba0e8449f049c",
+    "value": 0
+  },
+  "ERCOT_HBWEST_NEG_INTERVALS:20250911": {
+    "blockNumber": 41225677,
+    "dayKey": 20250911,
+    "metricId": "ERCOT_HBWEST_NEG_INTERVALS",
+    "nonce": 8,
+    "sourceHash": "6ceb0f4f1f5046c9d3cbb3fad2eee43ba1a7a0906d4ee1386e7caea7013f7eb4",
+    "status": "confirmed",
+    "submittedAt": "2026-09-17T22:35:12Z",
+    "txHash": "0xc7cfe26abda4313c2340bb34bcad205343505f4a060d06b77d7b28f4f5f86d60",
     "value": 0
   },
   "ERCOT_LOAD_WEIGHTED_DA_INDEX:20250910": {
@@ -31,5 +64,27 @@
     "submittedAt": "2026-09-15T17:17:34Z",
     "txHash": "0xde68d8d8adf857115b8932c7cfa0ca353c290ffbcf3e970a89deec52c04f0bf2",
     "value": 2737
+  },
+  "ERCOT_WEST_NORTH_DA_BASIS:20250910": {
+    "blockNumber": 41225670,
+    "dayKey": 20250910,
+    "metricId": "ERCOT_WEST_NORTH_DA_BASIS",
+    "nonce": 6,
+    "sourceHash": "4261d4f5a665594c0285008125b7fef07ff6b48db7f714929fff26f3cbf5e9d3",
+    "status": "confirmed",
+    "submittedAt": "2026-09-17T22:35:05Z",
+    "txHash": "0x12cd40321f85d5fd70dfbd57ece3152cbb7596cb683ce3f6ed36efd0519eea03",
+    "value": 474
+  },
+  "ERCOT_WEST_NORTH_DA_BASIS:20260812": {
+    "blockNumber": 41226448,
+    "dayKey": 20260812,
+    "metricId": "ERCOT_WEST_NORTH_DA_BASIS",
+    "nonce": 10,
+    "sourceHash": "cf1d4eef3bb74d65150876b090197cd41c00c74c3ed1f02a5b7a909f3d821df0",
+    "status": "confirmed",
+    "submittedAt": "2026-09-17T22:48:04Z",
+    "txHash": "0x9931b0c453c4de0367027e7024b3fd1832fa11dd02832701b00049194fecfc37",
+    "value": -1032
   }
 }

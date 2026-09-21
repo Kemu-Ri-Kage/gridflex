@@ -180,6 +180,13 @@ transiently or after a crash, see §2.6), `confirmed` (receipt seen,
 a later run, or from `--reconcile`/`finalize.py` observing `isFinal() ==
 true`).
 
+Any chain-state refresh of an existing row must preserve its original
+`nonce`, `txHash`, `blockNumber`, and `submittedAt`. `getReading()` proves the
+reading state but cannot reconstruct those transaction audit fields. A row
+created solely by chain recovery may use `null` for them and set
+`recoveredFromChain: true`; an existing complete row must never be degraded
+to that reduced form.
+
 Before submitting a reading, `publish.py`:
 1. Computes the file's `(metricId, dayKey)` key.
 2. If the ledger has an entry for that key with matching `value` and

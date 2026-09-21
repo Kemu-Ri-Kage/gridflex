@@ -10,7 +10,7 @@ thing under web/ this script touches, and the only new path it adds.
 Reuses publish.py's metric-file loading and ledger I/O (shared/publish-spec.md
 already validates and normalizes both) rather than re-parsing data/metrics/
 files independently - a second, slightly-different parser is exactly the kind
-of drift CLAUDE.md's oracle-interface.md ownership note warns against.
+of interface drift that `shared/oracle-interface.md` is designed to prevent.
 
 Run by hand after a publish.py/finalize.py run, same hand-off shape
 data/publish-ledger.json already uses - not part of the web/ build.

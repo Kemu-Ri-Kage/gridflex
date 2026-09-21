@@ -63,8 +63,8 @@ off-chain-only audit context, not part of the struct.
 
 ## Why `dayKey` is `uint32 YYYYMMDD`, not a timestamp
 
-This was already fought out once inside the pipeline (see `CLAUDE.md` and
-`shared/metrics.md`, "Why there's no `periodStart`/`periodEnd`") and the
+This was already resolved inside the pipeline (see `shared/metrics.md`,
+"Why there's no `periodStart`/`periodEnd`") and the
 same reasoning is why it must stay this shape across the chain boundary
 too — this is exactly the kind of decision someone reverses by "simplifying"
 the oracle to store a `uint64` Unix timestamp instead, so it's spelled out
@@ -139,7 +139,7 @@ Verified against the standard Ethereum test vector
 (`keccak256("") = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`)
 using the same hash routine before hashing the four metric names above.
 
-Per `CLAUDE.md` and `shared/metrics.md`, only the first two are contract
+Per `shared/metrics.md`, only the first two are contract
 metrics — the only two `metricId`s a market contract should ever be
 constructed against. The latter two are feed-only: the oracle can store
 readings for them (there's no reason not to, since it's the same
@@ -203,8 +203,7 @@ scanning full event logs.
 
 ## Ownership note
 
-Per `CLAUDE.md`: this file lives in `shared/` because both sides read it,
-but the Python pipeline (this repo) and the Solidity contracts
-(`contracts/`, not yet created, not in Platon's scope) are owned
-separately. Changing this file is a two-person decision regardless of
-which repo the change is motivated from.
+This file lives in `shared/` because both sides read it. The Python
+pipeline and Solidity contracts are maintained as separate components,
+so changing this interface is a two-person decision regardless of which
+person authors the diff.

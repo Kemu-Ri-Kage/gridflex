@@ -551,7 +551,9 @@ def main(argv: list[str] | None = None) -> int:
             evaluation = evaluate_reading(contract, dispute_window, reading, now)
             evaluations.append(evaluation)
             if evaluation.current is not None:
-                ledger[reading.ledger_key] = ledger_entry_from_chain(reading, evaluation.current)
+                ledger[reading.ledger_key] = ledger_entry_from_chain(
+                    reading, evaluation.current, ledger.get(reading.ledger_key)
+                )
             # Tallied inline, not in a second pass over `evaluations`, so a mid-loop
             # exception (an RPC hiccup on reading N of ~1,448) still leaves `summary`
             # holding accurate counts for readings 1..N-1 - required for the summary
@@ -624,7 +626,9 @@ def main(argv: list[str] | None = None) -> int:
             current = chain_reading(contract, reading)
             time.sleep(RPC_COURTESY_SLEEP)
             if current is not None:
-                ledger[reading.ledger_key] = ledger_entry_from_chain(reading, current)
+                ledger[reading.ledger_key] = ledger_entry_from_chain(
+                    reading, current, ledger.get(reading.ledger_key)
+                )
             save_ledger(ledger)
             if outcome == "FINALIZED":
                 summary.finalized += 1

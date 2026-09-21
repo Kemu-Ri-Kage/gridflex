@@ -340,21 +340,37 @@ def chain_reading(contract, reading: MetricReading) -> dict[str, Any] | None:
     }
 
 
-def ledger_entry_from_chain(reading: MetricReading, current: dict[str, Any]) -> dict[str, Any]:
-    return {
+def ledger_entry_from_chain(
+    reading: MetricReading,
+    current: dict[str, Any],
+    existing: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Merge authoritative chain state without discarding transaction audit data.
+
+    The chain can recover the reading value, source hash, publication time, and
+    finalization status, but it cannot reconstruct the original transaction hash,
+    nonce, or block number cheaply.  Preserve those fields whenever the ledger
+    already has them; only mark an entry as recovered when no local audit row
+    exists.
+    """
+    previous = existing if isinstance(existing, dict) else {}
+    entry = {
         "metricId": reading.metric_id,
         "dayKey": reading.day_key,
         "value": current["value"],
         "sourceHash": current["sourceHash"],
-        "nonce": None,
-        "txHash": None,
-        "blockNumber": None,
+        "nonce": previous.get("nonce"),
+        "txHash": previous.get("txHash"),
+        "blockNumber": previous.get("blockNumber"),
         "status": "finalized" if current["finalized"] else "confirmed",
-        "submittedAt": datetime.fromtimestamp(
-            current["publishedAt"], tz=timezone.utc
-        ).isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "recoveredFromChain": True,
+        "submittedAt": previous.get("submittedAt")
+        or datetime.fromtimestamp(current["publishedAt"], tz=timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
     }
+    if previous.get("recoveredFromChain") or not previous:
+        entry["recoveredFromChain"] = True
+    return entry
 
 
 def protect_against_stale_ledger(
@@ -386,7 +402,9 @@ def protect_against_stale_ledger(
                     file=sys.stderr,
                 )
                 plan.hash_drift += 1
-            ledger[reading.ledger_key] = ledger_entry_from_chain(reading, current)
+            ledger[reading.ledger_key] = ledger_entry_from_chain(
+                reading, current, ledger.get(reading.ledger_key)
+            )
             if current["finalized"]:
                 plan.already_finalized += 1
             else:
@@ -500,7 +518,7 @@ def recover_submitted_entries(
             )
             current = chain_reading(contract, probe)
             if current and current["value"] == probe.value:
-                entry.update(ledger_entry_from_chain(probe, current))
+                entry.update(ledger_entry_from_chain(probe, current, entry))
                 continue
             nonce = int(entry["nonce"])
             if pending_nonce <= nonce:
@@ -561,7 +579,9 @@ def send_reading(
         if classification.is_expected:
             current = chain_reading(contract, reading)
             if current is not None:
-                ledger[reading.ledger_key] = ledger_entry_from_chain(reading, current)
+                ledger[reading.ledger_key] = ledger_entry_from_chain(
+                    reading, current, ledger.get(reading.ledger_key)
+                )
                 save_ledger(ledger)
             append_log(log_path, reading, "", "EXPECTED_ALREADY_FINALIZED")
             print(
@@ -650,7 +670,9 @@ def send_reading(
             if classification.is_expected:
                 current = chain_reading(contract, reading)
                 if current is not None:
-                    ledger[reading.ledger_key] = ledger_entry_from_chain(reading, current)
+                    ledger[reading.ledger_key] = ledger_entry_from_chain(
+                        reading, current, ledger.get(reading.ledger_key)
+                    )
                 else:
                     ledger[reading.ledger_key]["status"] = "finalized"
                     ledger[reading.ledger_key]["blockNumber"] = receipt.blockNumber

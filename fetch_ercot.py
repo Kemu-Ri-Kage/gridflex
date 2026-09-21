@@ -37,9 +37,12 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
-from gridstatusio import GridStatusClient
+
+if TYPE_CHECKING:
+    from gridstatusio import GridStatusClient
 
 # --------------------------------------------------------------------------
 # CONFIG — the whole spec lives here. Change a zone by changing these lines.
@@ -140,7 +143,7 @@ RATE_LIMIT_SLEEP = 1.5          # free plan allows 1 request/second
 # FETCH
 # --------------------------------------------------------------------------
 
-def get_client() -> GridStatusClient:
+def get_client() -> "GridStatusClient":
     """Read the API key from the environment. Never hardcode it here."""
     key = os.environ.get("GRIDSTATUS_API_KEY")
     if not key:
@@ -151,6 +154,12 @@ def get_client() -> GridStatusClient:
             "then run:  export $(cat .env | xargs)   (mac/linux)\n"
             "or set it in your shell on Windows."
         )
+    # gridstatusio performs an unrelated PyPI version check at import time.
+    # Keep ordinary imports/tests offline-safe and load the API client only
+    # when the operator explicitly starts a real data fetch.
+    os.environ.setdefault("GSIO_SKIP_VERSION_CHECK", "true")
+    from gridstatusio import GridStatusClient
+
     client = GridStatusClient(api_key=key)
 
     # Belt and braces on top of month chunking: ask the server not to send

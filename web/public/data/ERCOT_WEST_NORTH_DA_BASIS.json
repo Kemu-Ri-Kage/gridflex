@@ -3,7 +3,7 @@
     "dayKey": 20250910,
     "marketDay": "2025-09-10",
     "sourceHash": "4261d4f5a665594c0285008125b7fef07ff6b48db7f714929fff26f3cbf5e9d3",
-    "txHash": null,
+    "txHash": "0x12cd40321f85d5fd70dfbd57ece3152cbb7596cb683ce3f6ed36efd0519eea03",
     "value": 474
   },
   {
@@ -2341,7 +2341,7 @@
     "dayKey": 20260812,
     "marketDay": "2026-08-12",
     "sourceHash": "cf1d4eef3bb74d65150876b090197cd41c00c74c3ed1f02a5b7a909f3d821df0",
-    "txHash": null,
+    "txHash": "0x9931b0c453c4de0367027e7024b3fd1832fa11dd02832701b00049194fecfc37",
     "value": -1032
   },
   {

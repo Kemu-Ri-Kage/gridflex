@@ -116,6 +116,30 @@ class TestLedgerIdempotency(unittest.TestCase):
         self.assertEqual(result.already_published, 1)
         self.assertEqual(ledger[self.reading.ledger_key]["status"], "confirmed")
 
+    def test_chain_refresh_preserves_existing_transaction_audit_fields(self):
+        existing = {
+            "nonce": 3,
+            "txHash": "0x" + "ab" * 32,
+            "blockNumber": 41_033_812,
+            "submittedAt": "2026-09-15T17:17:28Z",
+            "status": "confirmed",
+        }
+        current = {
+            "value": self.reading.value,
+            "sourceHash": self.reading.source_hash,
+            "publishedAt": 1_789_000_000,
+            "finalized": True,
+        }
+
+        refreshed = publish.ledger_entry_from_chain(self.reading, current, existing)
+
+        self.assertEqual(refreshed["nonce"], existing["nonce"])
+        self.assertEqual(refreshed["txHash"], existing["txHash"])
+        self.assertEqual(refreshed["blockNumber"], existing["blockNumber"])
+        self.assertEqual(refreshed["submittedAt"], existing["submittedAt"])
+        self.assertEqual(refreshed["status"], "finalized")
+        self.assertNotIn("recoveredFromChain", refreshed)
+
     def test_zip_handoff_guard_never_checks_past_submission_limit(self):
         second = publish.MetricReading(
             path=Path("second.json"),

@@ -21,5 +21,4 @@ pnpm build
 ```
 
 The wallet flow supports X Layer testnet switching, test collateral minting, complete-set minting,
-YES/NO swaps, permissionless resolution, and redemption. The trade panel also exposes a WebMCP
-tool that stages (but never signs or submits) a trade in supported clients.
+YES/NO swaps, permissionless resolution, and redemption.

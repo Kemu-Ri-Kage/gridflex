@@ -2,9 +2,22 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-python_bin="${PYTHON_BIN:-python3}"
+python_bin="${PYTHON_BIN:-}"
 pnpm_bin="${PNPM_BIN:-pnpm}"
 forge_bin="${FORGE_BIN:-}"
+node_bin_dir=""
+
+if [[ -z "$python_bin" ]]; then
+  if [[ -x "$repo_root/.venv/bin/python" ]]; then
+    python_bin="$repo_root/.venv/bin/python"
+  else
+    python_bin="python3"
+  fi
+fi
+
+if command -v node >/dev/null 2>&1; then
+  node_bin_dir="$(dirname "$(command -v node)")"
+fi
 
 if [[ -z "$forge_bin" ]]; then
   if command -v forge >/dev/null 2>&1; then
@@ -17,17 +30,19 @@ if [[ -z "$forge_bin" ]]; then
   fi
 fi
 
-echo "[1/3] Validating ERCOT metric files and market-day logic"
+echo "[1/3] Validating ERCOT data and running the complete Python test suite"
 "$python_bin" "$repo_root/scripts/validate_metrics.py"
 PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/gridflex-pycache" \
   "$python_bin" -m py_compile \
     "$repo_root/fetch_ercot.py" \
     "$repo_root/analyse_metrics.py" \
-    "$repo_root/publish.py"
+    "$repo_root/build_feed_data.py" \
+    "$repo_root/publish.py" \
+    "$repo_root/finalize.py"
 (
   cd "$repo_root"
   PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/gridflex-pycache" \
-    "$python_bin" -m unittest tests.test_market_day tests.test_publish -v
+    "$python_bin" -m unittest discover -s tests -v
 )
 
 echo "[2/3] Testing Solidity contracts"
@@ -42,7 +57,11 @@ echo "[2/3] Testing Solidity contracts"
 echo "[3/3] Checking the web application"
 (
   cd "$repo_root/web"
+  if [[ -n "$node_bin_dir" ]]; then
+    export PATH="$node_bin_dir:$PATH"
+  fi
   "$pnpm_bin" install --frozen-lockfile
+  "$pnpm_bin" test
   "$pnpm_bin" lint
   "$pnpm_bin" build
 )

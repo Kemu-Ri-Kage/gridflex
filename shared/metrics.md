@@ -300,7 +300,7 @@ metric.
 
 **Status: feed only.** Published and shown on the site; not a settlement
 metric in the MVP. A contract on this metric is the next listing after the
-hackathon — see `CLAUDE.md`.
+hackathon — see the roadmap in `README.md`.
 
 **What it measures.** "What did Texas actually pay for power today" — total
 cost divided by total volume across four load zones:

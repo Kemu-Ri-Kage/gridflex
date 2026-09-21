@@ -153,8 +153,8 @@ For every reading found published (§1) and not yet finalized:
 ## 3. Value-match safety check (new — no analogue in `publish.py`)
 
 **This is the one check that must never be skipped, stated up front because
-it follows directly from `finalize()` being a one-way door.** `CLAUDE.md`
-already names the equivalent risk on the publish side — "a half-day value
+it follows directly from `finalize()` being a one-way door.** The pipeline
+methodology already names the equivalent risk on the publish side — "a half-day value
 settling a contract is a real-money bug" — and finalizing locks a value in
 *permanently*, which is a strictly higher-stakes version of the same
 category of mistake.
@@ -339,7 +339,11 @@ directly:
    `ledger_entry_from_chain`: `status: "finalized"` for anything finalized
    this run or found already finalized, left alone otherwise. This is how a
    ledger row that never existed (§1's motivating case) gets backfilled
-   going forward, not just read.
+   going forward, not just read. **Refreshing an existing row must preserve
+   its original `nonce`, `txHash`, `blockNumber`, and `submittedAt`.** Those
+   audit fields cannot be reconstructed from `getReading()` and are used by
+   the feed and hand-off workflow; only a genuinely missing row is marked
+   `recoveredFromChain` with unavailable transaction fields set to `null`.
 2. **`logs/finalize-<timestamp>.log`** — one line per reading attempted:
    `metricId, dayKey, txHash, outcome`.
 3. **End-of-run summary**, printed on every exit path (including an abort):

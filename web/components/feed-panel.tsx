@@ -37,20 +37,15 @@ import {
 } from '@/components/ui/table';
 import { xLayerTestnet } from '@/lib/contracts';
 import { formatElapsed } from '@/lib/feed-verification';
-import { useFeedData, type CommittedRecord, type VerifiedRow } from '@/lib/feed-data';
-
-function toDollars(rawValue: number): string {
-  const dollars = rawValue / 100;
-  const sign = dollars < 0 ? '-' : dollars > 0 ? '+' : '';
-  return `${sign}$${Math.abs(dollars).toFixed(2)}`;
-}
+import { formatPrice } from '@/lib/format';
+import { useFeedData, HERO_METRIC, type CommittedRecord, type VerifiedRow } from '@/lib/feed-data';
 
 const heroChartConfig = {
-  value: { label: 'West–North basis ($/MWh)', color: '#a8ff3e' },
+  value: { label: 'West–North basis ($/MWh)', color: 'var(--chart-2)' },
 } satisfies ChartConfig;
 
 const secondaryChartConfig = {
-  value: { label: 'North Hub day-ahead ($/MWh)', color: '#38bdf8' },
+  value: { label: 'North Hub day-ahead ($/MWh)', color: 'var(--chart-1)' },
 } satisfies ChartConfig;
 
 function BasisChart({ series }: { series: CommittedRecord[] }) {
@@ -68,15 +63,15 @@ function BasisChart({ series }: { series: CommittedRecord[] }) {
         />
         <YAxis tickLine={false} axisLine={false} width={48} tick={{ fontSize: 11 }} />
         {/* shared/feed-spec.md §5: the zero line is the story - a signed spread, not a price. */}
-        <ReferenceLine y={0} stroke="#ffffff" strokeOpacity={0.35} strokeWidth={1.5} />
+        <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1.5} />
         <ChartTooltip content={<ChartTooltipContent labelKey="marketDay" />} />
         <Area
           type="monotone"
           dataKey="value"
           stroke="var(--color-value)"
           fill="var(--color-value)"
-          fillOpacity={0.18}
-          strokeWidth={2}
+          fillOpacity={0.14}
+          strokeWidth={1.5}
           dot={false}
         />
       </AreaChart>
@@ -103,7 +98,7 @@ function HbNorthChart({ series }: { series: CommittedRecord[] }) {
           type="monotone"
           dataKey="value"
           stroke="var(--color-value)"
-          strokeWidth={2}
+          strokeWidth={1.5}
           dot={false}
         />
       </LineChart>
@@ -117,6 +112,10 @@ function HbNorthChart({ series }: { series: CommittedRecord[] }) {
  * `now` is passed in rather than read via Date.now() here so this component
  * stays pure during render - the impure clock read lives in FeedPanel's
  * effect below, not in render.
+ *
+ * MISMATCH is deliberately not a Badge: it renders as a solid filled block,
+ * never as inline text/border color, so it can never be mistaken for a
+ * transient check failure or a passing verification pill.
  */
 function VerificationBadge({ row, now }: { row: VerifiedRow; now: number }) {
   const { status, lastVerifiedAt } = row.verification;
@@ -125,29 +124,29 @@ function VerificationBadge({ row, now }: { row: VerifiedRow; now: number }) {
   switch (status) {
     case 'VERIFIED':
       return (
-        <Badge variant="outline" className="border-[#a8ff3e]/30 text-[#a8ff3e]">
+        <Badge variant="outline" className="border-up/30 text-up">
           <ShieldCheck className="size-3" />
           verified {ago} ago
         </Badge>
       );
     case 'LAST_VERIFIED':
       return (
-        <Badge variant="secondary" className="text-slate-400">
+        <Badge variant="secondary" className="text-muted-foreground">
           <History className="size-3" />
           last verified {ago} ago
         </Badge>
       );
     case 'MISMATCH':
       return (
-        <Badge variant="destructive">
+        <span className="inline-flex items-center gap-1.5 border-l-2 border-mismatch-accent bg-mismatch px-2 py-1 text-xs font-medium text-mismatch-foreground">
           <AlertTriangle className="size-3" />
           MISMATCH
-        </Badge>
+        </span>
       );
     case 'UNVERIFIED':
     default:
       return (
-        <Badge variant="secondary" className="text-slate-500">
+        <Badge variant="secondary" className="text-muted-foreground/70">
           <Clock3 className="size-3" />
           not yet verified
         </Badge>
@@ -173,13 +172,13 @@ export function FeedPanel() {
 
   return (
     <div className="space-y-5">
-      <Card className="border-white/8 bg-card/80 shadow-[0_24px_80px_rgba(0,0,0,.2)] ring-0">
-        <CardHeader className="border-b border-white/8 pb-4">
+      <Card>
+        <CardHeader className="border-b border-border pb-4">
           <div>
-            <CardDescription className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500">
+            <CardDescription className="font-mono text-xs uppercase tracking-[0.14em]">
               West–North day-ahead basis
             </CardDescription>
-            <CardTitle className="mt-1 text-lg font-semibold text-white">
+            <CardTitle className="mt-1 text-lg font-semibold text-foreground">
               {loading
                 ? 'Loading committed history…'
                 : `${submittedCount} of ${totalLocalCandidates} metric-days published so far`}
@@ -191,10 +190,10 @@ export function FeedPanel() {
         </CardContent>
       </Card>
 
-      <Card className="border-white/8 bg-card/70 ring-0">
-        <CardHeader className="border-b border-white/8 pb-4">
+      <Card>
+        <CardHeader className="border-b border-border pb-4">
           <div>
-            <CardTitle className="text-base text-white">Verified ERCOT readings</CardTitle>
+            <CardTitle className="text-base text-foreground">Verified ERCOT readings</CardTitle>
             <CardDescription>
               Every row below is a fresh on-chain read, compared live against the committed
               source file.
@@ -203,7 +202,7 @@ export function FeedPanel() {
         </CardHeader>
         <CardContent className="pt-1">
           {rows.length === 0 ? (
-            <p className="py-6 text-sm text-slate-500">
+            <p className="py-6 text-sm text-muted-foreground">
               {loading
                 ? 'Loading…'
                 : 'Nothing published on-chain yet — check back once publish.py --live has run.'}
@@ -220,41 +219,54 @@ export function FeedPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={`${row.metricId}:${row.record.dayKey}`}>
-                    <TableCell>
-                      <div className="font-medium text-slate-200">{row.metricLabel}</div>
-                      <div className="font-mono text-xs text-slate-600">{row.metricId}</div>
-                    </TableCell>
-                    <TableCell className="text-slate-300">{row.record.marketDay}</TableCell>
-                    <TableCell className="font-mono text-white">
-                      {toDollars(row.record.value)}/MWh
-                    </TableCell>
-                    <TableCell>
-                      <a
-                        className="font-mono text-xs text-cyan-300 hover:underline"
-                        href={row.record.txHash ? explorerTxUrl(row.record.txHash) : undefined}
-                        title={`sha256 ${row.record.sourceHash}`}
-                        target="_blank"
-                        rel="noreferrer"
+                {rows.map((row) => {
+                  const isBasis = row.metricId === HERO_METRIC;
+                  const sign = Math.sign(row.record.value);
+                  return (
+                    <TableRow key={`${row.metricId}:${row.record.dayKey}`}>
+                      <TableCell>
+                        <div className="font-medium text-foreground">{row.metricLabel}</div>
+                        <div className="font-mono text-xs text-muted-foreground">{row.metricId}</div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{row.record.marketDay}</TableCell>
+                      <TableCell
+                        className={
+                          'font-mono tabular-nums ' +
+                          (isBasis && sign > 0
+                            ? 'text-up'
+                            : isBasis && sign < 0
+                              ? 'text-down'
+                              : 'text-foreground')
+                        }
                       >
-                        sha256 {row.record.sourceHash.slice(0, 8)}…
-                      </a>
-                    </TableCell>
-                    <TableCell>
-                      <VerificationBadge row={row} now={now} />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        {formatPrice(row.record.value, 'MWh')}
+                      </TableCell>
+                      <TableCell>
+                        <a
+                          className="font-mono text-xs text-chart-1 hover:underline"
+                          href={row.record.txHash ? explorerTxUrl(row.record.txHash) : undefined}
+                          title={`sha256 ${row.record.sourceHash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          sha256 {row.record.sourceHash.slice(0, 8)}…
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        <VerificationBadge row={row} now={now} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
 
-      <Card className="border-white/8 bg-card/60 ring-0">
-        <CardHeader className="border-b border-white/8 pb-3">
-          <CardDescription className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500">
+      <Card>
+        <CardHeader className="border-b border-border pb-3">
+          <CardDescription className="font-mono text-xs uppercase tracking-[0.14em]">
             North Hub day-ahead average
           </CardDescription>
         </CardHeader>

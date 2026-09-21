@@ -13,15 +13,21 @@ code comments and it misrepresents the product.
 
 ## Architecture and ownership
 
-- This Python repo is the data pipeline: fetch ERCOT data, compute metrics,
-  write metric files.
-- A teammate (David) builds the Solidity side on X Layer testnet (chain
-  1952): an oracle contract that reads these metric files, plus a binary
-  outcome market contract, plus the wallet-connected frontend. `contracts/`
-  and `web/` are his — **never edit anything in either**, that's not my
-  scope.
-- I (the user) own: the pipeline, the metric definitions, the market design,
-  and the pitch. Not the Solidity, not the frontend.
+- This repo is the data pipeline plus the GRIDFLEX web app: fetch ERCOT
+  data, compute metrics, write metric files, and render the feed and
+  verification UI.
+- I (the user) own: the pipeline, metric definitions, market design, the
+  pitch, `build_feed_data.py`, and — within `web/` —
+  `web/components/feed-panel.tsx`, `web/lib/feed-data.ts`,
+  `web/lib/feed-verification.ts`, and the design system for the whole
+  `web/` app.
+- A teammate (David) owns: `contracts/`, `web/components/web3-provider.tsx`,
+  `web/components/trade-panel.tsx`, `web/components/wallet-button.tsx`, and
+  `web/components/market-live-data.tsx` (thin display glue over his
+  `useWeb3` hook — introduced in the same frontend merge as the other three).
+  **Never edit these without presenting a plan first and getting explicit
+  go-ahead** — narrower than a blanket ban, but nothing changes there
+  without sign-off.
 - The oracle (`GridOracle`) is deployed on X Layer testnet at the address in
   `shared/addresses.json` (currently
   `0x970cefFC0e75bCa245F3337715992ad520A4D561`). That file is the source of
@@ -96,3 +102,17 @@ Contracts cannot settle on the two DST changeover days each year — those
 days fail the completeness check (23 or 25 hourly rows, not 24) and are
 skipped entirely, by design. This is documented as a known limitation in
 `shared/metrics.md`, not a bug to fix.
+
+## Agent skills
+
+### Issue tracker
+
+Local markdown files under `.scratch/<feature-slug>/`, gitignored — never
+pushed to either remote (the repo is public on a friend's account). See
+`docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Skipped — `shared/*.md` already serves as domain documentation
+(methodology, oracle interface, publish/finalize/feed specs). No separate
+CONTEXT.md/ADRs.

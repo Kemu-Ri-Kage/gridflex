@@ -2,24 +2,38 @@
 GRIDFLEX -- candlestick data builder
 =====================================
 
-Builds real OHLC candlestick series for the /trade page's chart, from ERCOT
-real-time 15-minute settlement prices (`ercot_spp_real_time_15_min`) at
-HB_NORTH and HB_WEST. Reuses fetch_ercot.py's fetch()/get_client()/
-to_central_day() so caching and US/Central handling stay identical to the
-rest of the pipeline -- this is a display feed built the same way the
-contract metrics are, not a separate data source.
+Builds real OHLC candlestick series for the /trade page's chart, at
+HB_NORTH and HB_WEST, from two ERCOT datasets:
 
-Each 15-minute interval carries one settlement price, not a full OHLC tick
-series, so the native 15m "candle" is open=high=low=close=price -- an
-honest flat bar, not fabricated intra-interval variation. The coarser
-timeframes (1h/4h/1d/1w) are real aggregates of those 15-minute prices:
-open = first price in the period, close = last, high = max, low = min --
-the same construction any exchange uses to build a higher timeframe out of
-a lower-timeframe price series.
+  ercot_lmp_by_settlement_point   5-minute SCED dispatch LMPs -- real
+                                   intra-bar variation, used to build the
+                                   15m and 1h candles.
+  ercot_spp_real_time_15_min      15-minute settlement prices -- one value
+                                   per interval, used to build 4h/1d/1w
+                                   (coarse enough that a 15-minute step
+                                   size is a real, not flattened, input).
+
+Why two datasets: ERCOT's real-time *settlement* price
+(ercot_spp_real_time_15_min) is one weighted value per 15-minute interval,
+so a candle built at 15-minute resolution FROM it has open=high=low=close
+-- an honest flat bar, but a flat bar renders as a dash, not a candle.
+ercot_lmp_by_settlement_point carries the underlying 5-minute SCED dispatch
+LMPs that the 15-minute settlement price is itself an average of, so a 15m
+or 1h candle built from three or twelve of those real dispatch ticks has
+real open/high/low/close variation instead of a fabricated one. Reuses
+fetch_ercot.py's fetch()/get_client()/to_central_day() so caching and
+US/Central handling stay identical to the rest of the pipeline -- this is
+a display feed built the same way the contract metrics are, not a
+separate data source.
+
+The coarser timeframes (4h/1d/1w) are real aggregates of the 15-minute
+settlement prices: open = first price in the period, close = last, high =
+max, low = min -- the same construction any exchange uses to build a
+higher timeframe out of a lower-timeframe price series.
 
 1d candles bucket on the Central calendar day (to_central_day), matching
-how every other GRIDFLEX metric defines "a day". 1h/4h bucket on fixed UTC
-duration, which needs no DST handling because the bucket length itself
+how every other GRIDFLEX metric defines "a day". 1h/4h/15m bucket on fixed
+UTC duration, which needs no DST handling because the bucket length itself
 never changes. 1w groups the 1d series into ISO weeks.
 
 This is a display feed, not a contract metric: there is no 96-row
@@ -28,9 +42,14 @@ a few missing intervals still contributes real high/low/open/close from
 the intervals that exist, the same tolerance philosophy already applied to
 fuel mix in shared/metrics.md.
 
+Every candle file records which dataset built which timeframe (`sources`,
+keyed by timeframe) so the chart can caption itself honestly instead of
+naming one dataset for data that actually came from two.
+
 Usage:
-    python build_candles.py                # ~380 days, both hubs
-    python build_candles.py --days 30       # shorter range, cheaper
+    python build_candles.py                # ~380 days of 15m data, both hubs
+    python build_candles.py --days 30       # shorter 15m-data range, cheaper
+    python build_candles.py --five-min-days 90   # 5-min LMP window (default 90)
 """
 
 import argparse
@@ -45,12 +64,14 @@ from fetch_ercot import CENTRAL, get_client, fetch, to_central_day
 
 DATASET = "ercot_spp_real_time_15_min"
 PRICE_COLUMN = "spp"
+
+FIVE_MIN_DATASET = "ercot_lmp_by_settlement_point"
+FIVE_MIN_PRICE_COLUMN = "lmp"
+FIVE_MIN_DEFAULT_DAYS = 90
+
 LOCATIONS = ["HB_NORTH", "HB_WEST"]
 
 OUT_DIR = Path("web/public/data/candles")
-
-# Bound file size for the finest timeframe; coarser ones stay full-range.
-FIFTEEN_MIN_WINDOW_DAYS = 120
 
 _EPOCH = pd.Timestamp("1970-01-01", tz="UTC")
 
@@ -68,25 +89,10 @@ def unix_seconds(ts: pd.Series) -> pd.Series:
     return ((ts - _EPOCH) // pd.Timedelta(seconds=1)).astype("int64")
 
 
-def build_native_15m(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per real interval: t (unix seconds), o=h=l=c=price."""
+def resample_fixed(df: pd.DataFrame, freq: str, price_column: str) -> pd.DataFrame:
+    """Real OHLC aggregation over a fixed-duration UTC bucket (15m/1h/4h)."""
     ts = pd.to_datetime(df["interval_start_utc"], utc=True)
-    out = pd.DataFrame(
-        {
-            "t": unix_seconds(ts),
-            "o": df[PRICE_COLUMN],
-            "h": df[PRICE_COLUMN],
-            "l": df[PRICE_COLUMN],
-            "c": df[PRICE_COLUMN],
-        }
-    )
-    return out.sort_values("t").drop_duplicates("t").reset_index(drop=True)
-
-
-def resample_fixed(df: pd.DataFrame, freq: str) -> pd.DataFrame:
-    """Real OHLC aggregation over a fixed-duration UTC bucket (1h/4h)."""
-    ts = pd.to_datetime(df["interval_start_utc"], utc=True)
-    series = pd.Series(df[PRICE_COLUMN].values, index=ts).sort_index()
+    series = pd.Series(df[price_column].values, index=ts).sort_index()
     ohlc = series.resample(freq, label="left", closed="left").ohlc().dropna()
     out = pd.DataFrame(
         {
@@ -100,14 +106,14 @@ def resample_fixed(df: pd.DataFrame, freq: str) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
-def resample_central_day(df: pd.DataFrame) -> pd.DataFrame:
+def resample_central_day(df: pd.DataFrame, price_column: str) -> pd.DataFrame:
     """Real OHLC aggregation over the Central calendar day (1d)."""
     tagged = to_central_day(df)
     ts = pd.to_datetime(tagged["interval_start_utc"], utc=True)
     tagged = tagged.assign(_ts=ts).sort_values("_ts")
     rows = []
     for day, group in tagged.groupby("market_day"):
-        prices = group[PRICE_COLUMN]
+        prices = group[price_column]
         rows.append(
             {
                 "t": int(group["_ts"].iloc[0].timestamp()),
@@ -155,54 +161,89 @@ def to_records(df: pd.DataFrame) -> list:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", default="2025-09-10",
-                        help="start date, matches the earliest cached chunk")
+                        help="15-min settlement data start date, matches the earliest cached chunk")
     parser.add_argument("--days", type=int, default=None,
-                        help="override: fetch this many days back from yesterday")
+                        help="override: fetch 15-min settlement data this many days back")
+    parser.add_argument("--five-min-days", type=int, default=FIVE_MIN_DEFAULT_DAYS,
+                        help="how many days of 5-min dispatch LMPs to fetch, for 15m/1h candles")
     args = parser.parse_args()
 
     end_date = datetime.now(timezone.utc).date()
     end = str(end_date)
     start = str(end_date - timedelta(days=args.days)) if args.days else args.start
+    five_min_start = str(end_date - timedelta(days=args.five_min_days))
 
-    print(f"GRIDFLEX candle builder: {DATASET} @ {LOCATIONS}, {start} -> {end}\n")
+    print(f"GRIDFLEX candle builder @ {LOCATIONS}")
+    print(f"  {FIVE_MIN_DATASET} (15m, 1h): {five_min_start} -> {end}")
+    print(f"  {DATASET} (4h, 1d, 1w): {start} -> {end}\n")
     client = get_client()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    window_start_t = int(
-        (pd.Timestamp(end_date, tz="UTC") - pd.Timedelta(days=FIFTEEN_MIN_WINDOW_DAYS)).timestamp()
-    )
-
     for location in LOCATIONS:
         print(f"{location}")
-        df, source_hash, source_files = fetch(client, DATASET, start, end, location=location)
+
+        df5, hash5, files5 = fetch(
+            client, FIVE_MIN_DATASET, five_min_start, end, location=location
+        )
+        df5 = df5.dropna(subset=[FIVE_MIN_PRICE_COLUMN])
+        # This dataset's primary key is (sced_timestamp_utc, location), so it
+        # is real-time SCED dispatch only - no day-ahead rows to filter out.
+        # Still worth asserting: a silently-added market column value here
+        # would otherwise blend DAM prices into a "real-time" candle.
+        markets = sorted(df5["market"].dropna().unique().tolist()) if "market" in df5 else []
+        if markets and markets != ["REAL_TIME_SCED"]:
+            raise SystemExit(
+                f"{FIVE_MIN_DATASET} returned unexpected market value(s) {markets} "
+                f"for {location} - expected only 'REAL_TIME_SCED'. Refusing to build "
+                "candles from data that might mix in day-ahead prices."
+            )
+        df5 = df5.assign(_ts=pd.to_datetime(df5["interval_start_utc"], utc=True)).sort_values("_ts")
+
+        m15 = resample_fixed(df5, "15min", FIVE_MIN_PRICE_COLUMN)
+        h1 = resample_fixed(df5, "1h", FIVE_MIN_PRICE_COLUMN)
+
+        df15, hash15, files15 = fetch(client, DATASET, start, end, location=location)
         # Sort on the parsed timestamp, not the raw column: a mix of cached
         # chunks (ISO strings read back from JSON) and a freshly-fetched
         # chunk (already Timestamp-typed) can leave interval_start_utc as a
         # mixed-type object column that sort_values can't compare directly.
-        df = df.dropna(subset=[PRICE_COLUMN])
-        df = df.assign(_ts=pd.to_datetime(df["interval_start_utc"], utc=True)).sort_values("_ts")
+        df15 = df15.dropna(subset=[PRICE_COLUMN])
+        df15 = df15.assign(_ts=pd.to_datetime(df15["interval_start_utc"], utc=True)).sort_values("_ts")
 
-        m15 = build_native_15m(df)
-        m15_windowed = m15[m15["t"] >= window_start_t]
-        h1 = resample_fixed(df, "1h")
-        h4 = resample_fixed(df, "4h")
-        d1 = resample_central_day(df)
+        h4 = resample_fixed(df15, "4h", PRICE_COLUMN)
+        d1 = resample_central_day(df15, PRICE_COLUMN)
         w1 = resample_weeks(d1)
+
+        five_min_source = {
+            "dataset": FIVE_MIN_DATASET,
+            "priceColumn": FIVE_MIN_PRICE_COLUMN,
+            "sourceHash": hash5,
+            "sourceFiles": files5,
+        }
+        fifteen_min_source = {
+            "dataset": DATASET,
+            "priceColumn": PRICE_COLUMN,
+            "sourceHash": hash15,
+            "sourceFiles": files15,
+        }
 
         payload = {
             "location": location,
-            "dataset": DATASET,
-            "priceColumn": PRICE_COLUMN,
-            "sourceHash": source_hash,
-            "sourceFiles": source_files,
             "hashAlgorithm": "sha256",
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "candles": {
-                "15m": to_records(m15_windowed),
+                "15m": to_records(m15),
                 "1h": to_records(h1),
                 "4h": to_records(h4),
                 "1d": to_records(d1.drop(columns=["day"])),
                 "1w": to_records(w1),
+            },
+            "sources": {
+                "15m": five_min_source,
+                "1h": five_min_source,
+                "4h": fifteen_min_source,
+                "1d": fifteen_min_source,
+                "1w": fifteen_min_source,
             },
         }
 
@@ -211,8 +252,11 @@ def main():
         counts = {tf: len(series) for tf, series in payload["candles"].items()}
         print(f"  wrote {out_path} -- {counts}")
 
-    print(f"\nRow cost note: {DATASET} costs ~96 rows/day per location; check "
-          "GridStatus's monthly row allowance before widening --days.")
+    print(
+        f"\nRow cost note: {FIVE_MIN_DATASET} costs ~288 rows/day per location "
+        f"(--five-min-days), {DATASET} costs ~96 rows/day per location (--days); "
+        "check GridStatus's monthly row allowance before widening either."
+    )
 
 
 if __name__ == "__main__":

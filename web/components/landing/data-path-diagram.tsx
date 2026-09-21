@@ -111,7 +111,7 @@ function EvidencePanel({ stage }: { stage: StageId }) {
           <div className="border border-border bg-background/60 p-3">
             <div className="text-xs text-muted-foreground">GridOracle</div>
             <a
-              className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 hover:underline"
+              className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 transition-colors duration-200 hover:text-foreground hover:underline"
               href={addresses ? explorerAddressUrl(addresses.GridOracle) : undefined}
               rel="noreferrer"
               target="_blank"
@@ -123,7 +123,7 @@ function EvidencePanel({ stage }: { stage: StageId }) {
           <div className="border border-border bg-background/60 p-3">
             <div className="text-xs text-muted-foreground">ReadingSubmitted tx</div>
             <a
-              className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 hover:underline"
+              className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 transition-colors duration-200 hover:text-foreground hover:underline"
               href={record?.txHash ? explorerTxUrl(record.txHash) : undefined}
               rel="noreferrer"
               target="_blank"
@@ -195,7 +195,7 @@ export function DataPathDiagram() {
             <button
               aria-selected={active === stage.id}
               className={
-                'flex flex-col gap-2 bg-card px-4 py-5 text-left transition-colors focus:outline-none ' +
+                'flex flex-col gap-2 bg-card px-4 py-5 text-left transition-[transform,background-color] duration-200 hover:-translate-y-0.5 focus:outline-none ' +
                 (active === stage.id ? 'bg-accent' : 'hover:bg-accent/60')
               }
               key={stage.id}

@@ -24,23 +24,26 @@ export function LandingHeader() {
         <Wordmark />
         <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">
           <a
-            className="text-sm text-muted-foreground hover:text-foreground"
+            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
             href="#problem"
           >
             Problem
           </a>
           <a
-            className="text-sm text-muted-foreground hover:text-foreground"
+            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
             href="#how-it-works"
           >
             How it works
           </a>
-          <a className="text-sm text-muted-foreground hover:text-foreground" href="#feed">
+          <a
+            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
+            href="#feed"
+          >
             Feed
           </a>
         </nav>
         <Link
-          className="border border-foreground px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-foreground hover:bg-foreground hover:text-background"
+          className="border border-foreground px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-foreground transition-colors duration-200 hover:bg-foreground hover:text-background"
           href="/trade"
         >
           Open terminal

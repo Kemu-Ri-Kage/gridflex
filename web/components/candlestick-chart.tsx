@@ -29,10 +29,19 @@ interface Candle {
   close: number;
 }
 
+interface SourceMeta {
+  dataset: string;
+  sourceHash: string;
+}
+
 interface CandleFile {
   location: Hub;
-  sourceHash: string;
   candles: Record<Timeframe, Candle[]>;
+  // 15m/1h are built from a 5-minute dispatch dataset, 4h/1d/1w from the
+  // 15-minute settlement dataset - keyed per timeframe so the chart can
+  // caption honestly which dataset actually produced the visible candles,
+  // instead of naming one dataset for data that came from two.
+  sources: Record<Timeframe, SourceMeta>;
 }
 
 const candleCache = new Map<Hub, Promise<CandleFile>>();
@@ -52,7 +61,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
   const seriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
   const [hub, setHub] = React.useState<Hub>('HB_NORTH');
   const [timeframe, setTimeframe] = React.useState<Timeframe>('1d');
-  const [sourceHash, setSourceHash] = React.useState<string | null>(null);
+  const [source, setSource] = React.useState<SourceMeta | null>(null);
   // lightweight-charts draws on canvas, so it can't resolve a `var(...)`
   // string the way DOM CSS does - colors are read once from the computed
   // stylesheet here and reused for anything drawn later (e.g. the strike
@@ -109,11 +118,15 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
     };
   }, []);
 
+  // Data load is keyed on hub/timeframe only - the strike price line lives
+  // on the series itself and must not be touched by a candle refresh, or it
+  // duplicates on every hub/timeframe switch (see the price-line effect
+  // below).
   React.useEffect(() => {
     let cancelled = false;
     void loadCandles(hub).then((file) => {
       if (cancelled) return;
-      setSourceHash(file.sourceHash);
+      setSource(file.sources[timeframe]);
       const series = seriesRef.current;
       if (!series) return;
       const data = file.candles[timeframe].map((c) => ({
@@ -125,22 +138,33 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
       }));
       series.setData(data);
       chartRef.current?.timeScale().fitContent();
-
-      if (strikeDollars !== undefined) {
-        series.createPriceLine({
-          price: strikeDollars,
-          color: colorsRef.current.warning,
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: `strike $${strikeDollars}`,
-        });
-      }
     });
     return () => {
       cancelled = true;
     };
-  }, [hub, timeframe, strikeDollars]);
+  }, [hub, timeframe]);
+
+  // Owns the strike price line's full lifecycle: created once per
+  // strikeDollars value, removed by this effect's own cleanup before the
+  // next run (or on unmount) - never left dangling for a later effect run
+  // to pile another line on top of.
+  React.useEffect(() => {
+    const series = seriesRef.current;
+    if (!series || strikeDollars === undefined) return;
+
+    const line = series.createPriceLine({
+      price: strikeDollars,
+      color: colorsRef.current.warning,
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: `strike $${strikeDollars}`,
+    });
+
+    return () => {
+      series.removePriceLine(line);
+    };
+  }, [strikeDollars]);
 
   return (
     <div className="flex h-full flex-col">
@@ -182,7 +206,8 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
       </div>
       <div className="min-h-[360px] flex-1" ref={containerRef} />
       <div className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
-        {hub} · ercot_spp_real_time_15_min{sourceHash ? ` · sha256 ${sourceHash.slice(0, 8)}…` : ''}
+        {hub} · {source ? source.dataset : 'loading…'}
+        {source ? ` · sha256 ${source.sourceHash.slice(0, 8)}…` : ''}
       </div>
     </div>
   );

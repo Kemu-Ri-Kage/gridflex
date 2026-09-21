@@ -271,7 +271,7 @@ export function FeedPanel() {
                       </TableCell>
                       <TableCell>
                         <a
-                          className="font-mono text-xs text-chart-1 hover:underline"
+                          className="font-mono text-xs text-chart-1 transition-colors duration-200 hover:text-foreground hover:underline"
                           href={row.record.txHash ? explorerTxUrl(row.record.txHash) : undefined}
                           title={`sha256 ${row.record.sourceHash}`}
                           target="_blank"

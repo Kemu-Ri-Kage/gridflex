@@ -60,7 +60,7 @@
     "metricId": "ERCOT_LOAD_WEIGHTED_DA_INDEX",
     "nonce": 5,
     "sourceHash": "71a9a8fbe0a4f1439b97ac99925b06fd355ec852398b02c00a5e892e28bf5f9b",
-    "status": "confirmed",
+    "status": "finalized",
     "submittedAt": "2026-09-15T17:17:34Z",
     "txHash": "0xde68d8d8adf857115b8932c7cfa0ca353c290ffbcf3e970a89deec52c04f0bf2",
     "value": 2737

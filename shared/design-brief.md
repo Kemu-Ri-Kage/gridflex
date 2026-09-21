@@ -419,8 +419,10 @@ only when every item is a pass.
 24. Nothing in `web/components/{trade-panel,wallet-button,web3-provider,
     market-live-data}.tsx` has been edited without David's explicit
     sign-off on a presented plan (§12).
-25. Landing-page motion animates only `transform` and `opacity` — nothing
-    else is animated (§13).
+25. Landing-page scroll-triggered reveals and the diagram's stage-to-stage
+    animation animate only `transform` and `opacity`; landing-page hover/
+    press micro-interactions may additionally animate `color` (text/
+    border only) — no other property, and no exception on `/trade` (§13).
 26. The terminal (`/trade`) has no decorative motion anywhere on it (§13).
 27. `prefers-reduced-motion` disables all animation and smooth scrolling
     completely, on both pages (§13).
@@ -429,6 +431,13 @@ only when every item is a pass.
 29. Nothing on either page loops or moves on its own while idle (§13).
 30. No component on either page shows a default/stock library look — every
     shadcn or library component is restyled to this brief (§2).
+31. Every interactive element on the landing page (buttons, links, the
+    nav, the diagram's stage tiles, feed table rows) has a 150–250ms
+    hover/press transition, and the diagram's active stage additionally
+    lifts subtly on hover (§13).
+32. The hero headline reveals word by word on load, once, using only
+    `transform`/`opacity` — it does not replay on scroll-back or resize
+    (§13).
 
 ---
 
@@ -458,12 +467,27 @@ jobs (§1). See §14 for which libraries implement this and why.
 - Duration **400–700ms**, gentle easing (an ease-out curve — quick start,
   soft settle, no bounce, no overshoot).
 - Smooth momentum scrolling is on for this page.
-- Immediate, responsive feedback on hover and click — no perceptible delay
-  between a pointer action and the UI acknowledging it.
 - The four-stage diagram (§7) **animates between stages** when a stage is
   clicked or hovered, so the data visibly flows from Source to Settle —
   the transition itself is part of what teaches the reader the pipeline's
   shape, not just a state swap.
+- **Micro-interactions.** Every interactive element on the page — buttons,
+  links, the nav, the diagram's stage tiles, the feed table's rows —
+  responds to hover and press with a **150–250ms** transition, no
+  perceptible delay between the pointer action and the transition
+  starting. This is the one place on the landing page where the
+  transform/opacity-only rule above gets a narrow, deliberate exception:
+  a hover/press transition may animate `transform`, `opacity`, **or
+  `color`** (text or border colour only — never a background, a gradient,
+  a glow, or a box-shadow, all still banned by §2/§4). Scroll-triggered
+  reveals and the diagram's stage-to-stage animation are not part of this
+  exception and stay `transform`/`opacity`-only as specified above. The
+  diagram's active stage additionally lifts subtly on hover — a small
+  `translateY`, layered on top of its existing highlight, never a shadow.
+- **Hero headline reveal.** The hero headline reveals word by word on
+  load — `transform`/`opacity` only, per the rule above, since this is an
+  entrance sequence rather than a hover response. It runs once, on the
+  first load; it does not replay on scroll-back, resize, or re-hover.
 
 **Terminal (`/trade`):**
 

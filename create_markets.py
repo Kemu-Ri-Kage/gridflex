@@ -23,7 +23,18 @@ published on-chain (checked live via GridOracle.getReading, not assumed) -
 listing a market against a reading that doesn't exist yet would create a
 market that can never resolve. A (metricId, dayKey) pair that already has a
 market - checked live via MarketFactory.getMarkets(), not just the local
-ledger - is skipped, not recreated, so re-running this script is safe.
+ledger - is skipped, not recreated, so re-running this script is safe. If
+that existing market is missing from the local ledger (e.g. a prior run's
+createMarket succeeded but a later step in the same run failed), a live run
+records it - reading its real parameters back from the chain, never
+guessed - instead of leaving the local bookkeeping silently out of sync.
+
+Contract reads against a market address just returned by createMarket's
+receipt retry briefly on empty return data: the RPC node that served the
+follow-up eth_call can lag a few blocks behind the one that mined the
+transaction, and a view call against code that node hasn't indexed yet
+returns empty data, not a revert - a timing gap, not a wrong address or an
+ABI mismatch, and it resolves itself within a few seconds.
 """
 
 from __future__ import annotations
@@ -41,7 +52,7 @@ from typing import Any
 
 from hexbytes import HexBytes
 from web3 import Web3
-from web3.exceptions import TimeExhausted
+from web3.exceptions import BadFunctionCallOutput, TimeExhausted
 
 from finalize import (
     DEMO_MARKETS_PATH,
@@ -86,6 +97,35 @@ INT256_MIN = -(2**255)
 INT256_MAX = 2**255 - 1
 RECEIPT_TIMEOUT_SECONDS = 90
 RPC_COURTESY_SLEEP = 0.5
+# A just-created contract's code can lag behind the RPC node serving the
+# very next call by a couple of seconds; five attempts at one second apart
+# comfortably covers that without masking a genuinely wrong address (which
+# would still be empty on attempt five and correctly raise).
+CONTRACT_READ_RETRY_ATTEMPTS = 5
+CONTRACT_READ_RETRY_DELAY_SECONDS = 1.0
+
+
+def call_with_retry(fn, attempts: int = CONTRACT_READ_RETRY_ATTEMPTS,
+                     delay: float = CONTRACT_READ_RETRY_DELAY_SECONDS):
+    """Retry a view call a few times when it fails on empty return data.
+
+    web3 raises BadFunctionCallOutput both for a genuine ABI mismatch and
+    for "no code at this address yet" - the latter is expected for a few
+    seconds right after a contract is created, if the RPC node serving this
+    call hasn't caught up to the block that created it. Any other exception
+    (a revert, a network error) is not retried; it means something other
+    than a timing lag.
+    """
+    last_exc: BadFunctionCallOutput | None = None
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except BadFunctionCallOutput as exc:
+            last_exc = exc
+            if attempt < attempts - 1:
+                time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
 @dataclass(frozen=True)
@@ -213,20 +253,24 @@ def chain_oracle_reading(oracle_contract, candidate: CandidateMarket) -> dict[st
     return {"value": int(raw[4]), "finalized": bool(raw[7])}
 
 
-def existing_markets(w3: Web3, factory_contract, binary_market_abi: Any) -> set[str]:
-    """Live (metricId, dayKey) pairs that already have a BinaryMarket.
+def existing_markets(w3: Web3, factory_contract, binary_market_abi: Any) -> dict[str, str]:
+    """Live (metricId, dayKey) pairs that already have a BinaryMarket, mapped
+    to that market's address.
 
     Reads every market the factory has ever created, not the local ledger -
     the same "trust the chain, not local state" rule finalize.py already
-    applies to every reading it evaluates.
+    applies to every reading it evaluates. metricId()/dayKey() are wrapped in
+    call_with_retry because a market created earlier in this same process
+    (e.g. by a prior --live run moments ago) can still be lagging behind the
+    RPC node serving this call.
     """
     addresses = factory_contract.functions.getMarkets().call()
-    pairs: set[str] = set()
+    pairs: dict[str, str] = {}
     for address in addresses:
         market = w3.eth.contract(address=address, abi=binary_market_abi)
-        metric_hash = HexBytes(market.functions.metricId().call()).hex()
-        day_key = int(market.functions.dayKey().call())
-        pairs.add(f"{metric_hash}:{day_key}")
+        metric_hash = HexBytes(call_with_retry(market.functions.metricId().call)).hex()
+        day_key = int(call_with_retry(market.functions.dayKey().call))
+        pairs[f"{metric_hash}:{day_key}"] = Web3.to_checksum_address(address)
         time.sleep(RPC_COURTESY_SLEEP)
     return pairs
 
@@ -236,6 +280,7 @@ class Evaluation:
     candidate: CandidateMarket
     status: str  # "eligible" | "reading_not_published" | "market_exists"
     oracle_value: int | None = None
+    existing_address: str | None = None  # set only when status is STATUS_EXISTS
 
 
 STATUS_ELIGIBLE = "eligible"
@@ -246,13 +291,14 @@ STATUS_EXISTS = "market_exists"
 def build_plan(
     candidates: list[CandidateMarket],
     oracle_contract,
-    existing_pairs: set[str],
+    existing_pairs: dict[str, str],
 ) -> list[Evaluation]:
     evaluations: list[Evaluation] = []
     for candidate in candidates:
         metric_hash_hex = candidate.metric_hash.hex()
-        if f"{metric_hash_hex}:{candidate.day_key}" in existing_pairs:
-            evaluations.append(Evaluation(candidate, STATUS_EXISTS))
+        existing_address = existing_pairs.get(f"{metric_hash_hex}:{candidate.day_key}")
+        if existing_address is not None:
+            evaluations.append(Evaluation(candidate, STATUS_EXISTS, existing_address=existing_address))
             continue
         current = chain_oracle_reading(oracle_contract, candidate)
         time.sleep(RPC_COURTESY_SLEEP)
@@ -263,12 +309,17 @@ def build_plan(
     return evaluations
 
 
-def print_plan(evaluations: list[Evaluation]) -> None:
+def print_plan(evaluations: list[Evaluation], ledger: dict[str, dict[str, Any]]) -> None:
     print("GRIDFLEX create_markets plan")
     for evaluation in evaluations:
         candidate = evaluation.candidate
         if evaluation.status == STATUS_EXISTS:
-            print(f"  #{candidate.row} {candidate.label}   ALREADY EXISTS - skipping")
+            note = (
+                "ALREADY EXISTS - skipping"
+                if candidate.key in ledger
+                else "ALREADY EXISTS - skipping (not yet in local ledger; --live will record it)"
+            )
+            print(f"  #{candidate.row} {candidate.label}   {note}")
         elif evaluation.status == STATUS_NOT_PUBLISHED:
             print(f"  #{candidate.row} {candidate.label}   READING NOT PUBLISHED - skipping")
         else:
@@ -444,8 +495,8 @@ def create_one_market(
     market_address = Web3.to_checksum_address(events[0]["args"]["market"])
 
     market_contract = w3.eth.contract(address=market_address, abi=binary_market_abi)
-    yes_token = Web3.to_checksum_address(market_contract.functions.yesToken().call())
-    no_token = Web3.to_checksum_address(market_contract.functions.noToken().call())
+    yes_token = Web3.to_checksum_address(call_with_retry(market_contract.functions.yesToken().call))
+    no_token = Web3.to_checksum_address(call_with_retry(market_contract.functions.noToken().call))
 
     return {
         "metricId": candidate.metric_id,
@@ -460,6 +511,59 @@ def create_one_market(
         "createTxHash": Web3.to_hex(receipt.transactionHash),
         "createdAt": utc_now(),
         "totalGasCost": mint_cost + approve_cost + create_cost,
+    }
+
+
+def backfill_existing_market(
+    w3: Web3,
+    factory_contract,
+    binary_market_abi: Any,
+    candidate: CandidateMarket,
+    market_address: str,
+) -> dict[str, Any]:
+    """Record a market that already exists on chain but is missing from the
+    local ledger - e.g. createMarket confirmed in an earlier run, but that
+    run then crashed reading the market back (the exact failure this
+    function exists to recover from). Every field comes from a live chain
+    read or the market's own original MarketCreated event, never guessed:
+    resolveAfter/disputeWindow/initialLiquidity/collateral and the real
+    createTxHash come from that event, not from this run's own flags, so a
+    market created with different parameters some other time is recorded
+    accurately rather than overwritten with whatever this run happened to
+    be passing.
+    """
+    # Checked before spending any retried RPC calls on the token reads below
+    # - without this event there is nothing verifiable to record, so there
+    # is no point reading yesToken()/noToken() first.
+    events = factory_contract.events.MarketCreated.get_logs(
+        argument_filters={"market": Web3.to_checksum_address(market_address)}
+    )
+    if not events:
+        raise PublisherError(
+            f"{candidate.key}: found on-chain at {market_address} but no MarketCreated event "
+            "for it - refusing to record a market whose creation parameters can't be verified."
+        )
+    args = events[0]["args"]
+    block_timestamp = int(w3.eth.get_block(events[0]["blockNumber"])["timestamp"])
+
+    market_contract = w3.eth.contract(address=market_address, abi=binary_market_abi)
+    yes_token = Web3.to_checksum_address(call_with_retry(market_contract.functions.yesToken().call))
+    no_token = Web3.to_checksum_address(call_with_retry(market_contract.functions.noToken().call))
+
+    return {
+        "metricId": candidate.metric_id,
+        "dayKey": candidate.day_key,
+        "threshold": int(args["threshold"]),
+        "market": market_address,
+        "yesToken": yes_token,
+        "noToken": no_token,
+        "resolveAfter": int(args["resolveAfter"]),
+        "disputeWindow": int(args["disputeWindow"]),
+        "initialLiquidity": int(args["initialLiquidity"]),
+        "createTxHash": Web3.to_hex(events[0]["transactionHash"]),
+        "createdAt": format_wall_clock(block_timestamp),
+        "totalGasCost": 0,
+        "backfilled": True,
     }
 
 
@@ -582,17 +686,26 @@ def validate_args(args: argparse.Namespace) -> None:
         raise PublisherError("--initial-liquidity-musdt must be positive.")
 
 
-def print_summary(created: list[dict[str, Any]], evaluations: list[Evaluation], started: float) -> None:
+def print_summary(
+    created: list[dict[str, Any]],
+    recorded: list[dict[str, Any]],
+    evaluations: list[Evaluation],
+    started: float,
+) -> None:
     elapsed = int(time.monotonic() - started)
     total_gas = sum(r["totalGasCost"] for r in created)
+    still_existed = sum(1 for e in evaluations if e.status == STATUS_EXISTS) - len(recorded)
     print("\nGRIDFLEX create_markets summary")
     print(f"  Created:                        {len(created)}")
-    print(f"  Already existed (skipped):      {sum(1 for e in evaluations if e.status == STATUS_EXISTS)}")
+    print(f"  Recorded (already existed):     {len(recorded)}")
+    print(f"  Already existed (in ledger):    {still_existed}")
     print(f"  Reading not published (skip):   {sum(1 for e in evaluations if e.status == STATUS_NOT_PUBLISHED)}")
     print(f"  Wall-clock time:                {elapsed // 60:02d}:{elapsed % 60:02d}")
     print(f"  Total gas spent:                {Web3.from_wei(total_gas, 'ether'):.6f} OKB")
     for record in created:
-        print(f"  {record['metricId']} dayKey {record['dayKey']} -> {record['market']}")
+        print(f"  CREATED  {record['metricId']} dayKey {record['dayKey']} -> {record['market']}")
+    for record in recorded:
+        print(f"  RECORDED {record['metricId']} dayKey {record['dayKey']} -> {record['market']}")
     print(f"  Ledger updated:                 {MARKET_LEDGER_PATH}")
 
 
@@ -631,17 +744,24 @@ def main(argv: list[str] | None = None) -> int:
 
         pairs = existing_markets(w3, factory_contract, binary_market_abi)
         evaluations = build_plan(candidates, oracle_contract, pairs)
-        print_plan(evaluations)
+        ledger = load_market_ledger()
+        print_plan(evaluations, ledger)
 
         eligible = [e for e in evaluations if e.status == STATUS_ELIGIBLE]
         if args.limit is not None:
             eligible = eligible[: args.limit]
+        # Markets that exist on chain but never made it into the local
+        # ledger - a prior run's createMarket succeeded, then that run
+        # crashed before recording it. Synced, never re-created.
+        to_backfill = [
+            e for e in evaluations if e.status == STATUS_EXISTS and e.candidate.key not in ledger
+        ]
 
         if not args.live:
             print("\nDRY RUN ONLY - no transactions were sent.")
             return 0
 
-        if not eligible:
+        if not eligible and not to_backfill:
             print("Nothing to create. No transactions were sent.")
             return 0
 
@@ -659,12 +779,28 @@ def main(argv: list[str] | None = None) -> int:
             chain_id, addresses["factory"], account.address, balance, eligible,
             resolve_after, dispute_window, initial_liquidity,
         )
+        if to_backfill:
+            print("\n  Existing markets to record (no transaction, chain state only):")
+            for evaluation in to_backfill:
+                print(f"    #{evaluation.candidate.row} {evaluation.candidate.label} -> "
+                      f"{evaluation.existing_address}")
         if input('\nType "yes" to continue: ').strip() != "yes":
             print("Cancelled. No transactions were sent.")
             return 0
 
-        ledger = load_market_ledger()
         log_path = LOGS_DIR / datetime.now(timezone.utc).strftime("create-markets-%Y%m%dT%H%M%SZ.log")
+
+        recorded: list[dict[str, Any]] = []
+        for evaluation in to_backfill:
+            candidate = evaluation.candidate
+            record = backfill_existing_market(
+                w3, factory_contract, binary_market_abi, candidate, evaluation.existing_address
+            )
+            ledger[candidate.key] = record
+            save_market_ledger(ledger)
+            recorded.append(record)
+            print(f"RECORDED {candidate.key} -> {record['market']} (already existed on chain)")
+
         created: list[dict[str, Any]] = []
         for evaluation in eligible:
             candidate = evaluation.candidate
@@ -677,9 +813,9 @@ def main(argv: list[str] | None = None) -> int:
             created.append(record)
             print(f"CREATED {candidate.key} -> {record['market']}")
 
-        write_addresses_file(created)
-        write_web_env(created)
-        print_summary(created, evaluations, started)
+        write_addresses_file(created + recorded)
+        write_web_env(created + recorded)
+        print_summary(created, recorded, evaluations, started)
         return 0
     except (PublisherError, KeyboardInterrupt) as exc:
         message = "Interrupted by operator." if isinstance(exc, KeyboardInterrupt) else str(exc)

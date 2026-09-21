@@ -1,4 +1,6 @@
 .env
+CLAUDE.md
+.claude/
 data/raw/
 __pycache__/
 *.pyc
@@ -13,3 +15,5 @@ web/.wrangler/
 web/.env*
 !web/.env.example
 logs/
+.scratch/
+docs/agents/

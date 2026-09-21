@@ -1,0 +1,189 @@
+'use client';
+
+import * as React from 'react';
+import {
+  CandlestickSeries,
+  ColorType,
+  createChart,
+  LineStyle,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from 'lightweight-charts';
+
+type Hub = 'HB_NORTH' | 'HB_WEST';
+type Timeframe = '15m' | '1h' | '4h' | '1d' | '1w';
+
+const HUBS: { id: Hub; label: string }[] = [
+  { id: 'HB_NORTH', label: 'North Hub' },
+  { id: 'HB_WEST', label: 'West Hub' },
+];
+
+const TIMEFRAMES: Timeframe[] = ['15m', '1h', '4h', '1d', '1w'];
+
+interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+interface CandleFile {
+  location: Hub;
+  sourceHash: string;
+  candles: Record<Timeframe, Candle[]>;
+}
+
+const candleCache = new Map<Hub, Promise<CandleFile>>();
+
+function loadCandles(hub: Hub): Promise<CandleFile> {
+  let cached = candleCache.get(hub);
+  if (!cached) {
+    cached = fetch(`/data/candles/${hub}.json`).then((r) => r.json() as Promise<CandleFile>);
+    candleCache.set(hub, cached);
+  }
+  return cached;
+}
+
+export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) {
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const chartRef = React.useRef<IChartApi | null>(null);
+  const seriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const [hub, setHub] = React.useState<Hub>('HB_NORTH');
+  const [timeframe, setTimeframe] = React.useState<Timeframe>('1d');
+  const [sourceHash, setSourceHash] = React.useState<string | null>(null);
+  // lightweight-charts draws on canvas, so it can't resolve a `var(...)`
+  // string the way DOM CSS does - colors are read once from the computed
+  // stylesheet here and reused for anything drawn later (e.g. the strike
+  // price line), not passed through as raw custom-property references.
+  const colorsRef = React.useRef({ warning: '#e8a33d' });
+
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const styles = getComputedStyle(document.documentElement);
+    const foreground = styles.getPropertyValue('--foreground').trim() || '#e7e9ed';
+    const muted = styles.getPropertyValue('--muted-foreground').trim() || '#9aa1ac';
+    const border = styles.getPropertyValue('--border').trim() || '#262a33';
+    const up = styles.getPropertyValue('--up').trim() || '#1fce7a';
+    const down = styles.getPropertyValue('--down').trim() || '#ef4444';
+    colorsRef.current.warning = styles.getPropertyValue('--warning').trim() || '#e8a33d';
+    const monoFont =
+      styles.getPropertyValue('--font-geist-mono').trim() || 'ui-monospace, monospace';
+
+    const chart = createChart(container, {
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: muted,
+        fontFamily: monoFont,
+        fontSize: 11,
+      },
+      grid: {
+        vertLines: { color: border, style: LineStyle.Dotted },
+        horzLines: { color: border, style: LineStyle.Dotted },
+      },
+      rightPriceScale: { borderColor: border },
+      timeScale: { borderColor: border, timeVisible: true, secondsVisible: false },
+      crosshair: { vertLine: { color: muted }, horzLine: { color: muted } },
+    });
+
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: up,
+      downColor: down,
+      borderVisible: false,
+      wickUpColor: up,
+      wickDownColor: down,
+    });
+
+    chartRef.current = chart;
+    seriesRef.current = series;
+    void foreground;
+
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void loadCandles(hub).then((file) => {
+      if (cancelled) return;
+      setSourceHash(file.sourceHash);
+      const series = seriesRef.current;
+      if (!series) return;
+      const data = file.candles[timeframe].map((c) => ({
+        time: c.time as UTCTimestamp,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      }));
+      series.setData(data);
+      chartRef.current?.timeScale().fitContent();
+
+      if (strikeDollars !== undefined) {
+        series.createPriceLine({
+          price: strikeDollars,
+          color: colorsRef.current.warning,
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: `strike $${strikeDollars}`,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hub, timeframe, strikeDollars]);
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2">
+        <div className="flex gap-1">
+          {HUBS.map((h) => (
+            <button
+              className={
+                'border px-2.5 py-1 font-mono text-xs uppercase tracking-[0.08em] ' +
+                (hub === h.id
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground')
+              }
+              key={h.id}
+              onClick={() => setHub(h.id)}
+              type="button"
+            >
+              {h.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {TIMEFRAMES.map((tf) => (
+            <button
+              className={
+                'border px-2.5 py-1 font-mono text-xs ' +
+                (timeframe === tf
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground')
+              }
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              type="button"
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="min-h-[360px] flex-1" ref={containerRef} />
+      <div className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
+        {hub} · ercot_spp_real_time_15_min{sourceHash ? ` · sha256 ${sourceHash.slice(0, 8)}…` : ''}
+      </div>
+    </div>
+  );
+}

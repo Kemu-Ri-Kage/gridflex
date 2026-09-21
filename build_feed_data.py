@@ -28,6 +28,14 @@ from publish import EXPECTED_METRICS, MetricReading, collect_readings, load_ledg
 
 ROOT = Path(__file__).resolve().parent
 WEB_DATA_DIR = ROOT / "web" / "public" / "data"
+ADDRESSES_SOURCE = ROOT / "shared" / "addresses.json"
+METRICS_DIR = ROOT / "data" / "metrics"
+
+# The landing page's data-path diagram walks through one real, already-
+# settled day end to end (see shared/demo-markets.md, market #1) rather
+# than a synthetic example.
+EVIDENCE_METRIC_ID = "ERCOT_HBNORTH_DA_AVG"
+EVIDENCE_DAY = "2026-09-08"
 
 
 def market_day_from_day_key(day_key: int) -> str:
@@ -78,6 +86,59 @@ def write_aggregates(output_dir: Path, by_metric: dict[str, list[dict[str, Any]]
         path.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def write_addresses(output_dir: Path) -> None:
+    """Publish the subset of shared/addresses.json the landing page shows.
+
+    shared/addresses.json is the one source of truth for deployed addresses;
+    the web app can't import a file outside web/ directly,
+    so this writes a small derived copy into web/public/data/ the same way
+    every other feed file here is derived from something outside web/ -
+    never a second, hand-typed copy of the address.
+    """
+    if not ADDRESSES_SOURCE.exists():
+        return
+    source = json.loads(ADDRESSES_SOURCE.read_text(encoding="utf-8"))
+    public = {
+        "chainId": source.get("chainId"),
+        "GridOracle": source.get("GridOracle"),
+        "MarketFactory": source.get("MarketFactory"),
+        "MockUSDT": source.get("MockUSDT"),
+        "GridOracleDeployTx": source.get("transactions", {}).get("GridOracle"),
+    }
+    path = output_dir / "addresses.json"
+    path.write_text(json.dumps(public, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_evidence(output_dir: Path) -> None:
+    """Publish the raw metric file's dataset provenance for the landing
+    page's diagram: real dataset name, location, and the exact sourceFiles
+    list (not sourceHash alone) for one real, already-settled day.
+
+    sourceFiles isn't part of the on-chain Reading struct (see
+    shared/oracle-interface.md), so it doesn't reach web/public/data/ through
+    write_aggregates() above - this publishes it separately, straight from
+    the metric file data/metrics/ writes, rather than hand-typing a filename
+    into a component where it could drift from the real sourceFiles list.
+    """
+    source = METRICS_DIR / f"{EVIDENCE_METRIC_ID}__{EVIDENCE_DAY}.json"
+    if not source.exists():
+        return
+    record = json.loads(source.read_text(encoding="utf-8"))
+    evidence = {
+        "metricId": record["metricId"],
+        "dayKey": record["dayKey"],
+        "marketDay": record["marketDay"],
+        "marketDayStartUtc": record["marketDayStartUtc"],
+        "marketDayEndUtc": record["marketDayEndUtc"],
+        "value": record["value"],
+        "sourceHash": record["sourceHash"],
+        "sourceFiles": record["sourceFiles"],
+        "hashAlgorithm": record["hashAlgorithm"],
+    }
+    path = output_dir / "evidence-demo-day.json"
+    path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--metric", action="append", choices=EXPECTED_METRICS)
@@ -92,6 +153,8 @@ def main(argv: list[str] | None = None) -> int:
     ledger = load_ledger()
     by_metric = aggregate(readings, ledger)
     write_aggregates(args.out, by_metric)
+    write_addresses(args.out)
+    write_evidence(args.out)
 
     total = sum(len(records) for records in by_metric.values())
     submitted = sum(1 for records in by_metric.values() for record in records if record["txHash"])

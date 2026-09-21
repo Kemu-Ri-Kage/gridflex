@@ -36,7 +36,9 @@ PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/gridflex-pycache" \
   "$python_bin" -m py_compile \
     "$repo_root/fetch_ercot.py" \
     "$repo_root/analyse_metrics.py" \
+    "$repo_root/build_candles.py" \
     "$repo_root/build_feed_data.py" \
+    "$repo_root/create_markets.py" \
     "$repo_root/publish.py" \
     "$repo_root/finalize.py"
 (

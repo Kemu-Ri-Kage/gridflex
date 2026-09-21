@@ -13,57 +13,6 @@ import {
 } from '@/components/ui/card';
 import { WalletButton } from '@/components/wallet-button';
 
-const sparkline = [22, 29, 27, 35, 31, 42, 39, 48, 44, 51, 47, 56];
-
-function PriceChart() {
-  const width = 640;
-  const height = 156;
-  const min = Math.min(...sparkline);
-  const max = Math.max(...sparkline);
-  const points = sparkline
-    .map((value, index) => {
-      const x = (index / (sparkline.length - 1)) * width;
-      const y = height - ((value - min) / (max - min)) * (height - 24) - 12;
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <div className="relative h-40 overflow-hidden border border-border bg-muted">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,.035)_1px,transparent_1px)] bg-[size:48px_36px]" />
-      <svg
-        className="relative h-full w-full"
-        preserveAspectRatio="none"
-        viewBox={`0 0 ${width} ${height}`}
-      >
-        <title>Seven day North Hub price trend</title>
-        <defs>
-          <linearGradient id="price-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="var(--chart-1)" stopOpacity="0.22" />
-            <stop offset="1" stopColor="var(--chart-1)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polygon fill="url(#price-fill)" points={`0,156 ${points} 640,156`} />
-        <polyline
-          fill="none"
-          points={points}
-          stroke="var(--chart-1)"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.5"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <span className="absolute bottom-3 left-4 font-mono text-xs text-muted-foreground">
-        7D
-      </span>
-      <span className="absolute right-4 top-3 font-mono text-xs tabular-nums text-chart-1">
-        $45.18
-      </span>
-    </div>
-  );
-}
-
 export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -159,8 +108,7 @@ export default function Home() {
                 </div>
               </CardHeader>
               <CardContent className="pt-4">
-                <PriceChart />
-                <div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4">
                   {[
                     ['Metric', 'North Hub DA'],
                     ['Threshold', '$30.00'],

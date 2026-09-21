@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceDot,
   ReferenceLine,
   XAxis,
   YAxis,
@@ -37,7 +38,7 @@ import {
 } from '@/components/ui/table';
 import { xLayerTestnet } from '@/lib/contracts';
 import { formatElapsed } from '@/lib/feed-verification';
-import { formatPrice } from '@/lib/format';
+import { formatCount, formatPrice } from '@/lib/format';
 import { useFeedData, HERO_METRIC, type CommittedRecord, type VerifiedRow } from '@/lib/feed-data';
 
 const heroChartConfig = {
@@ -62,8 +63,10 @@ function BasisChart({ series }: { series: CommittedRecord[] }) {
           tick={{ fontSize: 11 }}
         />
         <YAxis tickLine={false} axisLine={false} width={48} tick={{ fontSize: 11 }} />
-        {/* shared/feed-spec.md §5: the zero line is the story - a signed spread, not a price. */}
-        <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1.5} />
+        {/* shared/feed-spec.md §5: "visually emphasized (not just an axis
+            gridline) - crossing it is the story" - so this must not share
+            the CartesianGrid's border color/opacity above. */}
+        <ReferenceLine y={0} stroke="var(--foreground)" strokeOpacity={0.55} strokeWidth={1.5} />
         <ChartTooltip content={<ChartTooltipContent labelKey="marketDay" />} />
         <Area
           type="monotone"
@@ -80,10 +83,16 @@ function BasisChart({ series }: { series: CommittedRecord[] }) {
 }
 
 function HbNorthChart({ series }: { series: CommittedRecord[] }) {
-  const data = series.map((record) => ({ marketDay: record.marketDay, value: record.value / 100 }));
+  const data = series.map((record) => ({ marketDay: record.marketDay, value: record.value / 100, cents: record.value }));
+  // The spike is real data, not an outlier to hide - annotate it rather than
+  // clip the axis or log-scale, so its date and peak value are legible.
+  const peak = data.reduce<(typeof data)[number] | null>(
+    (max, point) => (max === null || point.value > max.value ? point : max),
+    null,
+  );
   return (
     <ChartContainer config={secondaryChartConfig} className="aspect-auto h-36 w-full">
-      <LineChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+      <LineChart data={data} margin={{ left: 8, right: 8, top: 24, bottom: 0 }}>
         <CartesianGrid vertical={false} strokeOpacity={0.08} />
         <XAxis
           dataKey="marketDay"
@@ -101,6 +110,21 @@ function HbNorthChart({ series }: { series: CommittedRecord[] }) {
           strokeWidth={1.5}
           dot={false}
         />
+        {peak && (
+          <ReferenceDot
+            x={peak.marketDay}
+            y={peak.value}
+            r={3}
+            fill="var(--chart-1)"
+            stroke="var(--background)"
+            strokeWidth={1.5}
+            label={{
+              value: `${peak.marketDay} · ${formatPrice(peak.cents, 'MWh')}`,
+              position: 'top',
+              style: { fontFamily: 'var(--font-mono)', fontSize: 11, fill: 'var(--foreground)' },
+            }}
+          />
+        )}
       </LineChart>
     </ChartContainer>
   );
@@ -179,9 +203,7 @@ export function FeedPanel() {
               West–North day-ahead basis
             </CardDescription>
             <CardTitle className="mt-1 text-lg font-semibold text-foreground">
-              {loading
-                ? 'Loading committed history…'
-                : `${submittedCount} of ${totalLocalCandidates} metric-days published so far`}
+              Full local history
             </CardTitle>
           </div>
         </CardHeader>
@@ -195,8 +217,11 @@ export function FeedPanel() {
           <div>
             <CardTitle className="text-base text-foreground">Verified ERCOT readings</CardTitle>
             <CardDescription>
-              Every row below is a fresh on-chain read, compared live against the committed
-              source file.
+              <span className="font-mono tabular-nums">
+                {submittedCount} of {totalLocalCandidates}
+              </span>{' '}
+              metric-days published so far. Every row below is a fresh on-chain read, compared
+              live against the committed source file.
             </CardDescription>
           </div>
         </CardHeader>
@@ -221,6 +246,7 @@ export function FeedPanel() {
               <TableBody>
                 {rows.map((row) => {
                   const isBasis = row.metricId === HERO_METRIC;
+                  const isCount = row.metricId === 'ERCOT_HBWEST_NEG_INTERVALS';
                   const sign = Math.sign(row.record.value);
                   return (
                     <TableRow key={`${row.metricId}:${row.record.dayKey}`}>
@@ -239,7 +265,9 @@ export function FeedPanel() {
                               : 'text-foreground')
                         }
                       >
-                        {formatPrice(row.record.value, 'MWh')}
+                        {isCount
+                          ? formatCount(row.record.value, 'intervals')
+                          : formatPrice(row.record.value, 'MWh', isBasis)}
                       </TableCell>
                       <TableCell>
                         <a

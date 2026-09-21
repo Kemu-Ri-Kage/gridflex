@@ -1,4 +1,6 @@
 .env
+CLAUDE.md
+.claude/
 data/raw/
 __pycache__/
 *.pyc

@@ -228,8 +228,8 @@ never published, which destroys the verification argument.
 
 The Foundry project in `contracts/` contains:
 
-- `GridOracle`: a single authorized testnet reporter submits a signed `int256`
-  value under `(metricId, dayKey)` and anyone can finalize it after the oracle
+- `GridOracle`: a single authorised testnet reporter submits a signed `int256`
+  value under `(metricId, dayKey)` and anyone can finalise it after the oracle
   dispute window;
 - `BinaryMarket`: mints a fully collateralized YES+NO set, swaps outcomes in a
   zero-fee constant-product pool, resolves strictly above a signed threshold,
@@ -237,7 +237,7 @@ The Foundry project in `contracts/` contains:
 - a mandatory cancellation path: if no oracle reading was submitted after the
   market grace period, each YES and NO redeems for 0.5 collateral (rounded
   down), so a complete set returns one full unit and no user's position is
-  permanently trapped; any submitted reading can instead be finalized by anyone;
+  permanently trapped; any submitted reading can instead be finalised by anyone;
 - `MarketFactory`, `OutcomeToken`, and public-mint `MockUSDT` for the testnet
   demonstration.
 

@@ -64,7 +64,7 @@ transaction hashes are recorded in `shared/addresses.json`.
 
 The next end-to-end milestone is to:
 
-1. finalize the eligible demo readings;
+1. finalise the eligible demo readings;
 2. create and seed a past-day market through `CreateDemoMarket.s.sol`;
 3. execute the complete mint, swap, resolve, and redeem lifecycle;
 4. record every public transaction hash;
@@ -103,14 +103,18 @@ English message, push the branch, and open a pull request. Another team member
 should review the pull request before it is merged. Keep `main` deployable and
 avoid force-pushing shared branches.
 
+Project prose uses British English. Stable interface identifiers such as
+`finalize()`, `finalize.py`, the `finalized` JSON field, and standard CSS
+properties retain their exact spelling for compatibility.
+
 ## Security rules
 
 - Use dedicated testnet wallets only.
 - Never commit `.env`, private keys, keystores, passwords, raw API responses,
-  build artifacts, or local logs.
+  build artefacts, or local logs.
 - Verify chain ID `1952`, contract bytecode, and the configured reporter before
   sending transactions.
 - Run publication in dry-run mode first and use the explicit live confirmation.
-- Pull the latest ledger before publishing or finalizing readings.
+- Pull the latest ledger before publishing or finalising readings.
 - Treat the source-data hash and completeness checks as part of the settlement
   security model.

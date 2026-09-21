@@ -58,21 +58,20 @@ from becoming permanently trapped when the data source has a genuine gap.
 ## Deployment impact
 
 The protected `swap` interface changes `BinaryMarket` creation bytecode.
-`MarketFactory` embeds that bytecode, so the factory currently deployed on X
-Layer testnet must not be used to create the final demo market. The existing
-oracle and MockUSDT deployments can be reused, but a new factory must be
-deployed from this version after all checks pass.
-
-No deployment or live market creation is part of the local implementation
-step. Record the replacement factory and market addresses in
-`shared/addresses.json` only after their transactions are confirmed.
+`MarketFactory` embeds that bytecode, so the original factory must not be used
+to create a demo market. The existing oracle and MockUSDT deployments remain
+in use. A replacement factory was deployed from this version at
+`0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9`; its confirmed transaction and the
+superseded factory record are in `shared/addresses.json`. The deployed runtime
+bytecode exactly matches the current local build.
 
 ## Operator checklist
 
 1. Run the complete local test suite and contract-interface validation.
 2. Review the deployment transaction in the wallet before signing.
-3. Deploy the replacement factory to X Layer testnet.
-4. Verify the deployed bytecode and publish the transaction hash.
+3. Confirm the replacement factory address and transaction in
+   `shared/addresses.json`.
+4. Verify its deployed bytecode still matches the current local build.
 5. Create one market with 10,000 mUSDT of initial liquidity.
 6. Exercise mint, quote, approve, swap, resolve and redeem with test funds.
 7. Confirm the market contract finishes with the expected collateral balance.

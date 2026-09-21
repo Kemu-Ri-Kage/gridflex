@@ -56,11 +56,16 @@ The core contracts are deployed on X Layer testnet, chain ID `1952`:
 |---|---|
 | `GridOracle` | `0x970cefFC0e75bCa245F3337715992ad520A4D561` |
 | `MockUSDT` | `0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A` |
-| `MarketFactory` | `0xE4d35CE22E74A8BA656D74245E2173C93b430243` |
+| `MarketFactory` | `0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9` |
 
 The committed ledger contains eight confirmed oracle submissions. The oracle
 uses a 3,600-second dispute window. Contract addresses and deployment
 transaction hashes are recorded in `shared/addresses.json`.
+
+The trade-safe factory was deployed in transaction
+`0x4cbea7ff136d99d17c21055af295d2c78f9ba0b55df789184e8a11ccad04e37c`.
+Its runtime bytecode matches the current local build exactly; the previous
+factory is retained only as a superseded audit record in `shared/addresses.json`.
 
 The next end-to-end milestone is to:
 

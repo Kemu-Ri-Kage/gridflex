@@ -314,11 +314,13 @@ Core deployment from `0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902`:
 |---|---|---|
 | `GridOracle` | `0x970cefFC0e75bCa245F3337715992ad520A4D561` | `0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf` |
 | `MockUSDT` | `0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A` | `0xcacbb52fcf1e37d5582b16e78a954d985b1ba4b1ceb453301ad4962f5f1df891` |
-| `MarketFactory` | `0xE4d35CE22E74A8BA656D74245E2173C93b430243` | `0x79cc33e357bf886295651de9b5043fd950ef6b022ddac0ca381a662e818dd297` |
+| `MarketFactory` | `0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9` | `0x4cbea7ff136d99d17c21055af295d2c78f9ba0b55df789184e8a11ccad04e37c` |
 
 The onchain checks confirm that all three addresses contain bytecode, the oracle reporter is the
-deployer above, the oracle dispute window is `3600`, collateral decimals are `6`, and the new
-factory starts with zero markets. Machine-readable values live in `shared/addresses.json`.
+deployer above, the oracle dispute window is `3600`, collateral decimals are `6`, and the
+trade-safe factory starts with zero markets. Its runtime bytecode exactly matches the committed
+source build. Machine-readable values and the superseded factory record live in
+`shared/addresses.json`.
 
 Use a dedicated testnet wallet. Never commit `.env`, place a private key in a
 command, or include it in a ZIP. Private keys are stored outside this repository in an encrypted

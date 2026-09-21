@@ -282,7 +282,7 @@ string is either a number, a label, or an honest status.
   strike, settlement date, status. See §5 for naming, §6 for the
   settled-state rule.
 - **Left:** market selector. **No compatible `BinaryMarket` is deployed yet.**
-  `MarketFactory` must be redeployed with the trade-safety swap first. Until a
+  The trade-safe `MarketFactory` is deployed, but until a
   market actually exists on chain, the selector shows an honest empty
   state (§6) explaining that, never a dropdown padded with placeholders or
   a list implying markets exist that don't.

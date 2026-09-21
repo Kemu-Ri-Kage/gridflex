@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { ArrowUpRight, ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
 
-import { useWeb3 } from '@/components/web3-provider';
+import { useWeb3, type SwapQuote } from '@/components/web3-provider';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -15,43 +15,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { xLayerTestnet } from '@/lib/contracts';
 import { formatToken } from '@/lib/format';
+import { parsePositiveTokenAmount } from '@/lib/trade';
 
 type TradeSide = 'YES' | 'NO';
 
-type ModelContext = {
-  registerTool: (
-    tool: {
-      name: string;
-      title?: string;
-      description: string;
-      inputSchema: object;
-      annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
-      execute: (input: unknown) => unknown;
-    },
-    options?: { signal?: AbortSignal },
-  ) => void | Promise<void>;
-};
-
-declare global {
-  interface Document {
-    readonly modelContext?: ModelContext;
+function validTokenAmount(value: string): boolean {
+  try {
+    parsePositiveTokenAmount(value);
+    return true;
+  } catch {
+    return false;
   }
-}
-
-function readTradeInput(input: unknown): { side: TradeSide; amount: string } {
-  if (!input || typeof input !== 'object')
-    throw new Error('Trade input must be an object.');
-  const record = input as Record<string, unknown>;
-  if (record.side !== 'YES' && record.side !== 'NO')
-    throw new Error('side must be YES or NO.');
-  if (
-    typeof record.amount !== 'number' ||
-    !Number.isFinite(record.amount) ||
-    record.amount <= 0
-  ) {
-    throw new Error('amount must be a positive number.');
-  }
-  return { side: record.side, amount: String(record.amount) };
 }
 
 export function TradePanel() {
@@ -65,59 +39,62 @@ export function TradePanel() {
     connect,
     mintCollateral,
     mintSet,
+    quoteToward,
     swapToward,
     resolve,
     cancel,
     redeem,
   } = useWeb3();
   const [side, setSide] = React.useState<TradeSide>('YES');
-  const [amount, setAmount] = React.useState('100');
+  const [mintAmount, setMintAmount] = React.useState('100');
+  const [tradeAmount, setTradeAmount] = React.useState('100');
+  const [quoteState, setQuoteState] = React.useState<{
+    key: string;
+    quote?: SwapQuote;
+    unavailable: boolean;
+  }>({ key: '', unavailable: false });
+  const quoteKey = `${side}:${tradeAmount}`;
 
   React.useEffect(() => {
-    const context = document.modelContext;
-    if (!context?.registerTool) return;
-    const lifecycle = new AbortController();
+    if (!configured || !validTokenAmount(tradeAmount)) {
+      return;
+    }
 
-    void Promise.resolve(
-      context.registerTool(
-        {
-          name: 'stage_gridflex_trade',
-          title: 'Stage GRIDFLEX trade',
-          description:
-            'Select the YES or NO side and enter a positive mUSDT amount in the visible GRIDFLEX trade panel. This does not send a blockchain transaction.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              side: { type: 'string', enum: ['YES', 'NO'] },
-              amount: { type: 'number', exclusiveMinimum: 0 },
-            },
-            required: ['side', 'amount'],
-            additionalProperties: false,
-          },
-          annotations: { readOnlyHint: false, untrustedContentHint: false },
-          execute(input) {
-            const next = readTradeInput(input);
-            setSide(next.side);
-            setAmount(next.amount);
-            return {
-              staged: true,
-              side: next.side,
-              amount: next.amount,
-              unit: 'mUSDT',
-            };
-          },
-        },
-        { signal: lifecycle.signal },
-      ),
-    ).catch(() => undefined);
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void quoteToward(side, tradeAmount)
+        .then((nextQuote) => {
+          if (!cancelled) {
+            setQuoteState({
+              key: quoteKey,
+              quote: nextQuote,
+              unavailable: false,
+            });
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setQuoteState({ key: quoteKey, unavailable: true });
+          }
+        });
+    }, 250);
 
-    return () => lifecycle.abort();
-  }, []);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [configured, quoteKey, quoteToward, side, tradeAmount]);
 
-  const parsedAmount = Number(amount);
-  const validAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
-  const canTransact = Boolean(
-    account && configured && validAmount && !pendingAction,
+  const validMintAmount = validTokenAmount(mintAmount);
+  const validTradeAmount = validTokenAmount(tradeAmount);
+  const quote = quoteState.key === quoteKey ? quoteState.quote : undefined;
+  const quoteUnavailable =
+    quoteState.key === quoteKey && quoteState.unavailable;
+  const canMint = Boolean(
+    account && configured && validMintAmount && !pendingAction,
+  );
+  const canSwap = Boolean(
+    account && configured && validTradeAmount && quote && !pendingAction,
   );
   const yesPrice = Number(snapshot.priceE18) / 1e16;
   const noPrice = 100 - yesPrice;
@@ -159,20 +136,23 @@ export function TradePanel() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm text-slate-400" htmlFor="amount">
-            Amount
+          <label
+            className="mb-2 block text-sm text-slate-400"
+            htmlFor="mint-amount"
+          >
+            Complete set amount
           </label>
           <div className="relative">
             <Input
-              aria-invalid={!validAmount}
+              aria-invalid={!validMintAmount}
               className="h-12 border-white/10 bg-[#070b0b] pr-20 font-mono text-lg text-white"
-              id="amount"
+              id="mint-amount"
               inputMode="decimal"
               min="0"
-              onChange={(event) => setAmount(event.target.value)}
+              onChange={(event) => setMintAmount(event.target.value)}
               step="0.01"
               type="number"
-              value={amount}
+              value={mintAmount}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">
               mUSDT
@@ -219,17 +199,68 @@ export function TradePanel() {
             </Button>
             <Button
               className="h-10 bg-[#a8ff3e] text-[#061008] hover:bg-[#bdff6c]"
-              disabled={!canTransact}
-              onClick={() => void mintSet(amount)}
+              disabled={!canMint}
+              onClick={() => void mintSet(mintAmount)}
             >
               Mint YES + NO set
             </Button>
+
+            <div className="mt-2">
+              <label
+                className="mb-2 block text-sm text-slate-400"
+                htmlFor="trade-amount"
+              >
+                Trade input
+              </label>
+              <div className="relative">
+                <Input
+                  aria-invalid={!validTradeAmount}
+                  className="h-12 border-white/10 bg-[#070b0b] pr-20 font-mono text-lg text-white"
+                  id="trade-amount"
+                  inputMode="decimal"
+                  min="0"
+                  onChange={(event) => setTradeAmount(event.target.value)}
+                  step="0.01"
+                  type="number"
+                  value={tradeAmount}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">
+                  {side === 'YES' ? 'NO' : 'YES'}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 rounded-lg border border-white/8 bg-black/15 p-3 text-xs">
+              <div>
+                <div className="text-slate-500">Estimated output</div>
+                <div className="mt-1 font-mono text-slate-200">
+                  {quote ? `${formatToken(quote.amountOut)} ${side}` : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-slate-500">Minimum received</div>
+                <div className="mt-1 font-mono text-slate-200">
+                  {quote
+                    ? `${formatToken(quote.minimumAmountOut)} ${side}`
+                    : '—'}
+                </div>
+              </div>
+              <div className="col-span-2 text-slate-500">
+                0.50% slippage protection · 5-minute deadline
+                {quoteUnavailable && (
+                  <span className="ml-2 text-amber-200">
+                    Live quote unavailable.
+                  </span>
+                )}
+              </div>
+            </div>
+
             <Button
-              disabled={!canTransact}
-              onClick={() => void swapToward(side, amount)}
+              disabled={!canSwap}
+              onClick={() => void swapToward(side, tradeAmount)}
               variant="secondary"
             >
-              Swap toward {side}
+              Swap towards {side}
             </Button>
             <div className="grid grid-cols-3 gap-2">
               <Button

@@ -170,7 +170,7 @@ contract BinaryMarketTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(BinaryMarket.TradingClosed.selector);
-        market.swap(true, SET_AMOUNT);
+        market.swap(true, SET_AMOUNT, 1, uint64(block.timestamp + 5 minutes));
     }
 
     function testOneThousandTradeMovesPriceByVisibleAmount() public {
@@ -180,8 +180,9 @@ contract BinaryMarketTest is Test {
 
         vm.prank(alice);
         yesToken.approve(address(market), SET_AMOUNT);
+        uint256 quote = market.quoteSwap(true, SET_AMOUNT);
         vm.prank(alice);
-        uint256 amountOut = market.swap(true, SET_AMOUNT);
+        uint256 amountOut = market.swap(true, SET_AMOUNT, quote, _swapDeadline());
 
         assertEq(amountOut, 909_090_909);
         assertEq(market.yesReserve(), SEED + SET_AMOUNT);
@@ -196,8 +197,9 @@ contract BinaryMarketTest is Test {
 
         vm.prank(alice);
         noToken.approve(address(market), SET_AMOUNT);
+        uint256 quote = market.quoteSwap(false, SET_AMOUNT);
         vm.prank(alice);
-        market.swap(false, SET_AMOUNT);
+        market.swap(false, SET_AMOUNT, quote, _swapDeadline());
 
         assertGt(market.price(), 0.5e18);
     }
@@ -205,12 +207,81 @@ contract BinaryMarketTest is Test {
     function testSwapRejectsMissingPoolAndZeroAmount() public {
         vm.prank(alice);
         vm.expectRevert(BinaryMarket.PoolNotSeeded.selector);
-        market.swap(true, SET_AMOUNT);
+        market.swap(true, SET_AMOUNT, 1, _swapDeadline());
 
         _seedPool();
         vm.prank(alice);
         vm.expectRevert(BinaryMarket.ZeroAmount.selector);
-        market.swap(true, 0);
+        market.swap(true, 0, 1, _swapDeadline());
+    }
+
+    function testSwapRequiresMinimumOutputAndUnexpiredDeadline() public {
+        _seedPool();
+        _mintSetForAlice(SET_AMOUNT);
+        vm.prank(alice);
+        yesToken.approve(address(market), SET_AMOUNT);
+
+        vm.prank(alice);
+        vm.expectRevert(BinaryMarket.ZeroMinimumOutput.selector);
+        market.swap(true, SET_AMOUNT, 0, _swapDeadline());
+
+        uint64 expiredDeadline = uint64(block.timestamp - 1);
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BinaryMarket.SwapDeadlineExpired.selector, expiredDeadline, block.timestamp
+            )
+        );
+        market.swap(true, SET_AMOUNT, 1, expiredDeadline);
+    }
+
+    function testSwapRejectsPriceMovementBeyondMinimumOutput() public {
+        _seedPool();
+        _mintSetForAlice(SET_AMOUNT);
+        vm.prank(alice);
+        yesToken.approve(address(market), SET_AMOUNT);
+
+        uint256 aliceQuote = market.quoteSwap(true, SET_AMOUNT);
+
+        collateral.mint(bob, SET_AMOUNT);
+        vm.startPrank(bob);
+        collateral.approve(address(market), SET_AMOUNT);
+        market.mintSet(SET_AMOUNT);
+        yesToken.approve(address(market), SET_AMOUNT);
+        uint256 bobQuote = market.quoteSwap(true, SET_AMOUNT);
+        market.swap(true, SET_AMOUNT, bobQuote, _swapDeadline());
+        vm.stopPrank();
+
+        uint256 movedQuote = market.quoteSwap(true, SET_AMOUNT);
+        uint256 yesReserveBefore = market.yesReserve();
+        uint256 noReserveBefore = market.noReserve();
+
+        assertLt(movedQuote, aliceQuote);
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(BinaryMarket.SlippageExceeded.selector, movedQuote, aliceQuote)
+        );
+        market.swap(true, SET_AMOUNT, aliceQuote, _swapDeadline());
+
+        assertEq(market.yesReserve(), yesReserveBefore);
+        assertEq(market.noReserve(), noReserveBefore);
+        assertEq(yesToken.balanceOf(alice), SET_AMOUNT);
+    }
+
+    function testQuoteMatchesExecutionAtTheDeadline() public {
+        _seedPool();
+        _mintSetForAlice(SET_AMOUNT);
+        vm.prank(alice);
+        yesToken.approve(address(market), SET_AMOUNT);
+
+        uint64 deadline = _swapDeadline();
+        uint256 quote = market.quoteSwap(true, SET_AMOUNT);
+        vm.warp(deadline);
+        vm.prank(alice);
+        uint256 amountOut = market.swap(true, SET_AMOUNT, quote, deadline);
+
+        assertEq(amountOut, quote);
+        assertEq(noToken.balanceOf(alice), SET_AMOUNT + quote);
     }
 
     function testResolveRejectsEarlyOrUnfinalizedReading() public {
@@ -276,8 +347,9 @@ contract BinaryMarketTest is Test {
         _mintSetForAlice(SET_AMOUNT);
         vm.prank(alice);
         yesToken.approve(address(market), SET_AMOUNT);
+        uint256 quote = market.quoteSwap(true, SET_AMOUNT);
         vm.prank(alice);
-        market.swap(true, SET_AMOUNT);
+        market.swap(true, SET_AMOUNT, quote, _swapDeadline());
         uint256 expectedPayout = market.yesReserve();
 
         _resolveWithValue(THRESHOLD + 1);
@@ -341,8 +413,9 @@ contract BinaryMarketTest is Test {
         _mintSetForAlice(SET_AMOUNT);
         vm.prank(alice);
         yesToken.approve(address(market), SET_AMOUNT);
+        uint256 quote = market.quoteSwap(true, SET_AMOUNT);
         vm.prank(alice);
-        market.swap(true, SET_AMOUNT);
+        market.swap(true, SET_AMOUNT, quote, _swapDeadline());
 
         uint256 tokenTotal = yesToken.balanceOf(alice) + noToken.balanceOf(alice);
         uint256 expectedPayout = tokenTotal / 2;
@@ -401,6 +474,58 @@ contract BinaryMarketTest is Test {
         market.resolve();
     }
 
+    function testTwoUsersCompleteTradingAndSettlementLifecycle() public {
+        uint256 aliceTrade = 400e6;
+        uint256 bobTrade = 600e6;
+        uint256 bobSetAmount = 1_500e6;
+
+        _seedPool();
+        _mintSetForAlice(SET_AMOUNT);
+        collateral.mint(bob, bobSetAmount);
+        vm.startPrank(bob);
+        collateral.approve(address(market), bobSetAmount);
+        market.mintSet(bobSetAmount);
+        vm.stopPrank();
+
+        vm.prank(alice);
+        yesToken.approve(address(market), aliceTrade);
+        uint256 aliceQuote = market.quoteSwap(true, aliceTrade);
+        vm.prank(alice);
+        uint256 aliceOutput = market.swap(true, aliceTrade, aliceQuote, _swapDeadline());
+
+        vm.prank(bob);
+        noToken.approve(address(market), bobTrade);
+        uint256 bobQuote = market.quoteSwap(false, bobTrade);
+        vm.prank(bob);
+        uint256 bobOutput = market.swap(false, bobTrade, bobQuote, _swapDeadline());
+
+        assertEq(aliceOutput, aliceQuote);
+        assertEq(bobOutput, bobQuote);
+        assertEq(collateral.balanceOf(address(market)), SEED + SET_AMOUNT + bobSetAmount);
+        assertEq(yesToken.balanceOf(address(market)), market.yesReserve());
+        assertEq(noToken.balanceOf(address(market)), market.noReserve());
+        assertEq(yesToken.totalSupply(), noToken.totalSupply());
+
+        _resolveWithValue(THRESHOLD + 1);
+        vm.prank(alice);
+        market.redeem();
+        vm.prank(bob);
+        market.redeem();
+
+        vm.prank(alice);
+        vm.expectRevert(BinaryMarket.NothingToRedeem.selector);
+        market.redeem();
+
+        vm.prank(liquidityProvider);
+        market.claimLiquidity();
+
+        assertEq(collateral.balanceOf(address(market)), 0);
+        assertEq(yesToken.totalSupply(), 0);
+        assertTrue(market.liquidityRedeemed());
+        assertEq(market.yesReserve(), 0);
+        assertEq(market.noReserve(), 0);
+    }
+
     function testFuzzSwapKeepsConstantProduct(uint96 rawAmount) public {
         _seedPool();
         uint256 amount = bound(uint256(rawAmount), 2, 2_000e6);
@@ -410,11 +535,17 @@ contract BinaryMarketTest is Test {
         yesToken.approve(address(market), amount);
 
         uint256 invariantBefore = market.yesReserve() * market.noReserve();
+        uint256 quote = market.quoteSwap(true, amount);
         vm.prank(alice);
-        uint256 amountOut = market.swap(true, amount);
+        uint256 amountOut = market.swap(true, amount, quote, _swapDeadline());
 
         assertGt(amountOut, 0);
+        assertEq(amountOut, quote);
         assertGe(market.yesReserve() * market.noReserve(), invariantBefore);
+        assertEq(yesToken.balanceOf(address(market)), market.yesReserve());
+        assertEq(noToken.balanceOf(address(market)), market.noReserve());
+        assertEq(collateral.balanceOf(address(market)), yesToken.totalSupply());
+        assertEq(yesToken.totalSupply(), noToken.totalSupply());
     }
 
     function _deployMarket(
@@ -468,5 +599,9 @@ contract BinaryMarketTest is Test {
     function _cancelMarket() internal {
         vm.warp(RESOLVE_AFTER + DISPUTE_WINDOW);
         market.cancel();
+    }
+
+    function _swapDeadline() internal view returns (uint64) {
+        return uint64(block.timestamp + 5 minutes);
     }
 }

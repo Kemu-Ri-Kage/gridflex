@@ -52,7 +52,10 @@ contract BinaryMarket is ReentrancyGuard {
     error TradingClosed();
     error PoolAlreadySeeded();
     error PoolNotSeeded();
+    error ZeroMinimumOutput();
     error InsufficientOutput();
+    error SlippageExceeded(uint256 amountOut, uint256 minimumAmountOut);
+    error SwapDeadlineExpired(uint64 deadline, uint256 currentTime);
     error ResolveTooEarly(uint64 resolveAfter);
     error OracleReadingNotFinalized(bytes32 metricId, uint32 dayKey);
     error OracleReadingAvailable(bytes32 metricId, uint32 dayKey);
@@ -138,20 +141,25 @@ contract BinaryMarket is ReentrancyGuard {
 
     /// @notice Swaps one outcome token for the other through the constant-product pool.
     /// @param yesForNo True sends YES and receives NO; false sends NO and receives YES.
-    function swap(bool yesForNo, uint256 amountIn)
+    /// @param amountIn Exact amount of the input outcome token sent by the caller.
+    /// @param minimumAmountOut Lowest output accepted by the caller after price movement.
+    /// @param deadline Latest block timestamp at which the transaction may execute.
+    function swap(bool yesForNo, uint256 amountIn, uint256 minimumAmountOut, uint64 deadline)
         external
         nonReentrant
         returns (uint256 amountOut)
     {
         if (amountIn == 0) revert ZeroAmount();
+        if (minimumAmountOut == 0) revert ZeroMinimumOutput();
+        if (block.timestamp > deadline) revert SwapDeadlineExpired(deadline, block.timestamp);
         if (block.timestamp >= resolveAfter) revert TradingClosed();
-        if (liquidityProvider == address(0)) revert PoolNotSeeded();
+        amountOut = quoteSwap(yesForNo, amountIn);
+        if (amountOut < minimumAmountOut) {
+            revert SlippageExceeded(amountOut, minimumAmountOut);
+        }
 
         uint256 reserveIn = yesForNo ? yesReserve : noReserve;
         uint256 reserveOut = yesForNo ? noReserve : yesReserve;
-        uint256 amountInAfterFee = Math.mulDiv(amountIn, BPS - SWAP_FEE_BPS, BPS);
-        amountOut = Math.mulDiv(reserveOut, amountInAfterFee, reserveIn + amountInAfterFee);
-        if (amountOut == 0 || amountOut >= reserveOut) revert InsufficientOutput();
 
         if (yesForNo) {
             yesReserve = reserveIn + amountIn;
@@ -166,6 +174,18 @@ contract BinaryMarket is ReentrancyGuard {
         }
 
         emit Swapped(msg.sender, yesForNo, amountIn, amountOut);
+    }
+
+    /// @notice Returns the current output quote for an exact-input outcome-token swap.
+    function quoteSwap(bool yesForNo, uint256 amountIn) public view returns (uint256 amountOut) {
+        if (amountIn == 0) revert ZeroAmount();
+        if (liquidityProvider == address(0)) revert PoolNotSeeded();
+
+        uint256 reserveIn = yesForNo ? yesReserve : noReserve;
+        uint256 reserveOut = yesForNo ? noReserve : yesReserve;
+        uint256 amountInAfterFee = Math.mulDiv(amountIn, BPS - SWAP_FEE_BPS, BPS);
+        amountOut = Math.mulDiv(reserveOut, amountInAfterFee, reserveIn + amountInAfterFee);
+        if (amountOut == 0 || amountOut >= reserveOut) revert InsufficientOutput();
     }
 
     /// @notice Returns the estimated YES probability from pool reserves, scaled by 1e18.

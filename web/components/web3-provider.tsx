@@ -8,7 +8,6 @@ import {
   custom,
   getAddress,
   http,
-  parseUnits,
   type Address,
   type EIP1193Provider,
   type Hash,
@@ -22,6 +21,12 @@ import {
   outcomeTokenAbi,
   xLayerTestnet,
 } from '@/lib/contracts';
+import {
+  DEFAULT_SLIPPAGE_BPS,
+  minimumOutputForQuote,
+  parsePositiveTokenAmount,
+  swapDeadline,
+} from '@/lib/trade';
 
 declare global {
   interface Window {
@@ -43,6 +48,12 @@ type MarketSnapshot = {
   yesWon: boolean;
 };
 
+export type SwapQuote = {
+  amountOut: bigint;
+  minimumAmountOut: bigint;
+  slippageBps: bigint;
+};
+
 type Web3ContextValue = {
   account?: Address;
   configured: boolean;
@@ -55,6 +66,10 @@ type Web3ContextValue = {
   refresh: () => Promise<void>;
   mintCollateral: () => Promise<void>;
   mintSet: (amount: string) => Promise<void>;
+  quoteToward: (
+    side: 'YES' | 'NO',
+    amount: string,
+  ) => Promise<SwapQuote | undefined>;
   swapToward: (side: 'YES' | 'NO', amount: string) => Promise<void>;
   resolve: () => Promise<void>;
   cancel: () => Promise<void>;
@@ -327,14 +342,20 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       address: addresses.collateral,
       abi: mockUsdtAbi,
       functionName: 'mint',
-      args: [account, parseUnits('1000', 6)],
+      args: [account, parsePositiveTokenAmount('1000')],
     });
   }, [account, write]);
 
   const mintSet = React.useCallback(
     async (amount: string) => {
       if (!addresses.collateral || !addresses.market) return;
-      const units = parseUnits(amount, 6);
+      let units: bigint;
+      try {
+        units = parsePositiveTokenAmount(amount);
+      } catch (amountError) {
+        setError(errorMessage(amountError));
+        return;
+      }
       const approved = await write('Approving collateral', {
         address: addresses.collateral,
         abi: mockUsdtAbi,
@@ -352,12 +373,55 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     [write],
   );
 
+  const quoteToward = React.useCallback(
+    async (
+      side: 'YES' | 'NO',
+      amount: string,
+    ): Promise<SwapQuote | undefined> => {
+      if (!addresses.market) return undefined;
+      const units = parsePositiveTokenAmount(amount);
+      const yesForNo = side === 'NO';
+      const amountOut = (await publicClient.readContract({
+        address: addresses.market,
+        abi: binaryMarketAbi,
+        functionName: 'quoteSwap',
+        args: [yesForNo, units],
+      })) as bigint;
+
+      return {
+        amountOut,
+        minimumAmountOut: minimumOutputForQuote(amountOut),
+        slippageBps: DEFAULT_SLIPPAGE_BPS,
+      };
+    },
+    [],
+  );
+
   const swapToward = React.useCallback(
     async (side: 'YES' | 'NO', amount: string) => {
       if (!addresses.market || !snapshot.yesToken || !snapshot.noToken) return;
-      const units = parseUnits(amount, 6);
+      let units: bigint;
+      try {
+        units = parsePositiveTokenAmount(amount);
+      } catch (amountError) {
+        setError(errorMessage(amountError));
+        return;
+      }
       const yesForNo = side === 'NO';
       const inputToken = yesForNo ? snapshot.yesToken : snapshot.noToken;
+
+      let protectedQuote: SwapQuote | undefined;
+      try {
+        protectedQuote = await quoteToward(side, amount);
+        if (!protectedQuote)
+          throw new Error('The market quote is unavailable.');
+      } catch (quoteError) {
+        setError(
+          `Could not prepare the protected swap: ${errorMessage(quoteError)}`,
+        );
+        return;
+      }
+
       const approved = await write(`Approving ${yesForNo ? 'YES' : 'NO'}`, {
         address: inputToken,
         abi: outcomeTokenAbi,
@@ -365,14 +429,33 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         args: [addresses.market, units],
       });
       if (!approved) return;
+
+      let deadline: bigint;
+      try {
+        const latestQuote = await quoteToward(side, amount);
+        if (!latestQuote) throw new Error('The market quote is unavailable.');
+        if (latestQuote.amountOut < protectedQuote.minimumAmountOut) {
+          throw new Error(
+            'The price moved beyond the 0.50% tolerance during approval. Review the new quote and try again.',
+          );
+        }
+        const latestBlock = await publicClient.getBlock({ blockTag: 'latest' });
+        deadline = swapDeadline(latestBlock.timestamp);
+      } catch (quoteError) {
+        setError(
+          `Could not prepare the protected swap: ${errorMessage(quoteError)}`,
+        );
+        return;
+      }
+
       await write(`Swapping toward ${side}`, {
         address: addresses.market,
         abi: binaryMarketAbi,
         functionName: 'swap',
-        args: [yesForNo, units],
+        args: [yesForNo, units, protectedQuote.minimumAmountOut, deadline],
       });
     },
-    [snapshot.noToken, snapshot.yesToken, write],
+    [quoteToward, snapshot.noToken, snapshot.yesToken, write],
   );
 
   const resolve = React.useCallback(async () => {
@@ -415,6 +498,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       refresh,
       mintCollateral,
       mintSet,
+      quoteToward,
       swapToward,
       resolve,
       cancel,
@@ -431,6 +515,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       refresh,
       mintCollateral,
       mintSet,
+      quoteToward,
       swapToward,
       resolve,
       cancel,

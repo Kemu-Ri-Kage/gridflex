@@ -73,6 +73,12 @@ def main() -> None:
         "uint64",
     ]
     find(market, "function", "cancel")
+    swap = find(market, "function", "swap")
+    assert types(swap["inputs"]) == ["bool", "uint256", "uint256", "uint64"]
+    assert types(swap["outputs"]) == ["uint256"]
+    quote_swap = find(market, "function", "quoteSwap")
+    assert types(quote_swap["inputs"]) == ["bool", "uint256"]
+    assert types(quote_swap["outputs"]) == ["uint256"]
     assert types(find(market, "function", "threshold")["outputs"]) == ["int256"]
     assert types(find(market, "function", "dayKey")["outputs"]) == ["uint32"]
 

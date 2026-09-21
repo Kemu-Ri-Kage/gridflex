@@ -157,6 +157,9 @@ export function TradePanel() {
             NO <span className="ml-auto font-mono">{noPrice.toFixed(1)}¢</span>
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          YES {yesPrice.toFixed(1)}¢ — the market prices a {Math.round(yesPrice)}% chance.
+        </p>
 
         <div>
           <label className="mb-2 block text-sm text-slate-400" htmlFor="amount">

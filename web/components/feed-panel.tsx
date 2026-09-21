@@ -230,7 +230,7 @@ export function FeedPanel() {
             <p className="py-6 text-sm text-muted-foreground">
               {loading
                 ? 'Loading…'
-                : 'Nothing published on-chain yet — check back once publish.py --live has run.'}
+                : 'Nothing published on-chain yet — check back once a reading has been submitted.'}
             </p>
           ) : (
             <Table>

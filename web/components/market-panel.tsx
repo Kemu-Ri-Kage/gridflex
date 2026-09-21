@@ -20,9 +20,8 @@ export function MarketPanel() {
         </div>
       </div>
       <p className="px-3 py-3 text-xs leading-5 text-muted-foreground">
-        More markets from shared/demo-markets.md list here once David deploys them through
-        MarketFactory — this panel shows exactly what exists today rather than a list of
-        placeholders.
+        More contracts appear here as they&rsquo;re listed — this panel shows exactly what exists
+        today rather than a list of placeholders.
       </p>
     </div>
   );

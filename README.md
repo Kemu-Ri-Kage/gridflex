@@ -12,6 +12,7 @@ delivered.
 | Oracle, collateral, and market factory | `contracts/` | deployed and verified on X Layer testnet |
 | Binary market and outcome tokens | `contracts/` | tested locally; testnet creation is next |
 | Wallet-connected interface | `web/` | builds; demo mode until testnet addresses are configured |
+| Feed page (verified readings, live on-chain check) | `web/` + `build_feed_data.py` | working; 8 confirmed on-chain readings shown today |
 
 The architecture has no application backend: the Python publisher writes to
 the oracle, the market reads the oracle, and the frontend reads and transacts
@@ -270,6 +271,35 @@ pnpm build
 pnpm dev
 ```
 
+### Feed page
+
+A read-only section of the app (no wallet required) built to prove the pitch's core claim: every
+number shown is provably on-chain. It never depends on a live RPC call to render — two committed
+sources drive it. `build_feed_data.py` reads `data/metrics/*.json` (value, `sourceHash`) and
+`data/publish-ledger.json` (`txHash`) and writes small per-metric files into `web/public/data/`;
+run it after any `publish.py`/`finalize.py` run to refresh what the page shows:
+
+```bash
+python3 build_feed_data.py
+```
+
+The West–North basis chart and the verified-readings table both render from those committed
+files. The only thing that touches the chain live is a per-row verification check — a fresh
+`getReading()` call compared against the committed value and `sourceHash` — which drives a single
+indicator per row, always exactly one of four states:
+
+| State | Meaning |
+|---|---|
+| `VERIFIED` | the live check matched the committed file |
+| `UNVERIFIED` | no live check has succeeded yet this session |
+| `LAST VERIFIED {t} ago` | an earlier check matched; the most recent one failed to *reach* the chain |
+| `MISMATCH` | the chain responded but disagrees with the committed file |
+
+`MISMATCH` is a distinct outcome from a transport failure, not a variant of one: it is never
+retried and never degrades into `LAST VERIFIED`, because doing so would launder the one finding
+this page exists to surface into an ordinary network blip. See `shared/feed-spec.md` for the full
+design and the reasoning behind each of these decisions.
+
 ## X Layer testnet
 
 - Chain ID: `1952` (mainnet `196` is rejected by the deployment scripts)
@@ -312,3 +342,27 @@ this team also exchanges complete ZIP archives, live mode additionally checks ev
 reading on-chain and recovers missing ledger rows before sending; a stale ZIP therefore cannot
 silently reset an existing reading's one-hour dispute window. Local human-readable logs are written
 under gitignored `logs/`.
+
+### Finalize oracle readings
+
+`finalize()` is permissionless — no reporter key, no `onlyReporter` check. Anyone holding testnet
+OKB for gas can finalize a reading once its one-hour dispute window has passed, using their own
+wallet (`FINALIZER_KEYSTORE_PATH` or `FINALIZER_PRIVATE_KEY`, same pluggable model as the reporter
+key, never the reporter key itself):
+
+```bash
+python3 finalize.py --check
+python3 finalize.py --verify
+python3 finalize.py --limit 3
+python3 finalize.py --live --limit 3
+```
+
+`--check` confirms chain ID `1952`, contract bytecode, and the finalizer wallet's balance.
+`--verify` is read-only and needs no key or wallet at all: with no flags it checks the six demo
+markets in `shared/demo-markets.md` and reports `PUBLISHED, FINALIZED`, `PUBLISHED, not finalized
+(time remaining)`, or `NOT PUBLISHED` for each; `--metric NAME --day-key YYYYMMDD` checks any single
+reading instead. It exits non-zero unless every checked reading is already finalized, so it works
+as a pre-demo gate, not just a report. A bare run (no `--live`) is always a dry run, printing what
+would finalize. `--live` finalizes everything currently eligible, checked fresh against the chain
+every time (never against the ledger's cached state) and isolates each reading independently — one
+revert never blocks the rest of the batch. See `shared/finalize-spec.md` for the full design.

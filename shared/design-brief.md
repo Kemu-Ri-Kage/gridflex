@@ -1,0 +1,551 @@
+# GRIDFLEX design brief
+
+**This file is the single source of truth for GRIDFLEX's design.** Every future
+design prompt — landing page, terminal, a new component, a redesign of an
+existing one — points at this file instead of restating taste. If a decision
+isn't written down here, it isn't decided; add it here before building it,
+don't invent it in the component.
+
+Read alongside this file: `web/app/globals.css` (the tokens — never invent
+new ones), `shared/metrics.md` (unit definitions), `CLAUDE.md` (ownership and
+hard rules, including: never push to `main`, and David's four files are
+never edited without his sign-off — see §12).
+
+---
+
+## 1. Principle
+
+GRIDFLEX is a professional trading tool a specialist uses for hours — not a
+crypto landing page, not something selling. Every screen is judged by that
+standard, including the marketing page: it exists to earn trust in a
+technical claim, not to hype a product.
+
+**If an element carries no information, remove it.** Before adding anything
+— an icon, a badge, a color, a card, a line of copy — ask what it tells the
+reader that they didn't already know. If the honest answer is "nothing,
+it's decoration," it doesn't ship.
+
+---
+
+## 2. AI tells — banned
+
+These read as generated, not designed. None of them appear anywhere in
+GRIDFLEX, in any component, in any state:
+
+- Gradients
+- Glows
+- Purple, cyan, neon lime — or any hue outside the palette in §4
+- Emoji
+- Decorative icons (an icon that isn't a control or a status indicator)
+- Icon-in-a-rounded-square logos
+- Rounded-xl cards (radius is 2px everywhere — see §4)
+- Pill badges (fully rounded `border-radius: 9999px` chips)
+- Glassmorphism and backdrop blur
+- Stock-style illustrations, hero photography, abstract 3D renders
+- Slogan headlines — "The future of…", "Unlock…", "Reimagining…", "Powering
+  the next generation of…", or any headline that could be pasted onto an
+  unrelated product unchanged
+
+**No default component-library styling used as-is.** Every shadcn or
+library component is restyled to this brief — no stock card, hero, button,
+or badge look. No AI UI generators, no template kits, no design-generator
+skills. The design comes from this brief, not from a tool's defaults.
+
+**No logo, anywhere, ever.** `GRIDFLEX` is a text wordmark — mono, bold,
+tight tracking, nothing beside it. Not a bolt icon, not a monogram, not a
+mark-plus-wordmark lockup. If a design shows an icon next to the wordmark,
+that design is wrong.
+
+---
+
+## 3. References — what to take from each, and nothing else
+
+Four references. Each contributes exactly one thing. Copying anything else
+from them — palette, copy voice, specific sequences, assets, sound — is out
+of scope even if it looks good.
+
+- **daqconsulting.com** → the landing page's *level of craft*, including its
+  motion: pure black, large confident typography, numbered editorial
+  sections in the form `01 / Section`, restraint, one interactive
+  centrepiece per page, a text wordmark, smooth scrolling, sections
+  revealing as you scroll, immediate feedback on hover and click, and its
+  centrepiece diagram animating between stages. Take the quality of the
+  motion and the technique behind it (§14); design GRIDFLEX's own
+  sequences — never copy DAQ's actual design, copy, specific animation
+  timings, or assets. No sound, anywhere. See §7 for GRIDFLEX's own numbers
+  derived from studying it, §13 for the motion rules, §14 for the
+  technique.
+- **Bybit and OKX trading screens** → the terminal's *layout*: instrument
+  bar, market list, chart, order ticket, bottom tabs. See §8.
+- **TradingView** → the *chart*: Japanese candlesticks, a timeframe row, an
+  OHLC legend, the price scale on the right, a crosshair, a neutral dark
+  theme. See §9.
+- **Interactive Brokers and Trading 212** → *density, table design, tabular
+  numbers, clarity*. Rows are compact, numbers align on the decimal, nothing
+  is oversized for effect.
+
+---
+
+## 4. Tokens
+
+Every token below already exists in `web/app/globals.css`. Reference them
+by name; do not invent new colors, radii, or spacing scales. If a design
+need isn't covered by an existing token, that's a design-brief gap to raise,
+not a license to add a one-off value in a component.
+
+**Surfaces (near-black, not pure black in the app — pure black is DAQ's
+landing-page move, see §7):**
+
+| Token | Value | Use |
+|---|---|---|
+| `--background` | `#0a0b0d` | page background |
+| `--card` | `#111318` | panels, cards, table rows |
+| `--border` | `#262a33` | all dividers and 1px borders |
+| `--foreground` | `#e7e9ed` | primary text, primary numbers |
+| `--muted-foreground` | `#9aa1ac` | labels, secondary text, deemphasized numbers |
+
+**Color only for meaning — never for decoration:**
+
+| Token | Value | Meaning |
+|---|---|---|
+| `--up` | `#1fce7a` | price up, long, YES |
+| `--down` | `#ef4444` | price down, short, NO |
+| `--warning` | `#e8a33d` | dispute windows, pending states, the strike reference line |
+| `--mismatch` | `#7f1d1d` (bg) / `--mismatch-foreground` `#ffe9e9` (text) / `--mismatch-accent` `#ff3b30` (left border) | a verification mismatch, and nothing else |
+
+**MISMATCH is a solid filled block, never an inline badge, never the same
+treatment as `--down`.** See `web/components/feed-panel.tsx`'s
+`VerificationBadge` for the canonical implementation: `border-l-2
+border-mismatch-accent bg-mismatch px-2 py-1 text-mismatch-foreground`. A
+data mismatch must never be stylistically mistakable for a transient check
+failure or a passing verification pill — this is a correctness rule, not a
+stylistic preference.
+
+**Dataviz series (chart lines/areas that aren't up/down-coded), neutral:**
+`--chart-1` `#5b8def`, `--chart-2` `#9aa1ac`, `--chart-3` `#e8a33d`,
+`--chart-4` `#1fce7a`, `--chart-5` `#ef4444`.
+
+**Type:** `--font-geist-sans` for prose and UI labels, `--font-geist-mono`
+(Geist Mono) for every number, every address, every hash, every metricId,
+every ticker-like string. Numbers use the `tabular-nums` utility everywhere
+— a price, a balance, a countdown, a row of table figures. Never
+proportional digits in a column of numbers.
+
+**Structure:** radius is `--radius: 0.125rem` (2px) everywhere — buttons,
+cards, inputs, badges. Borders are 1px, `--border` colored. **No
+`box-shadow` anywhere** — depth comes from a 1px border and a background
+step (`--card` on `--background`), never a shadow.
+
+---
+
+## 5. Language — plain English a finance student understands instantly
+
+The audience is a trader or a finance student, not a Solidity developer.
+Every label is written for that reader first; the technical detail is
+still present, just demoted to small mono type.
+
+- **"Strike", never "Threshold."**
+- **YES price and NO price, in cents** (`67.3¢`), never "liquidity", never
+  "reserve" in primary UI. Pool depth / reserves are real numbers that
+  belong in a details panel, not the primary quote.
+- **Instruments are named in words.** Pattern: `"North Hub above $30 · 8
+  Sep"`, with one line underneath stating what it pays and when — e.g.
+  "Pays $1 per contract if ERCOT North Hub's day-ahead average settles
+  above $30/MWh on 8 Sep 2026." The metricId (`ERCOT_HBNORTH_DA_AVG`)
+  appears only as small mono secondary detail near the instrument name —
+  never as the primary label a trader reads first. See
+  `web/lib/market-copy.ts` for the canonical shape.
+- **Binary markets are called digital options.** A strike, a YES/NO payoff,
+  cash settlement — that's an option, and the copy says so. Any dated,
+  linear-payoff product is a **dated future**, never called an "option."
+  Don't blur the two terms across the product.
+- **Units follow `shared/metrics.md` exactly, per metric:**
+  - `ERCOT_HBNORTH_DA_AVG` — USD/MWh, a price level. No `+` sign, ever
+    (e.g. `$39.57/MWh`).
+  - `ERCOT_WEST_NORTH_DA_BASIS` — USD/MWh, a signed spread. `+` shown only
+    when positive (e.g. `+$4.74/MWh`, `-$10.32/MWh`). **The `+` sign is
+    reserved for this one metric** — it is never applied to a price level.
+  - `ERCOT_LOAD_WEIGHTED_DA_INDEX` — USD/MWh, a price level, feed only. No
+    `+` sign.
+  - `ERCOT_HBWEST_NEG_INTERVALS` — a plain integer count, 0–96, unit
+    "intervals". **Never rendered with a dollar sign, never scaled** — it
+    is a count, not a currency figure, even though it sits next to metrics
+    that are.
+  - `ERCOT_FUELMIX_<FUEL>` — a percentage share, feed only, display ratio.
+- **Never "tokenized energy."** GRIDFLEX is a derivatives venue; nothing is
+  redeemable for electricity. This is a product-accuracy rule as much as a
+  copy rule — see `CLAUDE.md`.
+- **Never "real money."** State plainly: this is **X Layer testnet**,
+  settled in **MockUSDT**. Say the chain and the collateral by name rather
+  than reaching for a euphemism in either direction.
+
+---
+
+## 6. Honesty
+
+These rules exist because a data-mismatch or a fabricated market state is
+a worse failure mode here than almost any UI bug elsewhere in the product.
+
+- **No illustrative or placeholder data, anywhere** — not a skeleton chart
+  with fake candles, not a sample order book, not lorem-ipsum copy staged
+  as if it were live. If data doesn't exist yet, **show an honest empty
+  state that says so** — e.g. "No trade history yet — this market is in
+  demo mode with no `BinaryMarket` deployed," not a spinner that never
+  resolves or a table quietly populated with invented rows.
+- **A market shows as settled only if a `BinaryMarket` for it is actually
+  deployed on chain and `resolved()`/`yesWon()` say so.** Until then —
+  even for a dayKey whose oracle reading is already published and
+  obviously past — the UI shows the oracle reading directly, stated as a
+  fact about the reading, never as a market outcome. Correct: "North Hub
+  settled at $39.57/MWh, above the $30 strike." Wrong: "SETTLED · YES" —
+  that implies a market resolved a claim that, right now, no deployed
+  contract has actually made. See `web/components/settlement-panel.tsx`
+  for the canonical wording.
+- **Live ERCOT prices are labelled market data, visually and textually
+  distinct from on-chain verified readings.** The candlestick chart (real
+  `ercot_spp_real_time_15_min` prices, not yet submitted to the oracle) and
+  the feed page's verified-readings table (a committed file plus a live
+  `getReading()` check) are two different trust levels and must never be
+  presented as interchangeable. Caption the chart's data source explicitly
+  (dataset name, hub) rather than implying it carries the same
+  on-chain-verified status as a published reading.
+
+---
+
+## 7. Page 1 — the landing page at `/`
+
+Header: wordmark top-left (see §2), a minimal nav, and an "Open terminal"
+button — no wallet button on this page; connecting a wallet is a terminal
+action, not a marketing-page one.
+
+**Hero.** States the product's category in plain, confident words — not a
+slogan (see §2's banned-headline rule). One supporting line. The testnet is
+stated in the hero itself, not buried in a footnote (see §5, §6).
+
+**01 / Problem.** Power prices are the most volatile in the world, and the
+data behind settlement is unverifiable. Cite the real spike: **26 January
+2026, $694.03/MWh** at HB_NORTH day-ahead — a real number from
+`data/metrics/`, not a hypothetical. This is the evidence, not an
+illustration of the evidence.
+
+**02 / How it works — the page's centrepiece, and its most carefully made
+element.** An interactive four-stage diagram:
+
+1. **Source** — ERCOT market data via GridStatus.
+2. **Compute** — the pipeline builds the daily metric and SHA-256-hashes
+   the raw inputs.
+3. **Publish** — the reading is written to `GridOracle` on X Layer.
+4. **Settle** — digital options and dated futures resolve against the
+   finalized reading.
+
+Each stage shows **real evidence** on hover or tap — never illustrative
+placeholder content (§6): a real source filename from `sourceFiles`, the
+real `sourceHash`, the real `GridOracle` address with a real transaction
+link to the X Layer explorer, and a real published reading. See
+`web/components/landing/data-path-diagram.tsx` for the canonical
+implementation and its data sources (`web/public/data/evidence-demo-day.json`,
+`web/public/data/addresses.json`, `/data/ERCOT_HBNORTH_DA_AVG.json`).
+
+**03 / Proof.** A handful of real verified readings, each showing its
+verification state (§4's MISMATCH rule applies here too), plus a link to
+the full feed.
+
+**04 / Open terminal.** The call to action, restated once, not repeated
+elsewhere on the page.
+
+**Spacing, type scale, and rhythm — DAQ's standard, given concrete
+numbers** (derived from studying daqconsulting.com, not copied from it —
+these are GRIDFLEX's own values):
+
+- Container: `max-w-[1440px]`, horizontal padding `px-4 sm:px-6 lg:px-8`.
+- Section rhythm: every major section (`01`–`04`) is separated by a 1px
+  `border-border` hairline and `py-16 sm:py-24` of vertical padding —
+  roughly 64px on mobile, 96px at desktop widths. The hero gets more:
+  `py-20 sm:py-28 lg:py-36` (80/112/144px).
+- Section numeral heading: the `01 /` numeral in `font-mono text-sm
+  text-muted-foreground`, the title beside it in `text-2xl sm:text-3xl
+  font-semibold tracking-tight text-foreground`, laid out on one baseline
+  with a small gap — numeral visibly lighter than the title, never the
+  same weight or color.
+- Hero headline: `text-4xl sm:text-6xl lg:text-7xl font-semibold
+  leading-[1.05] tracking-tight` (36/60/72px).
+- Body/supporting copy: `text-lg leading-8 text-muted-foreground` (18px,
+  32px line height) for de-emphasized prose; `text-foreground` only where
+  a sentence needs the reader's full attention.
+
+---
+
+## 8. Page 2 — the terminal at `/trade`
+
+Bybit/OKX layout. **No marketing copy anywhere on this page** — every
+string is either a number, a label, or an honest status.
+
+- **Top:** instrument bar — plain-English name, current underlying price,
+  strike, settlement date, status. See §5 for naming, §6 for the
+  settled-state rule.
+- **Left:** market selector. **No `BinaryMarket` is deployed yet** — David
+  is redeploying `MarketFactory` with the trade-safety swap first. Until a
+  market actually exists on chain, the selector shows an honest empty
+  state (§6) explaining that, never a dropdown padded with placeholders or
+  a list implying markets exist that don't.
+- **Centre:** the chart (§9).
+- **Right:** order ticket (David's `trade-panel.tsx` — see §12).
+- **Bottom:** tabs — positions, history, settlement.
+
+Dense, per Interactive Brokers / Trading 212 (§3): compact rows, numbers
+aligned, no element sized for visual effect rather than legibility.
+
+---
+
+## 9. The chart
+
+TradingView's **Lightweight Charts** library, on real ERCOT real-time
+15-minute data only (`ercot_spp_real_time_15_min`) — never day-ahead
+hourly data reshaped to look like a candle series, and never synthetic
+data (§6).
+
+- **Japanese candlesticks**, up/down colored with `--up` / `--down` (§4) —
+  body, wick, and border all use the same up/down pair, no separate chart
+  palette for candles.
+- **Timeframe row:** `15m`, `1H`, `4H`, `1D`, `1W`, in that order.
+- **Hub switcher:** `HB_NORTH`, `HB_WEST`.
+- **OHLC legend, top-left**, updating live as the crosshair moves: open,
+  high, low, close for the hovered bar, in tabular mono type, colored by
+  that bar's up/down state.
+- **Price scale on the right.**
+- **Crosshair** enabled, both axes.
+- **An emphasised zero line** where zero is meaningful (the basis chart) —
+  a heavier stroke than the ordinary grid, per the existing
+  `shared/feed-spec.md` §5 rule: "visually emphasized (not just an axis
+  gridline) — crossing it is the story."
+- **The strike as a labelled horizontal line** on the chart, in `--warning`,
+  dashed, with its dollar value in the axis label.
+- **Neutral dark theme**: chart background transparent over `--background`,
+  grid lines in `--border` at low opacity, axis text in
+  `--muted-foreground`, mono font family read from the same
+  `--font-geist-mono` custom property the rest of the app uses — never a
+  hardcoded font string.
+- **TradingView attribution** stays enabled (Lightweight Charts' default
+  attribution mark) as its license requires — it is not removed for a
+  cleaner look.
+
+---
+
+## 10. Responsive
+
+Both pages work at phone width. A judge may open the product link on one.
+**390px is the floor** — nothing overflows horizontally, nothing requires
+a horizontal scroll except a table/chart in its own contained
+`overflow-x: auto` region.
+
+**Landing page (`/`):** sections stack as already laid out (they're
+single-column by design even at desktop past the hero); the type scale in
+§7 already steps down at the `sm` breakpoint. The interactive diagram's
+four stages stack `grid-cols-2` on mobile rather than four across.
+
+**Terminal (`/trade`) — collapse order, top to bottom, below the `lg`
+breakpoint:**
+
+1. Instrument bar stays at the top, full width, unchanged.
+2. The market selector collapses out of a fixed left column into a
+   dropdown/expandable row directly under the instrument bar — it does not
+   sit beside the chart on a narrow screen.
+3. The chart takes full width next, at a reduced but still legible height.
+4. The order ticket (David's `trade-panel.tsx`) moves below the chart,
+   full width — never squeezed into a narrow side column on mobile.
+5. The bottom tabs (positions/history/settlement) remain a single
+   horizontally-scrollable tab strip, full width.
+
+This is a deliberate stacking order, not "whatever the grid does by
+default" — a trader on a phone wants context, then the chart, then the
+action, in that order.
+
+---
+
+## 11. Acceptance checklist
+
+Grade any page or component against this list, item by item. A page ships
+only when every item is a pass.
+
+1. No banned AI tell from §2 is present anywhere on the page.
+2. No logo — the wordmark is text-only, everywhere it appears.
+3. No word appears that a finance student wouldn't understand on first
+   read (no unexplained "reserve", "liquidity" as a primary label, raw
+   metricId as a primary label, etc. — see §5).
+4. Every number on the page is real — sourced from a committed file, a
+   live chain read, or a live ERCOT fetch — never illustrative, sample, or
+   placeholder data (§6).
+5. Every number is set in tabular mono type (`tabular-nums`, `font-mono`).
+6. Color is used only for meaning (§4) — no color choice exists purely for
+   visual variety or brand feel.
+7. MISMATCH, where it appears, is the filled dark-red block treatment —
+   never an inline badge, never visually similar to a transient failure.
+8. Radius is 2px and borders are 1px everywhere; no `box-shadow` appears
+   anywhere on the page.
+9. "Strike" is used, never "Threshold."
+10. YES/NO are quoted in cents as the primary figure; reserves/pool depth
+    only appear in a details panel, never as the headline number.
+11. Every instrument is named in words first, with the metricId present
+    only as small secondary mono detail.
+12. Binary markets are called digital options; any dated/linear product is
+    called a dated future — the two terms are never interchanged.
+13. Units match `shared/metrics.md` per metric exactly, including that the
+    `+` sign appears only on the basis spread and negative intervals are
+    never shown with a dollar sign.
+14. The word "tokenized" never appears describing GRIDFLEX's product.
+15. The phrase "real money" never appears; the page states X Layer testnet
+    and MockUSDT by name wherever settlement or value is discussed.
+16. No empty/loading state is silently blank or spinner-forever — every
+    such state has honest copy explaining why there's nothing to show.
+17. A market is shown as "settled" only if a deployed `BinaryMarket`'s
+    on-chain `resolved()` says so; otherwise the oracle reading is shown
+    as a reading, not a market outcome.
+18. Live ERCOT market-data (the chart) is visually/textually distinguished
+    from on-chain verified readings (the feed table) — they are never
+    presented as the same trust level.
+19. The chart shows Japanese candlesticks in `--up`/`--down`, a `15m 1H 4H
+    1D 1W` timeframe row, an `HB_NORTH`/`HB_WEST` hub switcher, a top-left
+    OHLC legend that updates with the crosshair, the price scale on the
+    right, a crosshair, and — where zero is meaningful — an emphasised
+    zero line.
+20. The strike appears on the chart as a labelled horizontal line.
+21. Lightweight Charts' TradingView attribution mark is present, not
+    removed.
+22. The page works at 390px width: no horizontal overflow of the page
+    itself, and the terminal's regions collapse in the order specified in
+    §10.
+23. The terminal page (`/trade`) contains no marketing copy — every string
+    is a number, a label, or an honest status.
+24. Nothing in `web/components/{trade-panel,wallet-button,web3-provider,
+    market-live-data}.tsx` has been edited without David's explicit
+    sign-off on a presented plan (§12).
+25. Landing-page motion animates only `transform` and `opacity` — nothing
+    else is animated (§13).
+26. The terminal (`/trade`) has no decorative motion anywhere on it (§13).
+27. `prefers-reduced-motion` disables all animation and smooth scrolling
+    completely, on both pages (§13).
+28. No motion on either page causes layout shift or delays content
+    appearing (§13).
+29. Nothing on either page loops or moves on its own while idle (§13).
+30. No component on either page shows a default/stock library look — every
+    shadcn or library component is restyled to this brief (§2).
+
+---
+
+## 12. Ownership
+
+David owns `web/components/trade-panel.tsx`, `web/components/wallet-button.tsx`,
+`web/components/web3-provider.tsx`, and `web/components/market-live-data.tsx`,
+and is currently reworking `/trade`. **Design changes to those four files
+are specified here, for him, and never made directly** — this brief tells
+him what the order ticket, wallet button, and live-data glue should look
+like and say, but implementing that change in his files is his call, made
+after he's seen the plan. Everything else in `web/` is fair game to build
+directly against this brief.
+
+---
+
+## 13. Motion
+
+Motion rules differ sharply by page, because the two pages have different
+jobs (§1). See §14 for which libraries implement this and why.
+
+**Landing page (`/`):**
+
+- Scroll-triggered section reveals, animating **only `transform` and
+  `opacity`** — no other CSS property is animated on scroll-in (not
+  `height`, not `color`, not `filter`).
+- Duration **400–700ms**, gentle easing (an ease-out curve — quick start,
+  soft settle, no bounce, no overshoot).
+- Smooth momentum scrolling is on for this page.
+- Immediate, responsive feedback on hover and click — no perceptible delay
+  between a pointer action and the UI acknowledging it.
+- The four-stage diagram (§7) **animates between stages** when a stage is
+  clicked or hovered, so the data visibly flows from Source to Settle —
+  the transition itself is part of what teaches the reader the pipeline's
+  shape, not just a state swap.
+
+**Terminal (`/trade`):**
+
+- **No decorative motion at all.** Nothing animates for the sake of
+  animating.
+- Price updates and state changes are **instant or under 150ms** — a
+  trader never waits for an animation to see a number change.
+- Smooth momentum scrolling is **off** on this page; scrolling is native
+  and immediate.
+
+**Both pages:**
+
+- `prefers-reduced-motion` disables all animation and smooth scrolling
+  completely — with it set, content appears instantly and the page
+  scrolls natively, with no exception.
+- Motion never causes layout shift and never delays content from
+  appearing — an element is never invisible-then-revealed in a way that
+  makes the reader wait for it; it animates in place, already occupying
+  its final layout position.
+- Nothing loops or moves on its own while idle. Every animation is a
+  direct response to a scroll position, a hover, or a click — never a
+  background loop, a pulse, or an idle-state flourish.
+
+---
+
+## 14. Technique
+
+**What daqconsulting.com is actually built with**, found by inspecting its
+loaded scripts, DOM, and runtime globals (not guessed from how it looks):
+
+- **Next.js** (Turbopack bundler), **Tailwind CSS** with a handful of CSS
+  Modules for a few bespoke components, **Inter** loaded via `next/font`.
+- **Smooth scrolling: Lenis** — confirmed directly (`<html
+  class="lenis lenis-smooth lenis-stopped">`, a `lenisVersion` runtime
+  global). **License: MIT.**
+- **Scroll-linked animation: GSAP 3.14.2** — confirmed directly
+  (`window.gsapVersions`, GSAP's own console warnings firing at runtime),
+  almost certainly paired with its **ScrollTrigger** plugin to sync
+  animation progress to Lenis's scroll position — the standard, documented
+  way these two libraries are combined. **License: GreenSock's standard
+  license** — as of GSAP joining Webflow in 2024, the core library and
+  every plugin (ScrollTrigger, SplitText, Flip, and the rest) is free for
+  all use, including commercial products. Not an OSI-approved open-source
+  license, but explicitly free and unrestricted for this use — confirmed
+  from GreenSock's own published licensing terms.
+- **Pinning is plain CSS `position: sticky`**, not a JS-computed fixed
+  position: viewport-height (`h-[100svh]`) content sits sticky inside a
+  much taller wrapping section (`h-[250vh]`, `calc(100svh + 215vw)`), the
+  standard "scrollytelling" shape — GSAP/ScrollTrigger only drives the
+  *progress-based animation* as the sticky content scrolls through, not
+  the pin itself.
+- **The word-by-word headline reveal is very likely GSAP's SplitText
+  plugin**: an `html[data-intro="play"]` attribute plus `overflow:hidden`
+  on `<html>` gate scrolling until the entrance sequence finishes, and by
+  the time either was inspected after that sequence completed, both had
+  cleared and the headline had reverted to plain text with zero wrapper
+  spans — consistent with SplitText's documented pattern of splitting
+  text to animate it, then calling `.revert()` to restore clean semantic
+  HTML afterward. Not caught mid-animation directly; inferred from GSAP's
+  confirmed presence plus this reversion signature.
+- **The hover-to-inspect diagram has no separate library signature** —
+  most plausibly built with the same GSAP tweens as the rest of the page's
+  motion, not a distinct tool.
+
+**What GRIDFLEX uses, and why:** the same two libraries, because both
+licenses explicitly permit this use and both are already the right tool
+for the job specified in §13 — this is "same libraries," not just "same
+class of technique," exactly where the license allows it.
+
+- **Lenis** (MIT) for the landing page's smooth momentum scrolling (§13).
+  Not loaded on `/trade` at all — the terminal's scrolling is native.
+- **GSAP, with ScrollTrigger**, for the landing page's scroll-triggered
+  reveals and the four-stage diagram's stage-to-stage animation (§13).
+  **SplitText** is available under the same free license if a future
+  headline treatment calls for a word- or character-level reveal — not
+  required by the current brief, but licensed and ready if a design
+  decision here later needs it.
+- Neither library is loaded on `/trade`. The terminal has no decorative
+  motion (§13), so it carries none of this dependency weight — state
+  changes there are plain, instant DOM/React updates.
+- What is never taken from DAQ, regardless of library: its specific
+  animation sequences, timings tuned to its own copy and layout, its
+  assets, its colours, or its actual copy. The libraries and the class of
+  technique are shared; the design is GRIDFLEX's own, built to §13's
+  rules.

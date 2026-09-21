@@ -798,5 +798,74 @@ class TestChainRefusal(BaseFinalizeTest):
         self.assertIn("No contract bytecode", buffer.getvalue())
 
 
+class TestPublishedOnlyFilter(BaseFinalizeTest):
+    """--published-only restricts candidates to ledger entries with a
+    txHash, without touching default (no-flag) behaviour."""
+
+    def setUp(self):
+        super().setUp()
+        self.published = make_reading(metric_id="ERCOT_HBNORTH_DA_AVG", day_key=20260908, value=100)
+        self.confirmed_no_tx = make_reading(
+            metric_id="ERCOT_HBNORTH_DA_AVG", day_key=20260909, value=100
+        )
+        self.never_seen = make_reading(
+            metric_id="ERCOT_HBNORTH_DA_AVG", day_key=20260910, value=100
+        )
+        self.all_readings = [self.published, self.confirmed_no_tx, self.never_seen]
+        self.ledger = {
+            self.published.ledger_key: {"status": "confirmed", "txHash": "0xabc"},
+            # Ledger tracks this one (e.g. from a prior publish.py --check run
+            # or a malformed entry) but it was never actually submitted.
+            self.confirmed_no_tx.ledger_key: {"status": "confirmed", "txHash": None},
+            # self.never_seen has no ledger entry at all.
+        }
+
+    def _run(self, argv):
+        with patch.object(finalize, "collect_readings", return_value=(self.all_readings, [])), \
+                patch.object(finalize, "chain_reading", return_value=None), \
+                patch.object(finalize, "load_ledger", return_value=self.ledger), \
+                patch.object(finalize, "save_ledger"), \
+                patch("builtins.input", side_effect=AssertionError("dry run must not prompt")):
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                exit_code = finalize.main(argv)
+        return exit_code, buffer.getvalue()
+
+    def test_published_only_keeps_exactly_the_txhash_entry(self):
+        exit_code, output = self._run(["--published-only"])
+        self.assertEqual(exit_code, 0)
+        # Every candidate here reads back as not-published on chain (the
+        # mocked chain_reading), so the pre-RPC filtering is what this test
+        # is actually checking, not the eligibility outcome.
+        self.assertEqual(count_field("Not published (skipped):", output), 1)
+
+    def test_default_run_ignores_ledger_txhash_state(self):
+        exit_code, output = self._run([])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(count_field("Not published (skipped):", output), 3)
+
+    def test_missing_or_non_dict_ledger_entry_is_excluded_not_crashed(self):
+        self.ledger[self.never_seen.ledger_key] = "not-a-dict"
+        exit_code, output = self._run(["--published-only"])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(count_field("Not published (skipped):", output), 1)
+
+
+class TestPublishedOnlyValidation(unittest.TestCase):
+    def test_rejects_combination_with_verify(self):
+        args = finalize.build_parser().parse_args(["--verify", "--published-only"])
+        with self.assertRaises(finalize.PublisherError):
+            finalize.validate_args(args)
+
+    def test_rejects_combination_with_check(self):
+        args = finalize.build_parser().parse_args(["--check", "--published-only"])
+        with self.assertRaises(finalize.PublisherError):
+            finalize.validate_args(args)
+
+    def test_allowed_alone_and_with_live(self):
+        finalize.validate_args(finalize.build_parser().parse_args(["--published-only"]))
+        finalize.validate_args(finalize.build_parser().parse_args(["--published-only", "--live"]))
+
+
 if __name__ == "__main__":
     unittest.main()

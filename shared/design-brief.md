@@ -146,19 +146,49 @@ still present, just demoted to small mono type.
 - **YES price and NO price, in cents** (`67.3¢`), never "liquidity", never
   "reserve" in primary UI. Pool depth / reserves are real numbers that
   belong in a details panel, not the primary quote.
-- **Instruments are named in words.** Pattern: `"North Hub above $30 · 8
-  Sep"`, with one line underneath stating what it pays and when — e.g.
-  "Pays 1 mUSDT per contract if ERCOT North Hub's day-ahead average
-  settles above $30/MWh on 8 Sep 2026." The metricId
-  (`ERCOT_HBNORTH_DA_AVG`) appears only as small mono secondary detail near
-  the instrument name — never as the primary label a trader reads first.
-  The name, strike, day and pay line are built from the contract's own
-  reads (§6) — see `marketName()`/`payLine()` in `web/lib/markets.tsx`.
-- **Binary markets are called digital options.** A strike, a YES/NO payoff,
-  cash settlement — that's an option, and the copy says so. Any dated,
-  linear-payoff product is a **dated future**, never called an "option."
-  Don't blur the two terms across the product.
-- **Units follow `shared/metrics.md` exactly, per metric:**
+- **One product, asked as a question.** The public site sells exactly one
+  thing: "Will Texas power cost more than $X on [date]?" Every listed
+  market is named that way — `"Will Texas power cost more than $30 on 8
+  Sep?"` — with one line underneath stating what it pays and when: "Pays
+  1 mUSDT per YES if the Texas power price for 8 Sep 2026 settles above
+  $30.00/MWh." The name, strike, day and pay line are built from the
+  contract's own reads (§6) — see `marketName()`/`payLine()` in
+  `web/lib/markets.tsx`. Only Texas power price markets are listed; a
+  market on any other metric exists on chain but never appears on a
+  public page.
+
+### Dictionary
+
+Display words on public pages (`/` and `/trade`). These are display words
+only — metric IDs, contract names, function names and events stay exactly
+as they are in code and on chain.
+
+| Internal term | On a public page |
+|---|---|
+| North Hub day-ahead average (`ERCOT_HBNORTH_DA_AVG`) | **Texas power price** |
+| ERCOT | Only in the landing page's *How we verify* section, as "ERCOT, Texas's official grid price" |
+| $/MWh | Kept as the unit on every figure; explained once on the landing page as roughly what a thousand homes use in an hour |
+| Digital option, binary market, `BinaryMarket` | **YES/NO question** (the contract itself: "Contract") |
+| Mint set, swap | **Buy YES**, **Buy NO** |
+| `sourceHash`, verification | **Verified** |
+| `dayKey` | The date, e.g. `8 Sep 2026` |
+| Basis, hub, dispute window, finalize | **Never shown** |
+
+**Kept exactly as they are:** Strike, YES and NO price in cents, resolve,
+settle, redeem, oracle, MockUSDT, collateral, X Layer testnet.
+
+Two things are data, not words, and don't count as removed terms: contract
+names beside their addresses (the footer's `GridOracle`,
+`MarketFactory`, `MockUSDT`), and the source file names in *How we
+verify*, shown verbatim because they are the hash inputs anyone needs to
+reproduce the hash (they contain the dataset and hub codes).
+
+The Texas power price is a daily figure: the average of the day's 24
+hourly day-ahead prices. The terminal's candlestick chart shows the live
+real-time price, which is not the same number — it is captioned as live,
+unverified market data (§6), never as the Texas power price itself.
+- **Units follow `shared/metrics.md` exactly, per metric** (only the
+  first is shown on a public page — see the dictionary above):
   - `ERCOT_HBNORTH_DA_AVG` — USD/MWh, a price level. No `+` sign, ever
     (e.g. `$39.57/MWh`).
   - `ERCOT_WEST_NORTH_DA_BASIS` — USD/MWh, a signed spread. `+` shown only
@@ -225,7 +255,7 @@ a worse failure mode here than almost any UI bug elsewhere in the product.
   only non-chain input is the list of market addresses published from
   `shared/addresses.json`. For each market day, one of three states:
   - **No `BinaryMarket` exists** — show the oracle reading directly, as a
-    fact about the reading, never as a market outcome: "North Hub settled
+    fact about the reading, never as a market outcome: "Texas power price settled
     at $39.57/MWh." No strike is stated — without a contract there isn't
     one.
   - **A `BinaryMarket` exists but hasn't resolved** — trading until
@@ -241,9 +271,11 @@ a worse failure mode here than almost any UI bug elsewhere in the product.
   `ercot_spp_real_time_15_min` prices, not yet submitted to the oracle) and
   the feed page's verified-readings table (a committed file plus a live
   `getReading()` check) are two different trust levels and must never be
-  presented as interchangeable. Caption the chart's data source explicitly
-  (dataset name, hub) rather than implying it carries the same
-  on-chain-verified status as a published reading.
+  presented as interchangeable. Caption the chart as live, unverified
+  market data rather than implying it carries the same on-chain-verified
+  status as a published price. The dataset name and its hash stay in the
+  candle file (and the caption's tooltip), not in visible copy — per the
+  dictionary (§5), the hub code is never shown.
 
 ---
 
@@ -253,42 +285,51 @@ Header: wordmark top-left (see §2), a minimal nav, and an "Open terminal"
 button — no wallet button on this page; connecting a wallet is a terminal
 action, not a marketing-page one.
 
-**Hero.** States the product's category in plain, confident words — not a
-slogan (see §2's banned-headline rule). One supporting line. The page's one
-disclaimer line (X Layer testnet · MockUSDT, §5) is the hero eyebrow, not a
-footnote.
+**Hero — opens with the daily swing.** The headline states, plainly, the
+cheapest and dearest hour of the latest day in the data ("Texas power
+cost $21.68 at 9am and $105.52 at 7pm."), with a small mono line giving
+the date, Central time and the unit. One supporting line states the
+product: trade YES or NO on whether Texas power will cost more than the
+strike on a given day. The numbers come from `build_feed_data.py`'s
+`write_price_summary()` (`web/public/data/price-summary.json`), computed
+from the exact hashed source files of the latest published daily price,
+held to the same 24-hour completeness check, and cross-checked against
+that day's published value. The page's one disclaimer line (X Layer
+testnet · MockUSDT, §5) is the hero eyebrow, not a footnote.
 
-**01 / Problem.** Power prices spike, and the data behind settlement is
-unverifiable. Cite the real spike: **26 January 2026, $694.03/MWh** at
-HB_NORTH day-ahead — a real number from `data/metrics/` — as a multiple of
-a normal day: the spike over the median of every published North Hub day
-(`$28.24`, 363 days), rounded (**about 25×**). This is the evidence, not an
-illustration of the evidence.
+**01 / Normal range.** One sentence explains $/MWh (roughly what a
+thousand homes use in an hour) — the only place it's explained. Two
+stats: the normal range (the middle 80% of published days, 10th to 90th
+percentile) and the exception — **26 January 2026, $694.03/MWh**, about
+**25×** the median day. Below them, the page's main chart: the daily
+Texas power price over time, the normal range shaded, the peak marked.
+Each number appears once, in the stats — the chart shows shape.
 
-**02 / How it works — the page's centrepiece, and its most carefully made
-element.** An interactive four-stage diagram:
+**02 / How we verify — the page's centrepiece, and its most carefully
+made element, and the one place ERCOT is named.** An interactive
+four-stage diagram:
 
-1. **Source** — ERCOT market data via GridStatus.
-2. **Compute** — the pipeline builds the daily metric and SHA-256-hashes
-   the raw inputs.
-3. **Publish** — the reading is written to `GridOracle` on X Layer.
-4. **Settle** — digital options and dated futures resolve against the
-   finalized reading.
+1. **Source** — ERCOT, Texas's official grid price, via GridStatus.
+2. **Compute** — the average of 24 hourly prices, SHA-256-hashed with its
+   inputs.
+3. **Publish** — the price is written to the oracle on X Layer.
+4. **Settle** — YES/NO questions settle against the published price.
 
 Each stage shows **real evidence** on hover or tap — never illustrative
 placeholder content (§6): a real source filename from `sourceFiles`, the
-real `sourceHash`, the real `GridOracle` address with a real transaction
+real SHA-256 source hash, the real `GridOracle` address with a real transaction
 link to the X Layer explorer, and a real published reading. See
 `web/components/landing/data-path-diagram.tsx` for the canonical
 implementation and its data sources (`web/public/data/evidence-demo-day.json`,
 `web/public/data/addresses.json`, `/data/ERCOT_HBNORTH_DA_AVG.json`).
 
-**03 / Proof.** A handful of real verified readings, each showing its
-verification state (§4's MISMATCH rule applies here too), plus a link to
-the full feed.
+**03 / Proof.** Every published Texas power price — date, price, its live
+Verified state (§4's MISMATCH rule applies here too) and its oracle
+transaction.
 
 **04 / Open terminal.** The call to action, restated once, not repeated
-elsewhere on the page. It names the listed contracts from chain state (§6).
+elsewhere on the page. It names the listed YES/NO questions from chain
+state (§6).
 
 **Spacing, type scale, and rhythm — DAQ's standard, given concrete
 numbers** (derived from studying daqconsulting.com, not copied from it —
@@ -320,18 +361,18 @@ string is either a number, a label, or an honest status.
 - **Top:** instrument bar — plain-English name, current underlying price,
   strike, settlement date, status. See §5 for naming, §6 for the
   settled-state rule.
-- **Left:** market selector — every listed `BinaryMarket`, named and
-  labelled from its own contract state (§6). With none listed, an honest
-  empty state; never a list padded with placeholders.
-- **Centre:** the chart (§9), on the selected market's hub, with its strike
-  line when the strike is a hub price.
+- **Left:** market selector — every listed Texas power price question,
+  named and labelled from its own contract state (§5, §6). With none
+  listed, an honest empty state; never a list padded with placeholders.
+- **Centre:** the chart (§9), with the selected question's strike line.
 - **Right:** a compact settlement summary (labels and numbers the
   instrument bar doesn't already show), plus the order ticket
   (`trade-panel.tsx` — see §12) when the ticket is configured for the
   selected market.
 - **Bottom:** tabs — positions (the connected wallet's mUSDT, YES and NO
-  balances for the selected market), history (the market's real `Swapped`
-  events, or "No trades yet."), settlement (the full on-chain evidence).
+  balances for the selected market), history (the market's real trades,
+  from its `Swapped` events, shown as Buy YES / Buy NO, or "No trades
+  yet."), settlement (the full on-chain evidence).
   The summary and the evidence are never the same panel shown twice.
 
 Dense, per Interactive Brokers / Trading 212 (§3): compact rows, numbers
@@ -350,17 +391,13 @@ data (§6).
   body, wick, and border all use the same up/down pair, no separate chart
   palette for candles.
 - **Timeframe row:** `15m`, `1H`, `4H`, `1D`, `1W`, in that order.
-- **Hub switcher:** North Hub, West Hub — in words; the `HB_NORTH` /
-  `HB_WEST` codes appear only in the data-source caption.
+- **No hub switcher.** The chart shows the Texas power price's hub only;
+  hubs are never shown (§5).
 - **OHLC legend, top-left**, updating live as the crosshair moves: open,
   high, low, close for the hovered bar, in tabular mono type, coloured by
   that bar's up/down state.
 - **Price scale on the right.**
 - **Crosshair** enabled, both axes.
-- **An emphasised zero line** where zero is meaningful (the basis chart) —
-  a heavier stroke than the ordinary grid, per the existing
-  `shared/feed-spec.md` §5 rule: "visually emphasized (not just an axis
-  gridline) — crossing it is the story."
 - **The strike as a labelled horizontal line** on the chart, in `--warning`,
   dashed, with its dollar value in the axis label.
 - **Neutral dark theme**: chart background transparent over `--background`,
@@ -413,8 +450,8 @@ only when every item is a pass.
 1. No banned visual pattern from §2 is present anywhere on the page.
 2. No logo — the wordmark is text-only, everywhere it appears.
 3. No word appears that a finance student wouldn't understand on first
-   read (no unexplained "reserve", "liquidity" as a primary label, raw
-   metricId as a primary label, etc. — see §5).
+   read (no unexplained "reserve", "liquidity" as a primary label, no
+   metricId anywhere, etc. — see §5).
 4. Every number on the page is real — sourced from a committed file, a
    live chain read, or a live ERCOT fetch — never illustrative, sample, or
    placeholder data (§6).
@@ -428,10 +465,10 @@ only when every item is a pass.
 9. "Strike" is used, never "Threshold."
 10. YES/NO are quoted in cents as the primary figure; reserves/pool depth
     only appear in a details panel, never as the headline number.
-11. Every instrument is named in words first, with the metricId present
-    only as small secondary mono detail.
-12. Binary markets are called digital options; any dated/linear product is
-    called a dated future — the two terms are never interchanged.
+11. Every listed market is named as the question "Will Texas power cost
+    more than $X on [date]?", and no metricId is shown.
+12. YES/NO questions are called YES/NO questions — never digital options
+    or binary markets (§5 dictionary).
 13. Units match `shared/metrics.md` per metric exactly, including that the
     `+` sign appears only on the basis spread and negative intervals are
     never shown with a dollar sign.
@@ -448,10 +485,9 @@ only when every item is a pass.
     from on-chain verified readings (the feed table) — they are never
     presented as the same trust level.
 19. The chart shows Japanese candlesticks in `--up`/`--down`, a `15m 1H 4H
-    1D 1W` timeframe row, a North Hub / West Hub switcher, a top-left
-    OHLC legend that updates with the crosshair, the price scale on the
-    right, a crosshair, and — where zero is meaningful — an emphasised
-    zero line.
+    1D 1W` timeframe row, no hub switcher, a top-left OHLC legend that
+    updates with the crosshair, the price scale on the right, and a
+    crosshair.
 20. The strike appears on the chart as a labelled horizontal line.
 21. Lightweight Charts' TradingView attribution mark is present, not
     removed.
@@ -497,6 +533,12 @@ only when every item is a pass.
 39. Terminal: every string is a label or a number, except empty states and
     errors, which are one short sentence each.
 40. No sentence remains where a label would carry the same information.
+41. No removed term (§5 dictionary) appears on a public page: no "North
+    Hub", no "ERCOT" outside *How we verify*, no "digital option" or
+    "binary market", no "mint", "set" or "swap" as a trading term, no
+    "sourceHash", no "dayKey", no basis, hub, dispute window or finalize.
+    Contract names beside addresses and the verbatim source file names in
+    *How we verify* are data and don't count.
 
 ---
 

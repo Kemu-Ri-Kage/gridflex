@@ -1,9 +1,9 @@
 import { Footer } from '@/components/footer';
 import { FeedProof } from '@/components/landing/feed-proof';
 import { Hero } from '@/components/landing/hero';
-import { HowItWorks } from '@/components/landing/how-it-works';
+import { HowWeVerify } from '@/components/landing/how-we-verify';
 import { OpenTerminal } from '@/components/landing/open-terminal';
-import { Problem } from '@/components/landing/problem';
+import { PriceRange } from '@/components/landing/price-range';
 import { SmoothScroll } from '@/components/landing/scroll-motion';
 import { LandingHeader } from '@/components/site-header';
 import { MarketsProvider } from '@/lib/markets';
@@ -15,8 +15,8 @@ export default function Home() {
         <main className="min-h-screen bg-background text-foreground">
           <LandingHeader />
           <Hero />
-          <Problem />
-          <HowItWorks />
+          <PriceRange />
+          <HowWeVerify />
           <FeedProof />
           <OpenTerminal />
           <Footer variant="landing" />

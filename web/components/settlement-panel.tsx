@@ -66,16 +66,11 @@ export function SettlementSummary() {
               />
               <Row label="Last YES" value={cents(live.priceE18, 'YES')} />
               <Row label="Last NO" value={cents(live.priceE18, 'NO')} />
-              <Row
-                label="Reading"
-                value={
-                  reading
-                    ? reading.finalized
-                      ? 'Final'
-                      : 'Not final'
-                    : 'Not published'
-                }
-              />
+              {/* A published reading is already in the instrument bar;
+                  only its absence needs saying here. */}
+              {reading === null && (
+                <Row label="Oracle reading" value="Not published" />
+              )}
             </>
           )}
           {status === 'resolved' && (
@@ -132,7 +127,7 @@ export function SettlementEvidence() {
   return (
     <dl className="grid gap-x-8 gap-y-3 p-4 text-xs sm:grid-cols-2 sm:p-6">
       <div>
-        <dt className="text-muted-foreground">BinaryMarket</dt>
+        <dt className="text-muted-foreground">Contract</dt>
         <dd>
           <ExternalAnchor href={explorerAddressUrl(selected.address)}>
             {selected.address}
@@ -155,13 +150,13 @@ export function SettlementEvidence() {
       ) : (
         <>
           <div>
-            <dt className="text-muted-foreground">sourceHash</dt>
+            <dt className="text-muted-foreground">Verified</dt>
             <dd className="break-all font-mono text-foreground">
               {reading?.sourceHash ?? '…'}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">ReadingSubmitted tx</dt>
+            <dt className="text-muted-foreground">Oracle tx</dt>
             <dd>
               {record?.txHash ? (
                 <ExternalAnchor href={explorerTxUrl(record.txHash)}>
@@ -176,12 +171,6 @@ export function SettlementEvidence() {
             <dt className="text-muted-foreground">Published</dt>
             <dd className="font-mono tabular-nums text-foreground">
               {reading ? formatUtc(reading.publishedAt) : '…'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Finalized</dt>
-            <dd className="font-mono text-foreground">
-              {reading ? (reading.finalized ? 'Yes' : 'No') : '…'}
             </dd>
           </div>
         </>

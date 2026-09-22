@@ -12,13 +12,14 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts';
 
-export type Hub = 'HB_NORTH' | 'HB_WEST';
+type Hub = 'HB_NORTH' | 'HB_WEST';
 type Timeframe = '15m' | '1h' | '4h' | '1d' | '1w';
 
-const HUBS: { id: Hub; label: string }[] = [
-  { id: 'HB_NORTH', label: 'North Hub' },
-  { id: 'HB_WEST', label: 'West Hub' },
-];
+/**
+ * The Texas power price's hub - the only one the public site shows
+ * (design-brief.md §5: hubs are never shown, so there is no switcher).
+ */
+const HUB: Hub = 'HB_NORTH';
 
 const TIMEFRAMES: { id: Timeframe; label: string }[] = [
   { id: '15m', label: '15m' },
@@ -62,17 +63,10 @@ function loadCandles(hub: Hub): Promise<CandleFile> {
   return cached;
 }
 
-export function CandlestickChart({
-  defaultHub = 'HB_NORTH',
-  strikeDollars,
-}: {
-  defaultHub?: Hub;
-  strikeDollars?: number;
-}) {
+export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const chartRef = React.useRef<IChartApi | null>(null);
   const seriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const [hub, setHub] = React.useState<Hub>(defaultHub);
   const [timeframe, setTimeframe] = React.useState<Timeframe>('1d');
   const [source, setSource] = React.useState<SourceMeta | null>(null);
   // lightweight-charts draws on canvas, so it can't resolve a `var(...)`
@@ -181,13 +175,12 @@ export function CandlestickChart({
     };
   }, [renderLegend]);
 
-  // Data load is keyed on hub/timeframe only - the strike price line lives
-  // on the series itself and must not be touched by a candle refresh, or it
-  // duplicates on every hub/timeframe switch (see the price-line effect
-  // below).
+  // Data load is keyed on timeframe only - the strike price line lives on
+  // the series itself and must not be touched by a candle refresh, or it
+  // duplicates on every timeframe switch (see the price-line effect below).
   React.useEffect(() => {
     let cancelled = false;
-    void loadCandles(hub).then((file) => {
+    void loadCandles(HUB).then((file) => {
       if (cancelled) return;
       setSource(file.sources[timeframe]);
       const series = seriesRef.current;
@@ -209,7 +202,7 @@ export function CandlestickChart({
     return () => {
       cancelled = true;
     };
-  }, [hub, timeframe, renderLegend]);
+  }, [timeframe, renderLegend]);
 
   // Owns the strike price line's full lifecycle: created once per
   // strikeDollars value, removed by this effect's own cleanup before the
@@ -245,23 +238,7 @@ export function CandlestickChart({
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2">
-        <div className="flex gap-1">
-          {HUBS.map((h) => (
-            <button
-              className={
-                'border px-2.5 py-1 font-mono text-xs ' +
-                (hub === h.id
-                  ? 'border-foreground text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground')
-              }
-              key={h.id}
-              onClick={() => setHub(h.id)}
-              type="button"
-            >
-              {h.label}
-            </button>
-          ))}
-        </div>
+        <div className="text-xs text-muted-foreground">Texas power · $/MWh</div>
         <div className="flex gap-1">
           {TIMEFRAMES.map((tf) => (
             <button
@@ -287,9 +264,15 @@ export function CandlestickChart({
           ref={legendRef}
         />
       </div>
-      <div className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
-        Market data · {hub} · {source ? source.dataset : 'loading…'}
-        {source ? ` · sha256 ${source.sourceHash.slice(0, 8)}…` : ''}
+      {/* Live market data, not an oracle reading: labelled unverified so it
+          never reads as the same trust level as a Verified price (§6). The
+          dataset and its hash stay in the candle file; the hub code and
+          dataset name are never shown (§5). */}
+      <div
+        className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground"
+        title={source ? `sha256 ${source.sourceHash}` : undefined}
+      >
+        Live market data · real-time · unverified
       </div>
     </div>
   );

@@ -20,7 +20,7 @@ export function OpenTerminal() {
                 ? 'Loading…'
                 : markets.length === 0
                   ? 'No contracts listed yet.'
-                  : `Listed: ${markets.map(marketName).join(', ')}.`}
+                  : `Listed: ${markets.map(marketName).join(' ')}`}
             </p>
             <Link
               className="shrink-0 border border-foreground bg-foreground px-8 py-4 font-mono text-sm uppercase tracking-[0.12em] text-background transition-colors duration-200 hover:bg-transparent hover:text-foreground"

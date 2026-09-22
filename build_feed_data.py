@@ -24,12 +24,21 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
+from fetch_ercot import CENTRAL, DAY_AHEAD, EXPECTED_ROWS, to_central_day
 from publish import EXPECTED_METRICS, MetricReading, collect_readings, load_ledger
 
 ROOT = Path(__file__).resolve().parent
 WEB_DATA_DIR = ROOT / "web" / "public" / "data"
 ADDRESSES_SOURCE = ROOT / "shared" / "addresses.json"
 METRICS_DIR = ROOT / "data" / "metrics"
+RAW_DIR = ROOT / "data" / "raw"
+
+# The one price the public site shows (design-brief.md §5: "Texas power
+# price"), and the percentiles that bound its normal range.
+PRICE_METRIC_ID = "ERCOT_HBNORTH_DA_AVG"
+NORMAL_RANGE = (0.10, 0.90)
 
 # The landing page's data-path diagram walks through one real, already-
 # settled day end to end (see shared/demo-markets.md, market #1) rather
@@ -146,6 +155,98 @@ def write_evidence(output_dir: Path) -> None:
     path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def hourly_swing(hourly: pd.DataFrame, market_day: str, expected_value: int) -> dict[str, Any]:
+    """Cheapest and dearest hour of one market day, from its hourly prices.
+
+    Held to the same bar as the daily price it sits next to on the landing
+    page: exactly EXPECTED_ROWS hours on the Central market day (grouped by
+    fetch_ercot's own to_central_day, so the day boundary can't drift from
+    the metric's), and those hours must average to the published value -
+    if they don't, these aren't the rows that produced it. Either failure
+    raises rather than returning a swing for the wrong hours.
+    """
+    df = to_central_day(hourly)
+    day = df[df["market_day"].astype(str) == market_day]
+    expected_rows = EXPECTED_ROWS[DAY_AHEAD["dataset"]]
+    if len(day) != expected_rows:
+        raise ValueError(f"{market_day}: {len(day)}/{expected_rows} hours (incomplete day)")
+    prices = day[DAY_AHEAD["price_column"]]
+    if int(round(prices.mean() * 100)) != expected_value:
+        raise ValueError(f"{market_day}: hourly mean does not match the published value {expected_value}")
+
+    def hour(label: Any) -> dict[str, Any]:
+        start = pd.to_datetime(day.loc[label, "interval_start_utc"], utc=True)
+        return {
+            "hourStartCentral": start.tz_convert(CENTRAL).strftime("%H:%M"),
+            "hourStartUtc": int(start.timestamp()),
+            "value": int(round(prices.loc[label] * 100)),
+        }
+
+    return {"cheapest": hour(prices.idxmin()), "dearest": hour(prices.idxmax())}
+
+
+def price_range(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """The normal range of daily prices and the peak day, for the landing page.
+
+    Normal is the middle 80% of published days (10th to 90th percentile), so
+    a single spike can't stretch it; the peak is stated against the median
+    day. All values stay in the metric's own cents scale.
+    """
+    values = pd.Series([record["value"] for record in records], dtype="float64")
+    median = float(values.median())
+    peak = max(records, key=lambda record: record["value"])
+    return {
+        "days": len(records),
+        "firstDayKey": records[0]["dayKey"],
+        "lastDayKey": records[-1]["dayKey"],
+        "low": int(round(values.quantile(NORMAL_RANGE[0]))),
+        "high": int(round(values.quantile(NORMAL_RANGE[1]))),
+        "median": int(round(median)),
+        "peak": {
+            "dayKey": peak["dayKey"],
+            "value": peak["value"],
+            "timesMedian": round(peak["value"] / median),
+        },
+    }
+
+
+def write_price_summary(output_dir: Path, records: list[dict[str, Any]]) -> bool:
+    """Publish the landing page's lead: the latest day's cheapest and dearest
+    hour, next to the normal range and the peak.
+
+    The hours come from the exact sourceFiles list of the latest daily
+    price's own metric file, read from the data/raw/ cache - the same bytes
+    its sourceHash covers - never a fresh fetch. Returns False (and writes
+    nothing) if that day can't be reproduced from them.
+    """
+    if not records:
+        return False
+    latest = records[-1]
+    metric_path = METRICS_DIR / f"{PRICE_METRIC_ID}__{latest['marketDay']}.json"
+    try:
+        metric = json.loads(metric_path.read_text(encoding="utf-8"))
+        hourly = pd.concat(
+            [pd.read_json(RAW_DIR / name, orient="records") for name in metric["sourceFiles"]],
+            ignore_index=True,
+        )
+        swing = hourly_swing(hourly, latest["marketDay"], latest["value"])
+    except (OSError, KeyError, ValueError) as exc:
+        print(f"SKIPPED price summary: {exc}", file=sys.stderr)
+        return False
+    summary = {
+        "latestDay": {
+            "dayKey": latest["dayKey"],
+            "marketDay": latest["marketDay"],
+            "value": latest["value"],
+            **swing,
+        },
+        "range": price_range(records),
+    }
+    path = output_dir / "price-summary.json"
+    path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--metric", action="append", choices=EXPECTED_METRICS)
@@ -162,6 +263,7 @@ def main(argv: list[str] | None = None) -> int:
     write_aggregates(args.out, by_metric)
     write_addresses(args.out)
     write_evidence(args.out)
+    summary_written = write_price_summary(args.out, by_metric.get(PRICE_METRIC_ID, []))
 
     total = sum(len(records) for records in by_metric.values())
     submitted = sum(1 for records in by_metric.values() for record in records if record["txHash"])
@@ -169,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  {submitted} of {total} metric-days have a ledger txHash")
     if invalid:
         print(f"  {len(invalid)} local file(s) skipped as invalid", file=sys.stderr)
-    return 1 if invalid else 0
+    return 1 if invalid or not summary_written else 0
 
 
 if __name__ == "__main__":

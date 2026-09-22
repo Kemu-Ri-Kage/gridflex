@@ -25,21 +25,21 @@ export function LandingHeader() {
         <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">
           <a
             className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
-            href="#problem"
+            href="#prices"
           >
-            Problem
+            Prices
           </a>
           <a
             className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
-            href="#how-it-works"
+            href="#how-we-verify"
           >
-            How it works
+            How we verify
           </a>
           <a
             className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
-            href="#feed"
+            href="#proof"
           >
-            Feed
+            Proof
           </a>
         </nav>
         <Link
@@ -68,9 +68,9 @@ export function TerminalHeader() {
             </Link>
             <Link
               className="px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-              href="/#feed"
+              href="/#proof"
             >
-              Feed
+              Proof
             </Link>
             <span className="px-3 py-2 text-sm text-foreground">Trade</span>
           </nav>

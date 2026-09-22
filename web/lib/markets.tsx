@@ -69,21 +69,18 @@ export interface Market extends MarketFacts {
   live?: MarketLive;
 }
 
-const METRIC_WORDS: Record<
-  SettlementMetric,
-  { short: string; long: string; hub: 'HB_NORTH' | 'HB_WEST' }
-> = {
-  ERCOT_HBNORTH_DA_AVG: {
-    short: 'North Hub',
-    long: "ERCOT North Hub's day-ahead average",
-    hub: 'HB_NORTH',
-  },
-  ERCOT_WEST_NORTH_DA_BASIS: {
-    short: 'West–North basis',
-    long: 'the ERCOT West–North day-ahead basis',
-    hub: 'HB_WEST',
-  },
+/**
+ * Display words per settlement metric (design-brief.md §5 dictionary). The
+ * basis entry exists only so its markets decode; the public site lists
+ * PUBLIC_METRIC's markets alone and never shows the basis.
+ */
+const METRIC_WORDS: Record<SettlementMetric, { short: string; long: string }> = {
+  ERCOT_HBNORTH_DA_AVG: { short: 'Texas power', long: 'the Texas power price' },
+  ERCOT_WEST_NORTH_DA_BASIS: { short: 'Basis', long: 'the basis' },
 };
+
+/** The one product the public site lists (design-brief.md §5). */
+export const PUBLIC_METRIC: SettlementMetric = 'ERCOT_HBNORTH_DA_AVG';
 
 const MONTHS = [
   'Jan',
@@ -124,21 +121,18 @@ export function strikeLabel(
   return text.endsWith('.00') ? text.slice(0, -3) : text;
 }
 
+/** The product as a question: "Will Texas power cost more than $30 on 8 Sep?" */
 export function marketName(market: MarketFacts): string {
-  return `${METRIC_WORDS[market.metricId].short} above ${strikeLabel(market)} · ${dayLabel(market.dayKey)}`;
+  return `Will ${METRIC_WORDS[market.metricId].short} cost more than ${strikeLabel(market)} on ${dayLabel(market.dayKey)}?`;
 }
 
 export function payLine(market: MarketFacts): string {
   const strike = formatPrice(market.threshold, 'MWh', isBasis(market.metricId));
-  return `Pays 1 mUSDT per contract if ${METRIC_WORDS[market.metricId].long} settles above ${strike} on ${dayLabel(market.dayKey, true)}.`;
+  return `Pays 1 mUSDT per YES if ${METRIC_WORDS[market.metricId].long} for ${dayLabel(market.dayKey, true)} settles above ${strike}.`;
 }
 
 export function metricShortName(metricId: SettlementMetric): string {
   return METRIC_WORDS[metricId].short;
-}
-
-export function marketHub(market: MarketFacts): 'HB_NORTH' | 'HB_WEST' {
-  return METRIC_WORDS[market.metricId].hub;
 }
 
 /** Strike as a price level on the hub chart - only meaningful for a hub price, not a spread. */
@@ -267,8 +261,15 @@ export function MarketsProvider({ children }: { children: React.ReactNode }) {
       ),
     )
       .then((result) => {
-        // Most recent market day first; the first is selected by default.
-        if (!cancelled) setFacts(result.sort((a, b) => b.dayKey - a.dayKey));
+        // Only the public product; most recent market day first, and the
+        // first is selected by default.
+        if (!cancelled) {
+          setFacts(
+            result
+              .filter((m) => m.metricId === PUBLIC_METRIC)
+              .sort((a, b) => b.dayKey - a.dayKey),
+          );
+        }
       })
       .catch(() => {
         if (!cancelled) setError('Could not read markets from X Layer.');

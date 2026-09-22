@@ -7,15 +7,15 @@ import { ExternalLink } from 'lucide-react';
 import { explorerAddressUrl, explorerTxUrl } from '@/lib/explorer';
 import { useCommittedRecord, useAddresses, useEvidence } from '@/lib/site-data';
 import { formatPrice } from '@/lib/format';
-import { dayLabel, metricShortName, strikeLabel, useMarkets, type Market } from '@/lib/markets';
+import { dayLabel, strikeLabel, useMarkets, type Market } from '@/lib/markets';
 
 type StageId = 'source' | 'compute' | 'publish' | 'settle';
 
 const STAGES: { id: StageId; label: string; dek: string }[] = [
-  { id: 'source', label: 'Source', dek: 'ERCOT market data via GridStatus' },
-  { id: 'compute', label: 'Compute', dek: 'Pipeline builds the metric, hashes the inputs' },
-  { id: 'publish', label: 'Publish', dek: 'Reading written to GridOracle on X Layer' },
-  { id: 'settle', label: 'Settle', dek: 'Contracts resolve against the finalized reading' },
+  { id: 'source', label: 'Source', dek: "ERCOT, Texas's official grid price, via GridStatus" },
+  { id: 'compute', label: 'Compute', dek: 'Average of 24 hourly prices, hashed with its inputs' },
+  { id: 'publish', label: 'Publish', dek: 'Price written to the oracle on X Layer' },
+  { id: 'settle', label: 'Settle', dek: 'YES/NO questions settle against the published price' },
 ];
 
 function prefersReducedMotion(): boolean {
@@ -45,10 +45,6 @@ function AnimatedEvidence({ stageKey, children }: { stageKey: StageId; children:
   );
 }
 
-function Mono({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-foreground">{children}</span>;
-}
-
 function EvidencePanel({ stage }: { stage: StageId }) {
   const evidence = useEvidence();
   const addresses = useAddresses();
@@ -57,8 +53,10 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   if (stage === 'source') {
     return (
       <div className="space-y-3">
+        {/* The file names are the hash inputs, shown verbatim so the hash
+            can be reproduced - data, like an address (design-brief.md §5). */}
         <p className="text-sm leading-6 text-muted-foreground">
-          <Mono>HB_NORTH</Mono> day-ahead hourly prices · GridStatus.io (public ERCOT data)
+          Hourly day-ahead prices from ERCOT, Texas&apos;s official grid price, via GridStatus.io
         </p>
         {evidence ? (
           <div className="border border-border bg-background/60 p-3 font-mono text-xs leading-5 text-muted-foreground">
@@ -87,7 +85,7 @@ function EvidencePanel({ stage }: { stage: StageId }) {
           SHA-256 of the files above, in order.
         </p>
         <div className="border border-border bg-background/60 p-3">
-          <div className="text-xs text-muted-foreground">sourceHash</div>
+          <div className="text-xs text-muted-foreground">SHA-256</div>
           <div className="mt-1 break-all font-mono text-sm text-foreground">
             {evidence?.sourceHash ?? 'loading…'}
           </div>
@@ -116,7 +114,7 @@ function EvidencePanel({ stage }: { stage: StageId }) {
             </a>
           </div>
           <div className="border border-border bg-background/60 p-3">
-            <div className="text-xs text-muted-foreground">ReadingSubmitted tx</div>
+            <div className="text-xs text-muted-foreground">Oracle tx</div>
             <a
               className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 transition-colors duration-200 hover:text-foreground hover:underline"
               href={record?.txHash ? explorerTxUrl(record.txHash) : undefined}
@@ -135,11 +133,12 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   return (
     <div className="space-y-3">
       <p className="text-sm leading-6 text-muted-foreground">
-        Contracts settle against this reading.
+        YES/NO questions settle against this price.
       </p>
       <div className="border border-border bg-background/60 p-4">
         <div className="text-xs text-muted-foreground">
-          North Hub day-ahead average · {record?.marketDay ?? evidence?.marketDay ?? '…'}
+          Texas power price ·{' '}
+          {record ? dayLabel(record.dayKey, true) : evidence ? dayLabel(evidence.dayKey, true) : '…'}
         </div>
         <div className="mt-1 font-mono text-xl font-semibold text-foreground">
           {record ? formatPrice(record.value, 'MWh') : 'loading…'}
@@ -163,7 +162,7 @@ function SettleStatus({ dayKey, value }: { dayKey: number; value: number }) {
   const { markets, now } = useMarkets();
   if (!markets) return <>…</>;
 
-  const reading = `${metricShortName('ERCOT_HBNORTH_DA_AVG')} settled at ${formatPrice(value, 'MWh')}`;
+  const reading = `Texas power price settled at ${formatPrice(value, 'MWh')}`;
   const market = markets.find((m) => m.metricId === 'ERCOT_HBNORTH_DA_AVG' && m.dayKey === dayKey);
   if (!market) return <>{reading}.</>;
 

@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'GRIDFLEX — ERCOT markets on X Layer',
+  title: 'GRIDFLEX — Will Texas power cost more?',
   description:
-    'ERCOT power derivatives that settle against onchain readings you can verify from source.',
+    'YES/NO questions on the Texas power price, settled against prices published onchain with a hash of their source.',
 };
 
 export default function RootLayout({

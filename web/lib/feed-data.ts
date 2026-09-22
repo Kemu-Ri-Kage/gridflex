@@ -31,16 +31,12 @@ export const ALL_FEED_METRICS = [
 
 export type FeedMetricId = (typeof ALL_FEED_METRICS)[number];
 
-/** shared/feed-spec.md §5: the two contract metrics get the charts; the hero is basis. */
-export const HERO_METRIC: FeedMetricId = 'ERCOT_WEST_NORTH_DA_BASIS';
-export const SECONDARY_METRIC: FeedMetricId = 'ERCOT_HBNORTH_DA_AVG';
-
-export const METRIC_LABELS: Record<FeedMetricId, string> = {
-  ERCOT_HBNORTH_DA_AVG: 'North Hub day-ahead',
-  ERCOT_WEST_NORTH_DA_BASIS: 'West–North basis',
-  ERCOT_LOAD_WEIGHTED_DA_INDEX: 'Load-weighted index',
-  ERCOT_HBWEST_NEG_INTERVALS: 'West Hub negative intervals',
-};
+/**
+ * The one metric the public site shows - the Texas power price
+ * (design-brief.md §5). The other feed files are still published under
+ * /data/, just not rendered on a public page.
+ */
+export const PUBLIC_FEED_METRIC: FeedMetricId = 'ERCOT_HBNORTH_DA_AVG';
 
 // A separate, wallet-free public client - deliberately not reusing
 // web3-provider.tsx's internal one, since that file is integration-owned and out of
@@ -84,20 +80,16 @@ async function fetchChainReading(metricId: string, dayKey: number): Promise<Chai
 }
 
 export interface VerifiedRow {
-  metricId: FeedMetricId;
-  metricLabel: string;
   record: CommittedRecord;
   verification: VerificationState;
 }
 
 export interface FeedData {
   loading: boolean;
-  /** Every metric-day the aggregation step knows about, across all four in-scope metrics. */
+  /** Every day of the public metric the aggregation step knows about. */
   totalLocalCandidates: number;
-  /** Metric-days the ledger says were actually submitted - the table's row count. */
+  /** Days the ledger says were actually submitted - the table's row count. */
   submittedCount: number;
-  heroSeries: CommittedRecord[];
-  secondarySeries: CommittedRecord[];
   rows: VerifiedRow[];
 }
 
@@ -108,78 +100,58 @@ export interface FeedData {
  * without blocking or hiding the committed value it's checking.
  */
 export function useFeedData(): FeedData {
-  const [committed, setCommitted] = React.useState<Record<FeedMetricId, CommittedRecord[]> | null>(
-    null,
-  );
-  const [verification, setVerification] = React.useState<Record<string, VerificationState>>({});
+  const [committed, setCommitted] = React.useState<CommittedRecord[] | null>(null);
+  const [verification, setVerification] = React.useState<Record<number, VerificationState>>({});
 
   React.useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      const entries = await Promise.all(
-        ALL_FEED_METRICS.map(async (metricId) => [metricId, await fetchAggregate(metricId)] as const),
-      );
-      if (cancelled) return;
-      setCommitted(Object.fromEntries(entries) as Record<FeedMetricId, CommittedRecord[]>);
-    })();
+    void fetchAggregate(PUBLIC_FEED_METRIC).then((records) => {
+      if (!cancelled) setCommitted(records);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const submittedRows = React.useMemo(() => {
-    if (!committed) return [] as { metricId: FeedMetricId; record: CommittedRecord }[];
-    const rows: { metricId: FeedMetricId; record: CommittedRecord }[] = [];
-    for (const metricId of ALL_FEED_METRICS) {
-      for (const record of committed[metricId] ?? []) {
-        if (record.txHash) rows.push({ metricId, record });
-      }
-    }
-    return rows;
-  }, [committed]);
+  const submitted = React.useMemo(
+    () => (committed ?? []).filter((record) => record.txHash),
+    [committed],
+  );
 
   React.useEffect(() => {
-    if (submittedRows.length === 0) return;
+    if (submitted.length === 0) return;
     let cancelled = false;
 
-    async function checkRow(metricId: FeedMetricId, record: CommittedRecord) {
-      const key = `${metricId}:${record.dayKey}`;
+    async function checkRow(record: CommittedRecord) {
       const committedReading: CommittedReading = { value: record.value, sourceHash: record.sourceHash };
-      const outcome = await verifyOnce(committedReading, () => fetchChainReading(metricId, record.dayKey));
+      const outcome = await verifyOnce(committedReading, () =>
+        fetchChainReading(PUBLIC_FEED_METRIC, record.dayKey),
+      );
       if (cancelled) return;
       setVerification((previous) => ({
         ...previous,
-        [key]: applyCheckOutcome(previous[key] ?? initialVerificationState, outcome),
+        [record.dayKey]: applyCheckOutcome(previous[record.dayKey] ?? initialVerificationState, outcome),
       }));
     }
 
-    for (const { metricId, record } of submittedRows) {
-      void checkRow(metricId, record);
+    for (const record of submitted) {
+      void checkRow(record);
     }
 
     return () => {
       cancelled = true;
     };
-  }, [submittedRows]);
+  }, [submitted]);
 
-  const totalLocalCandidates = React.useMemo(
-    () => (committed ? ALL_FEED_METRICS.reduce((sum, id) => sum + (committed[id]?.length ?? 0), 0) : 0),
-    [committed],
-  );
-
-  const rows: VerifiedRow[] = submittedRows.map(({ metricId, record }) => ({
-    metricId,
-    metricLabel: METRIC_LABELS[metricId],
+  const rows: VerifiedRow[] = submitted.map((record) => ({
     record,
-    verification: verification[`${metricId}:${record.dayKey}`] ?? initialVerificationState,
+    verification: verification[record.dayKey] ?? initialVerificationState,
   }));
 
   return {
     loading: committed === null,
-    totalLocalCandidates,
-    submittedCount: submittedRows.length,
-    heroSeries: committed?.[HERO_METRIC] ?? [],
-    secondarySeries: committed?.[SECONDARY_METRIC] ?? [],
+    totalLocalCandidates: committed?.length ?? 0,
+    submittedCount: submitted.length,
     rows,
   };
 }

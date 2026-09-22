@@ -3,8 +3,9 @@
 import { marketName, statusLabel, useMarkets } from '@/lib/markets';
 
 /**
- * The listed BinaryMarkets, each named and labelled from its own contract
- * state - never a hand-typed list (design-brief.md §6, §8).
+ * The listed YES/NO questions on the Texas power price, each named and
+ * labelled from its own contract state - never a hand-typed list
+ * (design-brief.md §5, §6, §8).
  */
 export function MarketPanel() {
   const { markets, selected, select, error, now } = useMarkets();
@@ -34,9 +35,8 @@ export function MarketPanel() {
                   <div className="text-sm font-medium text-foreground">
                     {marketName(market)}
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
-                    <span>{market.metricId}</span>
-                    <span>{statusLabel(market, now)}</span>
+                  <div className="mt-1 font-mono text-xs text-muted-foreground">
+                    {statusLabel(market, now)}
                   </div>
                 </button>
               </li>

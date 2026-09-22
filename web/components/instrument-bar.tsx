@@ -31,7 +31,6 @@ export function InstrumentBar() {
   }
 
   const status = marketStatus(selected, now);
-  const basis = selected.metricId === 'ERCOT_WEST_NORTH_DA_BASIS';
 
   return (
     <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -56,15 +55,12 @@ export function InstrumentBar() {
         </p>
       </div>
       <div className="font-mono text-xs tabular-nums text-muted-foreground sm:text-right">
-        <div>Strike {formatPrice(selected.threshold, undefined, basis)}</div>
+        <div>Strike {formatPrice(selected.threshold)}</div>
         {reading && (
           <div className="mt-0.5 text-foreground">
-            Oracle reading {formatPrice(reading.value, 'MWh', basis)}
+            Oracle reading {formatPrice(reading.value, 'MWh')}
           </div>
         )}
-        <div className="mt-0.5 text-[10px] text-muted-foreground/70">
-          dayKey {selected.dayKey}
-        </div>
       </div>
     </div>
   );

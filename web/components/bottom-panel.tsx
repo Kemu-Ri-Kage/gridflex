@@ -76,7 +76,7 @@ function HistoryTab() {
         <thead className="text-left text-muted-foreground">
           <tr>
             <th className="py-1.5 pr-4 font-normal">Block</th>
-            <th className="py-1.5 pr-4 font-normal">Swap</th>
+            <th className="py-1.5 pr-4 font-normal">Trade</th>
             <th className="py-1.5 pr-4 text-right font-normal">In</th>
             <th className="py-1.5 pr-4 text-right font-normal">Out</th>
             <th className="py-1.5 pr-4 font-normal">Account</th>
@@ -88,7 +88,8 @@ function HistoryTab() {
             <tr key={`${trade.txHash}:${trade.amountIn}`}>
               <td className="py-1.5 pr-4">{trade.blockNumber.toString()}</td>
               <td className="py-1.5 pr-4">
-                {trade.yesForNo ? 'YES → NO' : 'NO → YES'}
+                {/* yesForNo: YES paid in, NO received - i.e. a NO buy. */}
+                {trade.yesForNo ? 'Buy NO' : 'Buy YES'}
               </td>
               <td className="py-1.5 pr-4 text-right">
                 {formatToken(trade.amountIn)}

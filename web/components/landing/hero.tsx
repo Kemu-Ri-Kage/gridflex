@@ -5,12 +5,26 @@ import Link from 'next/link';
 import gsap from 'gsap';
 import { SplitText } from 'gsap/SplitText';
 
+import { formatPrice } from '@/lib/format';
+import { dayLabel } from '@/lib/markets';
+import { hourLabel, priceSummary } from '@/lib/price-summary';
+
 function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/** A price inside the headline, in the mono number face (checklist #5). */
+function Price({ cents }: { cents: number }) {
+  return <span className="font-mono tabular-nums">{formatPrice(cents)}</span>;
+}
+
+/**
+ * Opens with the daily swing (design-brief.md §7): the latest published
+ * day's cheapest and dearest hour, from build_feed_data.py's price summary.
+ */
 export function Hero() {
+  const { dayKey, cheapest, dearest } = priceSummary.latestDay;
   const headlineRef = React.useRef<HTMLHeadingElement | null>(null);
 
   // Word-by-word entrance on first load only - not scroll-triggered, so it
@@ -45,11 +59,14 @@ export function Hero() {
           className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl"
           ref={headlineRef}
         >
-          Power derivatives, settled against data you can verify yourself.
+          Texas power cost <Price cents={cheapest.value} /> at {hourLabel(cheapest.hourStartCentral)}{' '}
+          and <Price cents={dearest.value} /> at {hourLabel(dearest.hourStartCentral)}.
         </h1>
+        <p className="mt-4 font-mono text-xs tabular-nums text-muted-foreground">
+          {dayLabel(dayKey, true)} · cheapest and dearest hour, Central time · $/MWh
+        </p>
         <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-          ERCOT power readings published onchain with a hash of their source; cash-settled
-          contracts resolve against them.
+          Trade YES or NO on whether Texas power will cost more than the strike on a given day.
         </p>
         <div className="mt-10 flex flex-wrap items-center gap-4">
           <Link

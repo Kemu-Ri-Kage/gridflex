@@ -125,6 +125,30 @@ def write_addresses(output_dir: Path) -> None:
     path.write_text(json.dumps(public, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def latest_computed_at(metric_id: str, metrics_dir: Path | None = None) -> str | None:
+    """The newest computedAt among one metric's files: when fetch_ercot.py
+    last computed that price from fresh GridStatus data. None if no file
+    carries one."""
+    metrics_dir = metrics_dir or METRICS_DIR
+    stamps = []
+    for path in metrics_dir.glob(f"{metric_id}__*.json"):
+        stamp = json.loads(path.read_text(encoding="utf-8")).get("computedAt")
+        if stamp:
+            stamps.append(pd.Timestamp(stamp))
+    if not stamps:
+        return None
+    return max(stamps).tz_convert("UTC").isoformat().replace("+00:00", "Z")
+
+
+def write_feed_meta(output_dir: Path) -> None:
+    """Publish when the Texas power price data was last refreshed, for the
+    feed's "Updated" line. A separate file so the per-metric aggregates keep
+    their plain-array shape."""
+    meta = {"metricId": PRICE_METRIC_ID, "updatedAt": latest_computed_at(PRICE_METRIC_ID)}
+    path = output_dir / "feed-meta.json"
+    path.write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def write_evidence(output_dir: Path) -> None:
     """Publish the raw metric file's dataset provenance for the landing
     page's diagram: real dataset name, location, and the exact sourceFiles
@@ -262,6 +286,7 @@ def main(argv: list[str] | None = None) -> int:
     by_metric = aggregate(readings, ledger)
     write_aggregates(args.out, by_metric)
     write_addresses(args.out)
+    write_feed_meta(args.out)
     write_evidence(args.out)
     summary_written = write_price_summary(args.out, by_metric.get(PRICE_METRIC_ID, []))
 

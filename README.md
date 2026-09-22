@@ -47,6 +47,23 @@ On Windows PowerShell, set the key with:
 
     $env:GRIDSTATUS_API_KEY = "your_key_here"
 
+A cached chunk in `data/raw/` is re-fetched, never trusted, while it reaches
+into the current month or ends within the last two days. If its bytes
+changed upstream, the old version moves to `data/raw/superseded/`, because
+published hashes cite those files. A reading already published onchain is
+never rewritten.
+
+To refresh everything the site shows and redeploy it in one go:
+
+    ./refresh_data.sh              # fetch, rebuild feed + candles, build, deploy
+    ./refresh_data.sh --no-deploy  # same, without the deploy
+
+It prints the GridStatus rows it used. Most of the cost is candles, which
+re-fetch the month so far: about 790 rows for prices plus about 770 rows
+per day elapsed this month. That is about 17,000 rows on 22 September, and
+up to about 25,000 on the first three days of a month, when the previous
+month is re-read too.
+
 ## What it produces
 
     data/raw/       raw API responses, cached. NOT committed.

@@ -43,6 +43,14 @@ export const PUBLIC_FEED_METRIC: FeedMetricId = 'ERCOT_HBNORTH_DA_AVG';
 // scope for this page (see shared/feed-spec.md).
 const publicClient = createPublicClient({ chain: xLayerTestnet, transport: http() });
 
+/** build_feed_data.py's feed-meta.json: when the price data was last refreshed. */
+async function fetchUpdatedAt(): Promise<string | null> {
+  const response = await fetch('/data/feed-meta.json');
+  if (!response.ok) return null;
+  const meta = (await response.json()) as { updatedAt?: string | null };
+  return meta.updatedAt ?? null;
+}
+
 async function fetchAggregate(metricId: FeedMetricId): Promise<CommittedRecord[]> {
   const response = await fetch(`/data/${metricId}.json`);
   if (!response.ok) return [];
@@ -90,6 +98,8 @@ export interface FeedData {
   totalLocalCandidates: number;
   /** Days the ledger says were actually submitted - the table's row count. */
   submittedCount: number;
+  /** ISO time the price data was last refreshed, or null if unknown. */
+  updatedAt: string | null;
   rows: VerifiedRow[];
 }
 
@@ -102,12 +112,20 @@ export interface FeedData {
 export function useFeedData(): FeedData {
   const [committed, setCommitted] = React.useState<CommittedRecord[] | null>(null);
   const [verification, setVerification] = React.useState<Record<number, VerificationState>>({});
+  const [updatedAt, setUpdatedAt] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
     void fetchAggregate(PUBLIC_FEED_METRIC).then((records) => {
       if (!cancelled) setCommitted(records);
     });
+    // Separate from the aggregate: a missing meta file only hides the
+    // "Updated" line, never the committed prices.
+    void fetchUpdatedAt()
+      .catch(() => null)
+      .then((stamp) => {
+        if (!cancelled) setUpdatedAt(stamp);
+      });
     return () => {
       cancelled = true;
     };
@@ -152,6 +170,7 @@ export function useFeedData(): FeedData {
     loading: committed === null,
     totalLocalCandidates: committed?.length ?? 0,
     submittedCount: submitted.length,
+    updatedAt,
     rows,
   };
 }

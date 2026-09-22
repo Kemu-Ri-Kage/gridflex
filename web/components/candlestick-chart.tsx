@@ -12,6 +12,8 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts';
 
+import { formatUpdated } from '@/lib/format';
+
 type Hub = 'HB_NORTH' | 'HB_WEST';
 type Timeframe = '15m' | '1h' | '4h' | '1d' | '1w';
 
@@ -44,6 +46,8 @@ interface SourceMeta {
 
 interface CandleFile {
   location: Hub;
+  /** When build_candles.py last built this file from freshly fetched data. */
+  generatedAt?: string;
   candles: Record<Timeframe, Candle[]>;
   // 15m/1h are built from a 5-minute dispatch dataset, 4h/1d/1w from the
   // 15-minute settlement dataset - keyed per timeframe so the chart can
@@ -69,6 +73,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
   const seriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
   const [timeframe, setTimeframe] = React.useState<Timeframe>('1d');
   const [source, setSource] = React.useState<SourceMeta | null>(null);
+  const [updatedAt, setUpdatedAt] = React.useState<string | null>(null);
   // lightweight-charts draws on canvas, so it can't resolve a `var(...)`
   // string the way DOM CSS does - colours are read once from the computed
   // stylesheet here and reused for anything drawn later (e.g. the strike
@@ -183,6 +188,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
     void loadCandles(HUB).then((file) => {
       if (cancelled) return;
       setSource(file.sources[timeframe]);
+      setUpdatedAt(formatUpdated(file.generatedAt));
       const series = seriesRef.current;
       if (!series) return;
       const data = file.candles[timeframe].map((c) => ({
@@ -269,11 +275,11 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
           trust level as a Verified price (§6). The dataset and its hash
           stay in the candle file; the hub code and dataset name are never
           shown (§5). */}
-      <div
-        className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground"
-        title={source ? `sha256 ${source.sourceHash}` : undefined}
-      >
-        Live prices, for reference · markets settle on the verified daily Texas power price
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
+        <span title={source ? `sha256 ${source.sourceHash}` : undefined}>
+          Live prices, for reference · markets settle on the verified daily Texas power price
+        </span>
+        {updatedAt && <span className="tabular-nums">Updated {updatedAt}</span>}
       </div>
     </div>
   );

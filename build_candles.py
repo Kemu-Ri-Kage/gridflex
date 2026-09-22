@@ -55,11 +55,12 @@ Usage:
 import argparse
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
 
+import fetch_ercot
 from fetch_ercot import CENTRAL, get_client, fetch, to_central_day
 
 DATASET = "ercot_spp_real_time_15_min"
@@ -158,6 +159,20 @@ def to_records(df: pd.DataFrame) -> list:
     ]
 
 
+def five_min_window_start(end_date: date, days: int) -> str:
+    """Start of the 5-minute window: `days` back, moved forward to the next
+    first-of-month so every chunk before the current month is a whole
+    calendar month. A start that slid forward one day at a time would make
+    a new, uncached first chunk every day and spend its rows again; aligned,
+    those months come from the cache and only the months that are not yet
+    final (fetch_ercot.chunk_is_final) are fetched. The window therefore
+    covers between days-31 and `days` days."""
+    start = end_date - timedelta(days=days)
+    if start.day != 1:
+        start = (start.replace(day=1) + timedelta(days=32)).replace(day=1)
+    return str(start)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", default="2025-09-10",
@@ -171,7 +186,7 @@ def main():
     end_date = datetime.now(timezone.utc).date()
     end = str(end_date)
     start = str(end_date - timedelta(days=args.days)) if args.days else args.start
-    five_min_start = str(end_date - timedelta(days=args.five_min_days))
+    five_min_start = five_min_window_start(end_date, args.five_min_days)
 
     print(f"GRIDFLEX candle builder @ {LOCATIONS}")
     print(f"  {FIVE_MIN_DATASET} (15m, 1h): {five_min_start} -> {end}")
@@ -252,8 +267,9 @@ def main():
         counts = {tf: len(series) for tf, series in payload["candles"].items()}
         print(f"  wrote {out_path} -- {counts}")
 
+    print(f"\nGridStatus rows fetched this run: {fetch_ercot.rows_fetched:,}")
     print(
-        f"\nRow cost note: {FIVE_MIN_DATASET} costs ~288 rows/day per location "
+        f"Row cost note: {FIVE_MIN_DATASET} costs ~288 rows/day per location "
         f"(--five-min-days), {DATASET} costs ~96 rows/day per location (--days); "
         "check GridStatus's monthly row allowance before widening either."
     )

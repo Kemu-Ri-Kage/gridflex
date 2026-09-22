@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/table';
 import { xLayerTestnet } from '@/lib/contracts';
 import { formatElapsed } from '@/lib/feed-verification';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, formatUpdated } from '@/lib/format';
 import { useFeedData, type VerifiedRow } from '@/lib/feed-data';
 import { dayLabel } from '@/lib/markets';
 
@@ -82,7 +82,8 @@ function explorerTxUrl(txHash: string): string {
  * its live verification state against the oracle (shared/feed-spec.md §4).
  */
 export function FeedPanel() {
-  const { loading, totalLocalCandidates, submittedCount, rows } = useFeedData();
+  const { loading, totalLocalCandidates, submittedCount, updatedAt, rows } = useFeedData();
+  const updated = formatUpdated(updatedAt);
 
   // "now" lives in state, updated from an effect, so render itself stays
   // pure - "Verified Xs ago" still advances without a full refetch.
@@ -104,6 +105,11 @@ export function FeedPanel() {
             </span>{' '}
             days published onchain.
           </CardDescription>
+          {updated && (
+            <p className="mt-1 font-mono text-[11px] tabular-nums text-muted-foreground">
+              Updated {updated}
+            </p>
+          )}
         </div>
       </CardHeader>
       <CardContent className="pt-1">

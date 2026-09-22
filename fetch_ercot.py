@@ -35,7 +35,7 @@ import json
 import os
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -134,9 +134,21 @@ EXPECTED_ROWS = {
 FUELMIX_MIN_COVERAGE = 0.95
 
 RAW_DIR = Path("data/raw")
+SUPERSEDED_DIR = RAW_DIR / "superseded"
 METRICS_DIR = Path("data/metrics")
+PUBLISH_LEDGER = Path("data/publish-ledger.json")
 
 RATE_LIMIT_SLEEP = 1.5          # free plan allows 1 request/second
+
+# A cached chunk is only trusted as final once its data can no longer change:
+# not in the current month, and ending more than this many days ago. Anything
+# newer is re-fetched every run, because GridStatus fills in and corrects
+# recent intervals after the fact.
+FRESH_CHUNK_DAYS = 2
+
+# Rows GridStatus returned to this process - what the free plan meters.
+# Cached chunks cost nothing and are not counted.
+rows_fetched = 0
 
 
 # --------------------------------------------------------------------------
@@ -181,7 +193,8 @@ def month_chunks(start, end):
     large enough to trip a brotli decode bug in the HTTP stack (we hit it, it
     reproduces). Smaller responses stay well clear of it. A failure halfway
     through costs one month rather than the whole pull. And each chunk caches
-    separately, so re-running only fetches what is missing.
+    separately, so re-running only fetches what is missing or not yet final
+    (see chunk_is_final).
     """
     s = pd.Timestamp(start)
     e = pd.Timestamp(end)
@@ -195,17 +208,57 @@ def month_chunks(start, end):
     return out
 
 
+def chunk_is_final(start, end, today=None):
+    """
+    True when a cached chunk [start, end) can be trusted without re-fetching.
+
+    A chunk that reaches into the current month, or ends within the last
+    FRESH_CHUNK_DAYS days, is never final: its newest intervals may still be
+    filled in or corrected upstream. "Today" is the UTC date, the same clock
+    main() uses to pick the fetch window.
+    """
+    today = today or datetime.now(timezone.utc).date()
+    end_day = date.fromisoformat(str(end)[:10])
+    covers_current_month = end_day > today.replace(day=1)
+    ends_recently = end_day >= today - timedelta(days=FRESH_CHUNK_DAYS)
+    return not (covers_current_month or ends_recently)
+
+
+def store_chunk(cache_path, payload):
+    """
+    Write fresh bytes for a chunk, keeping any different earlier version.
+
+    Metric files cite chunk filenames in sourceFiles, and a reading already
+    published onchain carries a hash of the bytes that were there then.
+    Overwriting them would leave that hash unreproducible, so a changed chunk
+    moves its old bytes to data/raw/superseded/ first. Identical bytes are
+    left alone.
+    """
+    if cache_path.exists():
+        old = cache_path.read_bytes()
+        if old == payload.encode():
+            return
+        SUPERSEDED_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        archived = SUPERSEDED_DIR / f"{cache_path.stem}__{stamp}.json"
+        cache_path.rename(archived)
+        print(f"    changed upstream; previous bytes kept in {archived}")
+    cache_path.write_text(payload)
+
+
 def fetch_chunk(client, dataset, start, end, location=None):
     """Fetch one chunk, cache the raw bytes, return (DataFrame, path)."""
+    global rows_fetched
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     slug = f"{dataset}__{location or 'all'}__{start}__{end}"
     cache_path = RAW_DIR / f"{slug}.json"
 
-    if cache_path.exists():
+    if cache_path.exists() and chunk_is_final(start, end):
         print(f"    cached   {start} -> {end}")
         return pd.read_json(cache_path.open(), orient="records"), cache_path
 
-    print(f"    fetching {start} -> {end} ...")
+    verb = "refetch " if cache_path.exists() else "fetching"
+    print(f"    {verb} {start} -> {end} ...")
     # timezone=CENTRAL makes start/end mean Central-time midnights, so a "day"
     # of data is a real ERCOT market day rather than a UTC day that straddles
     # two of them.
@@ -216,8 +269,9 @@ def fetch_chunk(client, dataset, start, end, location=None):
 
     df = client.get_dataset(**kwargs)
     time.sleep(RATE_LIMIT_SLEEP)
+    rows_fetched += len(df)
 
-    cache_path.write_text(df.to_json(orient="records", date_format="iso"))
+    store_chunk(cache_path, df.to_json(orient="records", date_format="iso"))
     return df, cache_path
 
 
@@ -530,8 +584,18 @@ def fuel_shares(df):
 # WRITE
 # --------------------------------------------------------------------------
 
+def published_readings():
+    """{"<metricId>:<dayKey>": ledger entry} for readings already submitted
+    onchain, from publish.py's ledger. Empty when nothing is published."""
+    if not PUBLISH_LEDGER.exists():
+        return {}
+    ledger = json.loads(PUBLISH_LEDGER.read_text(encoding="utf-8"))
+    return {key: entry for key, entry in ledger.items()
+            if isinstance(entry, dict) and entry.get("txHash")}
+
+
 def write_metric(metric_id, day, value, source_hash, source_files,
-                  start_utc, end_utc, extra=None):
+                  start_utc, end_utc, extra=None, published=None):
     """
     One JSON file per metric per day. This is exactly what publish.py will
     later hand to the oracle contract.
@@ -547,7 +611,21 @@ def write_metric(metric_id, day, value, source_hash, source_files,
     otherwise. A field that looks like an instant but is actually a day
     identifier is exactly the trap dayKey replaces; keeping the old names
     around "for compatibility" would just give it a second way back in.
+
+    A reading already published onchain (`published`, from
+    published_readings) is never rewritten. A later run over a different
+    date range hashes a different set of chunks, so rewriting it would
+    change its sourceHash and the feed would report a MISMATCH against the
+    chain. If the recomputed value differs from the published one, that is
+    printed as a warning, not written. Returns None when nothing was written.
     """
+    path = METRICS_DIR / f"{metric_id}__{day}.json"
+    entry = (published or {}).get(f"{metric_id}:{day_key(day)}")
+    if entry is not None and path.exists():
+        if int(entry.get("value", value)) != value:
+            print(f"  WARNING {metric_id} {day}: recomputed {value}, published "
+                  f"{entry['value']} - published file kept unchanged")
+        return None
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
     record = {
         "metricId": metric_id,
@@ -563,7 +641,6 @@ def write_metric(metric_id, day, value, source_hash, source_files,
     }
     if extra:
         record.update(extra)
-    path = METRICS_DIR / f"{metric_id}__{day}.json"
     path.write_text(json.dumps(record, indent=2))
     return path
 
@@ -590,13 +667,19 @@ def main():
     print(f"GRIDFLEX pipeline: {start} to {end}\n")
     client = get_client()
 
+    # Readings already onchain keep their committed file - see write_metric.
+    published = published_readings()
+
+    def write(*args, **kwargs):
+        return write_metric(*args, published=published, **kwargs)
+
     # ---- day-ahead price ------------------------------------------------
     print("Day-ahead prices, HB_NORTH")
     df_da, hash_da, files_da = fetch(
         client, DAY_AHEAD["dataset"], start, end,
         location=DAY_AHEAD["location"])
     for day, result in day_ahead_average(df_da).items():
-        write_metric(DAY_AHEAD["metric_id"], day, result["value"],
+        write(DAY_AHEAD["metric_id"], day, result["value"],
                      hash_da, files_da, result["start_utc"], result["end_utc"],
                      {"hoursUsed": result["hours_used"]})
         print(f"  {day}  ${result['value'] / 100:8.2f}/MWh"
@@ -616,7 +699,7 @@ def main():
     basis_files = files_w + files_da
 
     for day, result in basis_spread(df_west, df_da).items():
-        write_metric(BASIS["metric_id"], day, result["value"],
+        write(BASIS["metric_id"], day, result["value"],
                      basis_hash, basis_files,
                      result["start_utc"], result["end_utc"],
                      {"westAvg": round(result["west"], 2),
@@ -630,7 +713,7 @@ def main():
         client, REAL_TIME["dataset"], start, end,
         location=REAL_TIME["location"])
     for day, result in negative_intervals(df_rt).items():
-        write_metric(REAL_TIME["metric_id"], day, result["value"],
+        write(REAL_TIME["metric_id"], day, result["value"],
                      hash_rt, files_rt, result["start_utc"], result["end_utc"],
                      {"intervalsUsed": result["intervals_used"]})
         print(f"  {day}  {result['value']:3d} negative"
@@ -657,7 +740,7 @@ def main():
         index_hash = hashlib.sha256("".join(hashes).encode()).hexdigest()
 
         for day, result in load_weighted_index(price_frames, df_load).items():
-            write_metric(INDEX["metric_id"], day, result["value"],
+            write(INDEX["metric_id"], day, result["value"],
                          index_hash, files,
                          result["start_utc"], result["end_utc"],
                          {"hoursUsed": result["hours"],
@@ -674,14 +757,15 @@ def main():
         for day, result in fuel_shares(df_fm).items():
             shares = result["shares"]
             for fuel, share in shares.items():
-                write_metric(FUEL_MIX["metric_prefix"] + fuel, day, share,
+                write(FUEL_MIX["metric_prefix"] + fuel, day, share,
                              hash_fm, files_fm,
                              result["start_utc"], result["end_utc"])
             top = sorted(shares.items(), key=lambda kv: -kv[1])[:3]
             summary = "  ".join(f"{f} {v / 100:.1f}%" for f, v in top)
             print(f"  {day}  {summary}")
 
-    print(f"\nWrote metric files to {METRICS_DIR}/")
+    print(f"\nGridStatus rows fetched this run: {rows_fetched:,}")
+    print(f"Wrote metric files to {METRICS_DIR}/")
     print(f"Raw responses cached in {RAW_DIR}/ (gitignore this folder)")
 
 

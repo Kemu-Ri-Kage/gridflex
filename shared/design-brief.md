@@ -175,7 +175,33 @@ still present, just demoted to small mono type.
   copy rule.
 - **Never "real money."** State plainly: this is **X Layer testnet**,
   settled in **MockUSDT**. Say the chain and the collateral by name rather
-  than reaching for a euphemism in either direction.
+  than reaching for a euphemism in either direction — once per page, per
+  the copy budget below.
+
+### Copy budget
+
+Every sentence tells the reader something they need and don't already
+know. Cut repetition, the obvious, and anything written to sound
+impressive.
+
+- **Each fact once per page.** If the header, hero, or instrument bar has
+  already said it, nothing below repeats it.
+- **The one required disclaimer.** "X Layer testnet" and "MockUSDT" appear
+  exactly once per page, together, as one small line. No other disclaimer
+  line, banner, or footnote.
+- **No event branding.** No "OKX Dev Day 2026", no hackathon name, no track
+  name, no "built for…" line.
+- **No defensive negations.** State what the product is, never what it
+  isn't — "Cash-settled in MockUSDT", not "No electricity is delivered."
+  The "never tokenised energy" rule above is met by describing the product
+  accurately, not by denying the wrong description on the page.
+- **Landing page (`/`):** hero headline 10 words or fewer; one supporting
+  line of 20 words or fewer; each section introduced in at most one
+  sentence; no paragraph over two sentences.
+- **Terminal (`/trade`):** labels and numbers only. Only empty states and
+  errors may be sentences — one short sentence each.
+- **Where a label can replace a sentence, use the label.** `Strike $30.00`,
+  not "The strike for this market is $30."
 
 ---
 
@@ -392,7 +418,7 @@ only when every item is a pass.
     never shown with a dollar sign.
 14. The word "tokenised" never appears describing GRIDFLEX's product.
 15. The phrase "real money" never appears; the page states X Layer testnet
-    and MockUSDT by name wherever settlement or value is discussed.
+    and MockUSDT by name, exactly once, as one small line (§5 copy budget).
 16. No empty/loading state is silently blank or spinner-forever — every
     such state has honest copy explaining why there's nothing to show.
 17. A market is shown as "settled" only if a deployed `BinaryMarket`'s
@@ -426,6 +452,21 @@ only when every item is a pass.
 29. Nothing on either page loops or moves on its own while idle (§13).
 30. No component on either page shows a default/stock library look — every
     shadcn or library component is restyled to this brief (§2).
+31. Every sentence tells the reader something they need and don't already
+    know — nothing repeated, obvious, or written to impress (§5 copy
+    budget).
+32. No fact is stated twice on the page.
+33. "X Layer testnet" and "MockUSDT" each appear exactly once, in the same
+    single small line; no other disclaimer exists on the page.
+34. No event branding — "OKX Dev Day 2026" or any hackathon, track, or
+    "built for" line — appears anywhere.
+35. No defensive negation — no sentence says what GRIDFLEX isn't or doesn't
+    do.
+36. Landing page: hero headline ≤ 10 words; one supporting line ≤ 20
+    words; each section intro ≤ 1 sentence; no paragraph > 2 sentences.
+37. Terminal: every string is a label or a number, except empty states and
+    errors, which are one short sentence each.
+38. No sentence remains where a label would carry the same information.
 
 ---
 

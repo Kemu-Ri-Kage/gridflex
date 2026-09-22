@@ -75,6 +75,9 @@ FIVE_MIN_DATASET = "ercot_lmp_by_settlement_point"
 FIVE_MIN_PRICE_COLUMN = "lmp"
 FIVE_MIN_DEFAULT_DAYS = 90
 
+# First day of 15-minute settlement data, matching the earliest cached chunk.
+DEFAULT_START = "2025-09-10"
+
 # The site's chart shows HB_NORTH only (design-brief.md §9: no hub switcher).
 LOCATIONS = ["HB_NORTH"]
 WEST_HUB = "HB_WEST"
@@ -180,9 +183,22 @@ def five_min_window_start(end_date: date, days: int) -> str:
     return str(start)
 
 
+def fetch_windows(end_date: date, start: str = DEFAULT_START, days: int | None = None,
+                  five_min_days: int = FIVE_MIN_DEFAULT_DAYS) -> dict:
+    """{dataset: (start, end)} one candle build reads, end exclusive. Shared
+    with refresh_budget.py, so the allowance check plans exactly the ranges
+    this builder fetches."""
+    end = str(end_date)
+    fifteen_start = str(end_date - timedelta(days=days)) if days else start
+    return {
+        FIVE_MIN_DATASET: (five_min_window_start(end_date, five_min_days), end),
+        DATASET: (fifteen_start, end),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--start", default="2025-09-10",
+    parser.add_argument("--start", default=DEFAULT_START,
                         help="15-min settlement data start date, matches the earliest cached chunk")
     parser.add_argument("--days", type=int, default=None,
                         help="override: fetch 15-min settlement data this many days back")
@@ -194,9 +210,9 @@ def main():
     locations = LOCATIONS + ([WEST_HUB] if args.west_hub else [])
 
     end_date = datetime.now(timezone.utc).date()
-    end = str(end_date)
-    start = str(end_date - timedelta(days=args.days)) if args.days else args.start
-    five_min_start = five_min_window_start(end_date, args.five_min_days)
+    windows = fetch_windows(end_date, args.start, args.days, args.five_min_days)
+    five_min_start, end = windows[FIVE_MIN_DATASET]
+    start, _ = windows[DATASET]
 
     print(f"GRIDFLEX candle builder @ {locations}")
     print(f"  {FIVE_MIN_DATASET} (15m, 1h): {five_min_start} -> {end}")

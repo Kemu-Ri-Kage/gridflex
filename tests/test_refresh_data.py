@@ -21,6 +21,12 @@ FAKE_PYTHON = """\
 #!/usr/bin/env bash
 echo "python $*" >> "$STUB_LOG"
 case "$1" in
+  refresh_budget.py)
+    if [[ -n "${STUB_BUDGET_REFUSE:-}" ]]; then
+      echo "Refusing to refresh: needs 3 requests, 0 left" >&2
+      exit 1
+    fi
+    ;;
   fetch_ercot.py) printf 'GridStatus requests this run: 1\nGridStatus rows fetched this run: 1,234\n' ;;
   build_candles.py) printf 'GridStatus requests this run: 2\nGridStatus rows fetched this run: 100\n' ;;
   build_feed_data.py)
@@ -154,10 +160,25 @@ class RefreshScriptTest(unittest.TestCase):
         self.refresh()
         steps = [c for c in self.calls() if c.startswith("python ")]
         self.assertEqual(steps, [
+            "python refresh_budget.py",
             "python fetch_ercot.py --days 3 --fill-gaps",
             "python build_candles.py",
             "python build_feed_data.py",
         ])
+
+    def test_no_room_in_the_allowance_stops_it_before_fetching(self):
+        before = self.git("rev-parse", "HEAD")
+        result = self.refresh(STUB_BUDGET_REFUSE="1")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Refusing to refresh", result.stderr)
+        self.assertEqual(self.calls(), ["python refresh_budget.py"])
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertEqual(self.remote_head(), before)
+
+    def test_no_fetch_skips_the_allowance_check(self):
+        result = self.refresh("--no-fetch", STUB_BUDGET_REFUSE="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("python refresh_budget.py", self.calls())
 
     def test_uncommitted_web_source_stops_it_before_fetching(self):
         (self.repo / "web/app.tsx").write_text("export const edited = 1;\n")

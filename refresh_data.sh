@@ -20,6 +20,11 @@
 # intervals, fuel mix) are not fetched; run fetch_ercot.py --feed-metrics or
 # build_candles.py --west-hub by hand if they are ever needed.
 #
+# Before any of that it runs refresh_budget.py: it plans the requests and
+# rows those three reads will cost from the raw cache, asks GridStatus's
+# get_api_usage() (one request) what is left of this period's allowance, and
+# stops here, fetching nothing, unless the whole refresh fits.
+#
 # Then feed data (build_feed_data.py), a commit of the regenerated data files
 # on the current branch, a push, `pnpm build`, and `wrangler deploy` of the
 # built worker. Prints the GridStatus requests and rows it used.
@@ -41,7 +46,7 @@ for arg in "$@"; do
     --no-deploy) deploy=0 ;;
     --no-fetch) fetch=0 ;;
     -h | --help)
-      sed -n '2,35p' "$0"
+      sed -n '2,39p' "$0"
       exit 0
       ;;
     *)
@@ -114,6 +119,13 @@ run_log="$(mktemp)"
 trap 'rm -f "$run_log"' EXIT
 
 if [[ "$fetch" == 1 ]]; then
+  echo "[0/6] Checking the GridStatus allowance"
+  if ! "$python_bin" refresh_budget.py; then
+    echo "Nothing fetched. Run with --no-fetch to rebuild from data/metrics without GridStatus." >&2
+    exit 1
+  fi
+
+  echo
   echo "[1/6] Fetching ERCOT prices"
   "$python_bin" fetch_ercot.py --days "$fetch_days" --fill-gaps | tee "$run_log"
 

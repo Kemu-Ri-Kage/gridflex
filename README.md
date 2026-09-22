@@ -65,9 +65,15 @@ To refresh everything the site shows and redeploy it in one go:
     ./refresh_data.sh              # fetch, rebuild feed + candles, build, deploy
     ./refresh_data.sh --no-deploy  # same, without the deploy
 
-It prints the GridStatus rows it used: about 3,100 per refresh (3 days of
-prices, about 790, plus 3 days of candle data, about 2,300), the same on
-any day of the month.
+A routine refresh is three GridStatus requests, one per dataset, and about
+1,300 rows (North Hub day-ahead prices for the last 3 days and today, about
+100; 15-minute prices for the last 3 days, about 300; 5-minute prices for
+the last 3 days, about 900), the same on any day of the month. Before
+fetching, `refresh_budget.py` plans that cost from the raw cache, asks
+GridStatus's `get_api_usage()` what is left of the month's allowance, and
+stops the refresh if it wouldn't fit. `python refresh_budget.py --plan`
+prints the plan without calling GridStatus. The script prints the requests
+and rows it actually used at the end.
 
 ## What it produces
 

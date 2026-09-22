@@ -2,9 +2,9 @@
 
 **Status: FROZEN as of 2026-09-11.**
 
-This is the frozen boundary between the Python data pipeline (this repo,
-owned by Platon) and the Solidity oracle + market contracts on X Layer
-testnet (`contracts/`, owned by David). Neither side changes this interface
+This is the frozen boundary between the Python data pipeline (this repo)
+and the Solidity oracle + market contracts on X Layer
+testnet (`contracts/`). Neither side changes this interface
 — field names, types, ordering, or the `metricId` hashes below — without
 telling the other first. If a change is needed, raise it, agree it, then
 bump the date at the top of this file.
@@ -173,7 +173,7 @@ function isFinal(bytes32 metricId, uint32 dayKey)
 `finalized`, which the oracle sets itself (`publishedAt = block.timestamp`
 at submission; `finalized` starts `false`). The five value-bearing
 arguments map 1:1 to the five corresponding JSON keys as in the table
-above — the publisher (whatever script/service calls this on David's side)
+above — the publisher (whatever script/service calls this on the contracts side)
 reads a metric JSON file and passes its `dayKey`, `marketDayStartUtc`,
 `marketDayEndUtc`, `value`, and `sourceHash` straight through, plus
 `metricId` computed as `keccak256(json["metricId"])`.
@@ -182,7 +182,7 @@ reads a metric JSON file and passes its `dayKey`, `marketDayStartUtc`,
 submitted and readable via `getReading` before it's finalized, but
 `isFinal` returns `false` until `finalize` is called. This interface
 doesn't prescribe *when* finalization happens (that's market/dispute-window
-design, David's side); it only fixes that submission and finalization are
+design, on the contracts side); it only fixes that submission and finalization are
 two distinct calls, not one.
 
 ---

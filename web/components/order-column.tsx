@@ -8,7 +8,7 @@ import { addresses } from '@/lib/contracts';
 import { useMarkets } from '@/lib/markets';
 
 /**
- * Right column. The order ticket (David's trade-panel.tsx) trades the one
+ * Right column. The order ticket (trade-panel.tsx) trades the one
  * market its environment is configured for, so it only appears when that
  * is the selected market - never beside a different market's name.
  */

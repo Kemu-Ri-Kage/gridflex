@@ -1,8 +1,8 @@
-# `trade-panel.tsx` — proposed copy changes (for David)
+# `trade-panel.tsx` — proposed copy changes
 
 These are proposals, not edits: `web/components/trade-panel.tsx` and
-`web/components/web3-provider.tsx` are David's files (design-brief.md §12)
-and haven't been touched. Each change brings the order ticket in line with
+`web/components/web3-provider.tsx` are outside this document's scope
+(design-brief.md §12) and haven't been touched. Each change brings the order ticket in line with
 the design brief's §5: the display dictionary (the public site sells one
 product, "Will Texas power cost more than $X on [date]?") and the copy
 budget (on `/trade`, every string is a label or a number; only empty states
@@ -20,7 +20,8 @@ swap toward a side. The proposal is two buttons, **Buy YES** and **Buy
 NO**, each taking one mUSDT amount and doing both steps: `mintSet(amount)`,
 then swap the unwanted side into the wanted one (the existing slippage
 guard and deadline unchanged). That is a behaviour change, not just a
-relabel, so it's David's call how to sequence the transactions; the labels
+relabel, so how to sequence the transactions is decided with the change to that
+file; the labels
 below assume it.
 
 ## Copy
@@ -75,7 +76,7 @@ NO <span className="ml-auto font-mono">{noPrice.toFixed(1)}¢ · {Math.round(noP
 
 ## How the page uses the ticket now
 
-`web/components/order-column.tsx` (not David's file) renders the ticket
+`web/components/order-column.tsx` (in scope for this document) renders the ticket
 only when `NEXT_PUBLIC_DEMO_MARKET_ADDRESS` is the market selected in the
 market list — the ticket trades that one address, so it must never sit
 beside a different market's name. The market list shows only Texas power

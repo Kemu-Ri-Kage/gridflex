@@ -88,7 +88,7 @@ What's genuinely different, each covered in its own section below:
 handoff artifact — the § in `publish-spec.md` that establishes it (§2.4)
 also establishes it can drift from truth. If discovery started from the
 ledger's `"confirmed"` entries, a reading the ledger never learned about
-(David's process crashed after sending but before committing the ledger; a
+(the publisher's process crashed after sending but before committing the ledger; a
 manual `submitReading` call outside `publish.py`; a stale `git pull` on the
 finalizer's machine) would be invisible to `finalize.py` even though it's
 sitting on-chain, eligible, waiting.
@@ -105,11 +105,11 @@ Instead:
 3. A reading whose `getReading()` returns `publishedAt == 0` (i.e. nothing
    on-chain at that key) is **not published** — skip it, log it, don't call
    `finalize()`. This is expected and common (most of the year's readings
-   won't be published until David runs the backfill) and is not a failure.
+   won't be published until the reporter-key holder runs the backfill) and is not a failure.
 
 Because `data/metrics/*.json` is git-committed (unlike `data/raw/`), this
 approach costs nothing to keep in sync — whoever runs `finalize.py` already
-has the same universe of candidate files David published from, independent
+has the same universe of candidate files the reporter-key holder published from, independent
 of whether the ledger hand-off happened cleanly.
 
 **Scope: all four in-scope metrics by default, not just the two contract
@@ -136,8 +136,8 @@ For every reading found published (§1) and not yet finalized:
 2. Compute `finalizableAt = publishedAt + disputeWindow` from the fresh
    `getReading()` result — **never from anything cached in the ledger**,
    per `publish-spec.md` §4.2 point 2, restated here because it's the core
-   correctness property of this whole step: hand-off lag between David
-   committing the ledger and the pipeline owner pulling it must not be able
+   correctness property of this whole step: hand-off lag between the reporter-key
+   holder committing the ledger and the pipeline owner pulling it must not be able
    to produce a wrong eligibility decision.
 3. If `now < finalizableAt`: **not yet eligible.** Print the reading's key
    and remaining time (e.g. `ERCOT_HBNORTH_DA_AVG 20260924: 18m remaining`),
@@ -221,7 +221,7 @@ value-mismatch failure (§3), then exits.
 operator exactly what's about to become permanent, not just a count — but
 the batch size varies enormously in practice. The demo-market runs the
 night before Singapore are ~6 readings; the *first* real `--live` run,
-roughly an hour after David's initial backfill (`publish-spec.md` §2.2,
+roughly an hour after the initial backfill (`publish-spec.md` §2.2,
 ~1,448 readings across the full year), will likely have on the order of
 ~1,448 readings eligible at once, since `disputeWindow` is the same 3600s
 for all of them.
@@ -412,7 +412,7 @@ no bypass flag.
   waiting for exactly this reason.
 - Automatically resubmitting or correcting a reading whose on-chain value
   doesn't match the local file (§3) — that's `publish.py`'s job, run by
-  David with the reporter key, which `finalize.py` never holds. `finalize.py`
+  the reporter-key holder, which `finalize.py` never holds. `finalize.py`
   only refuses to finalize the mismatch; it does not attempt to fix it.
 - Redeploying `GridOracle` with a different `disputeWindow` — immutable,
   out of scope here exactly as `publish-spec.md` §8 already states for

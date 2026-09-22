@@ -24,6 +24,12 @@ export const xLayerTestnet = defineChain({
       url: 'https://www.okx.com/web3/explorer/xlayer-test',
     },
   },
+  // Canonical Multicall3, verified deployed on chain 1952. blockCreated is
+  // omitted: the public RPC isn't an archive node, and it only matters for
+  // reads pinned to past blocks, which the app doesn't make.
+  contracts: {
+    multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
+  },
   testnet: true,
 });
 

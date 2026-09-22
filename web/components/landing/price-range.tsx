@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import {
   CartesianGrid,
   Line,
@@ -23,6 +24,16 @@ import { dayLabel } from '@/lib/markets';
 import { priceSummary } from '@/lib/price-summary';
 import { useCommittedRecords } from '@/lib/site-data';
 
+type View = '90d' | 'year';
+
+const VIEWS: { id: View; label: string }[] = [
+  { id: '90d', label: '90 days' },
+  { id: 'year', label: 'Full year' },
+];
+
+/** Published days shown in the default view. */
+const RECENT_DAYS = 90;
+
 const chartConfig = {
   value: { label: 'Texas power price ($/MWh)', color: 'var(--chart-1)' },
 } satisfies ChartConfig;
@@ -43,12 +54,15 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
 
 /**
  * The page's main chart: the daily Texas power price over time, with the
- * normal range shaded and the peak marked. Values are stated once, in the
- * stats above it - the chart shows shape, not a second copy of the numbers.
+ * normal range shaded. Defaults to the last 90 published days, where the
+ * normal range is legible; the full year shows the peak, marked. Values are
+ * stated once, in the stats above it - the chart shows shape, not a second
+ * copy of the numbers.
  */
-function PriceChart() {
-  const records = useCommittedRecords('ERCOT_HBNORTH_DA_AVG');
+function PriceChart({ view }: { view: View }) {
+  const allRecords = useCommittedRecords('ERCOT_HBNORTH_DA_AVG');
   const { low, high, peak } = priceSummary.range;
+  const records = view === '90d' ? allRecords?.slice(-RECENT_DAYS) : allRecords;
 
   if (!records) {
     return <p className="py-10 text-sm text-muted-foreground">Loading…</p>;
@@ -77,14 +91,16 @@ function PriceChart() {
         />
         <ChartTooltip content={<ChartTooltipContent labelKey="day" />} />
         <Line type="monotone" dataKey="value" stroke="var(--color-value)" strokeWidth={1.5} dot={false} />
-        <ReferenceDot
-          x={dayLabel(peak.dayKey, true)}
-          y={peak.value / 100}
-          r={3}
-          fill="var(--chart-1)"
-          stroke="var(--background)"
-          strokeWidth={1.5}
-        />
+        {records.some((record) => record.dayKey === peak.dayKey) && (
+          <ReferenceDot
+            x={dayLabel(peak.dayKey, true)}
+            y={peak.value / 100}
+            r={3}
+            fill="var(--chart-1)"
+            stroke="var(--background)"
+            strokeWidth={1.5}
+          />
+        )}
       </LineChart>
     </ChartContainer>
   );
@@ -92,6 +108,7 @@ function PriceChart() {
 
 export function PriceRange() {
   const { days, low, high, peak } = priceSummary.range;
+  const [view, setView] = React.useState<View>('90d');
 
   return (
     <section className="border-b border-border py-16 sm:py-24" id="prices">
@@ -115,10 +132,30 @@ export function PriceRange() {
             />
           </div>
           <div className="border border-border bg-card p-5">
-            <div className="mb-4 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              Texas power price · daily
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                Texas power price · daily
+              </div>
+              <div className="flex gap-1">
+                {VIEWS.map((v) => (
+                  <button
+                    aria-pressed={view === v.id}
+                    className={
+                      'border px-2.5 py-1 font-mono text-xs transition-colors duration-200 ' +
+                      (view === v.id
+                        ? 'border-foreground text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground')
+                    }
+                    key={v.id}
+                    onClick={() => setView(v.id)}
+                    type="button"
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <PriceChart />
+            <PriceChart view={view} />
           </div>
         </Reveal>
       </div>

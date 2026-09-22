@@ -264,15 +264,16 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
           ref={legendRef}
         />
       </div>
-      {/* Live market data, not an oracle reading: labelled unverified so it
-          never reads as the same trust level as a Verified price (§6). The
-          dataset and its hash stay in the candle file; the hub code and
-          dataset name are never shown (§5). */}
+      {/* Live market data, not an oracle reading: the caption says what
+          the markets actually settle on, so it never reads as the same
+          trust level as a Verified price (§6). The dataset and its hash
+          stay in the candle file; the hub code and dataset name are never
+          shown (§5). */}
       <div
         className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground"
         title={source ? `sha256 ${source.sourceHash}` : undefined}
       >
-        Live market data · real-time · unverified
+        Live prices, for reference · markets settle on the verified daily Texas power price
       </div>
     </div>
   );

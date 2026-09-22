@@ -185,8 +185,9 @@ reproduce the hash (they contain the dataset and hub codes).
 
 The Texas power price is a daily figure: the average of the day's 24
 hourly day-ahead prices. The terminal's candlestick chart shows the live
-real-time price, which is not the same number — it is captioned as live,
-unverified market data (§6), never as the Texas power price itself.
+real-time price, which is not the same number — its caption says so in
+one line: "Live prices, for reference · markets settle on the verified
+daily Texas power price" (§6).
 - **Units follow `shared/metrics.md` exactly, per metric** (only the
   first is shown on a public page — see the dictionary above):
   - `ERCOT_HBNORTH_DA_AVG` — USD/MWh, a price level. No `+` sign, ever
@@ -216,7 +217,10 @@ know. Cut repetition, the obvious, and anything written to sound
 impressive.
 
 - **Each fact once per page.** If the header, hero, or instrument bar has
-  already said it, nothing below repeats it.
+  already said it, nothing below repeats it. Rows in a data table are
+  exempt: a table lists every record, so a row may repeat a figure stated
+  elsewhere on the page (e.g. the Proof table's 8 Sep price also shown in
+  *How we verify*).
 - **The one required disclaimer.** "X Layer testnet" and "MockUSDT" appear
   exactly once per page, together, as one small line. No other disclaimer
   line, banner, or footnote. Contract names in the address footer
@@ -271,9 +275,10 @@ a worse failure mode here than almost any UI bug elsewhere in the product.
   `ercot_spp_real_time_15_min` prices, not yet submitted to the oracle) and
   the feed page's verified-readings table (a committed file plus a live
   `getReading()` check) are two different trust levels and must never be
-  presented as interchangeable. Caption the chart as live, unverified
-  market data rather than implying it carries the same on-chain-verified
-  status as a published price. The dataset name and its hash stay in the
+  presented as interchangeable. Caption the chart as live prices for
+  reference, and name what markets settle on instead — the verified daily
+  Texas power price — rather than implying the chart carries the same
+  on-chain-verified status as a published price. The dataset name and its hash stay in the
   candle file (and the caption's tooltip), not in visible copy — per the
   dictionary (§5), the hub code is never shown.
 
@@ -302,8 +307,10 @@ thousand homes use in an hour) — the only place it's explained. Two
 stats: the normal range (the middle 80% of published days, 10th to 90th
 percentile) and the exception — **26 January 2026, $694.03/MWh**, about
 **25×** the median day. Below them, the page's main chart: the daily
-Texas power price over time, the normal range shaded, the peak marked.
-Each number appears once, in the stats — the chart shows shape.
+Texas power price over time, the normal range shaded. It defaults to the
+last 90 published days, where the normal range is legible, with a toggle
+to the full year, which shows the 26 January peak, marked. Each number
+appears once, in the stats — the chart shows shape.
 
 **02 / How we verify — the page's centrepiece, and its most carefully
 made element, and the one place ERCOT is named.** An interactive
@@ -520,7 +527,8 @@ only when every item is a pass.
 33. Every sentence tells the reader something they need and don't already
     know — nothing repeated, obvious, or written to impress (§5 copy
     budget).
-34. No fact is stated twice on the page.
+34. No fact is stated twice on the page, outside rows of a data table
+    (§5 copy budget).
 35. "X Layer testnet" and "MockUSDT" each appear exactly once, in the same
     single small line; no other disclaimer exists on the page. The address
     footer's contract names are data and don't count (§5).

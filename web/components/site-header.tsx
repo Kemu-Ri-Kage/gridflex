@@ -24,23 +24,26 @@ export function LandingHeader() {
         <Wordmark />
         <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">
           <a
-            className="text-sm text-muted-foreground hover:text-foreground"
-            href="#problem"
+            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
+            href="#prices"
           >
-            Problem
+            Prices
           </a>
           <a
-            className="text-sm text-muted-foreground hover:text-foreground"
-            href="#how-it-works"
+            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
+            href="#how-we-verify"
           >
-            How it works
+            How we verify
           </a>
-          <a className="text-sm text-muted-foreground hover:text-foreground" href="#feed">
-            Feed
+          <a
+            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
+            href="#proof"
+          >
+            Proof
           </a>
         </nav>
         <Link
-          className="border border-foreground px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-foreground hover:bg-foreground hover:text-background"
+          className="border border-foreground px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-foreground transition-colors duration-200 hover:bg-foreground hover:text-background"
           href="/trade"
         >
           Open terminal
@@ -65,17 +68,23 @@ export function TerminalHeader() {
             </Link>
             <Link
               className="px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-              href="/#feed"
+              href="/#proof"
             >
-              Feed
+              Proof
             </Link>
             <span className="px-3 py-2 text-sm text-foreground">Trade</span>
           </nav>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge className="hidden gap-1.5 sm:inline-flex" variant="outline">
+        {/* The page's one disclaimer line (design-brief.md §5) wraps rather
+            than shortens on narrow screens - both names must stay, and a
+            nowrap badge beside the wallet button overflows at 390px. */}
+        <div className="flex min-w-0 items-center gap-3">
+          <Badge
+            className="h-auto min-w-0 shrink gap-1.5 rounded-[2px] whitespace-normal leading-tight sm:h-5 sm:whitespace-nowrap"
+            variant="outline"
+          >
             <span className="size-1.5 rounded-full bg-up" />
-            X Layer testnet
+            X Layer testnet · MockUSDT
           </Badge>
           <WalletButton />
         </div>

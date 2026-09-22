@@ -2539,5 +2539,96 @@
     "sourceHash": "75999d0173983de904ad23e09e4b2de1536fa0929e23ae4700359d53593913c4",
     "txHash": null,
     "value": 4518
+  },
+  {
+    "dayKey": 20260910,
+    "marketDay": "2026-09-10",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 4502
+  },
+  {
+    "dayKey": 20260911,
+    "marketDay": "2026-09-11",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 3335
+  },
+  {
+    "dayKey": 20260912,
+    "marketDay": "2026-09-12",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 2856
+  },
+  {
+    "dayKey": 20260913,
+    "marketDay": "2026-09-13",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 2985
+  },
+  {
+    "dayKey": 20260914,
+    "marketDay": "2026-09-14",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 2831
+  },
+  {
+    "dayKey": 20260915,
+    "marketDay": "2026-09-15",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 3004
+  },
+  {
+    "dayKey": 20260916,
+    "marketDay": "2026-09-16",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 3976
+  },
+  {
+    "dayKey": 20260917,
+    "marketDay": "2026-09-17",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 4293
+  },
+  {
+    "dayKey": 20260918,
+    "marketDay": "2026-09-18",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 4410
+  },
+  {
+    "dayKey": 20260919,
+    "marketDay": "2026-09-19",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 4378
+  },
+  {
+    "dayKey": 20260920,
+    "marketDay": "2026-09-20",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 5037
+  },
+  {
+    "dayKey": 20260921,
+    "marketDay": "2026-09-21",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 5524
+  },
+  {
+    "dayKey": 20260922,
+    "marketDay": "2026-09-22",
+    "sourceHash": "76517022524fe5ca1a8178f64984a3754b29826f6234452eb930f708d3dbcbba",
+    "txHash": null,
+    "value": 4648
   }
 ]

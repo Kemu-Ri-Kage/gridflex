@@ -73,7 +73,7 @@ The next end-to-end milestone is to:
 2. create and seed a past-day market through `CreateDemoMarket.s.sol`;
 3. execute the complete mint, swap, resolve, and redeem lifecycle;
 4. record every public transaction hash;
-5. configure the market addresses in `web/.env.local` and verify the live UI.
+5. run `build_feed_data.py` so `web/public/data/addresses.json` lists the market, and verify the live UI.
 
 Detailed operator commands are in `shared/deployment.md`,
 `shared/publish-spec.md`, and `shared/finalize-spec.md`.

@@ -146,18 +146,50 @@ still present, just demoted to small mono type.
 - **YES price and NO price, in cents** (`67.3¢`), never "liquidity", never
   "reserve" in primary UI. Pool depth / reserves are real numbers that
   belong in a details panel, not the primary quote.
-- **Instruments are named in words.** Pattern: `"North Hub above $30 · 8
-  Sep"`, with one line underneath stating what it pays and when — e.g.
-  "Pays $1 per contract if ERCOT North Hub's day-ahead average settles
-  above $30/MWh on 8 Sep 2026." The metricId (`ERCOT_HBNORTH_DA_AVG`)
-  appears only as small mono secondary detail near the instrument name —
-  never as the primary label a trader reads first. See
-  `web/lib/market-copy.ts` for the canonical shape.
-- **Binary markets are called digital options.** A strike, a YES/NO payoff,
-  cash settlement — that's an option, and the copy says so. Any dated,
-  linear-payoff product is a **dated future**, never called an "option."
-  Don't blur the two terms across the product.
-- **Units follow `shared/metrics.md` exactly, per metric:**
+- **One product, asked as a question.** The public site sells exactly one
+  thing: "Will Texas power cost more than $X on [date]?" Every listed
+  market is named that way — `"Will Texas power cost more than $30 on 8
+  Sep?"` — with one line underneath stating what it pays and when: "Pays
+  1 mUSDT per YES if the Texas power price for 8 Sep 2026 settles above
+  $30.00/MWh." The name, strike, day and pay line are built from the
+  contract's own reads (§6) — see `marketName()`/`payLine()` in
+  `web/lib/markets.tsx`. Only Texas power price markets are listed; a
+  market on any other metric exists on chain but never appears on a
+  public page.
+
+### Dictionary
+
+Display words on public pages (`/` and `/trade`). These are display words
+only — metric IDs, contract names, function names and events stay exactly
+as they are in code and on chain.
+
+| Internal term | On a public page |
+|---|---|
+| North Hub day-ahead average (`ERCOT_HBNORTH_DA_AVG`) | **Texas power price** |
+| ERCOT | Only in the landing page's *How we verify* section, as "ERCOT, Texas's official grid price" |
+| $/MWh | Kept as the unit on every figure; explained once on the landing page as roughly what a thousand homes use in an hour |
+| Digital option, binary market, `BinaryMarket` | **YES/NO question** (the contract itself: "Contract") |
+| Mint set, swap | **Buy YES**, **Buy NO** |
+| `sourceHash`, verification | **Verified** |
+| `dayKey` | The date, e.g. `8 Sep 2026` |
+| Basis, hub, dispute window, finalize | **Never shown** |
+
+**Kept exactly as they are:** Strike, YES and NO price in cents, resolve,
+settle, redeem, oracle, MockUSDT, collateral, X Layer testnet.
+
+Two things are data, not words, and don't count as removed terms: contract
+names beside their addresses (the footer's `GridOracle`,
+`MarketFactory`, `MockUSDT`), and the source file names in *How we
+verify*, shown verbatim because they are the hash inputs anyone needs to
+reproduce the hash (they contain the dataset and hub codes).
+
+The Texas power price is a daily figure: the average of the day's 24
+hourly day-ahead prices. The terminal's candlestick chart shows the live
+real-time price, which is not the same number — its caption says so in
+one line: "Live prices, for reference · markets settle on the verified
+daily Texas power price" (§6).
+- **Units follow `shared/metrics.md` exactly, per metric** (only the
+  first is shown on a public page — see the dictionary above):
   - `ERCOT_HBNORTH_DA_AVG` — USD/MWh, a price level. No `+` sign, ever
     (e.g. `$39.57/MWh`).
   - `ERCOT_WEST_NORTH_DA_BASIS` — USD/MWh, a signed spread. `+` shown only
@@ -175,7 +207,38 @@ still present, just demoted to small mono type.
   copy rule.
 - **Never "real money."** State plainly: this is **X Layer testnet**,
   settled in **MockUSDT**. Say the chain and the collateral by name rather
-  than reaching for a euphemism in either direction.
+  than reaching for a euphemism in either direction — once per page, per
+  the copy budget below.
+
+### Copy budget
+
+Every sentence tells the reader something they need and don't already
+know. Cut repetition, the obvious, and anything written to sound
+impressive.
+
+- **Each fact once per page.** If the header, hero, or instrument bar has
+  already said it, nothing below repeats it. Rows in a data table are
+  exempt: a table lists every record, so a row may repeat a figure stated
+  elsewhere on the page (e.g. the Proof table's 8 Sep price also shown in
+  *How we verify*).
+- **The one required disclaimer.** "X Layer testnet" and "MockUSDT" appear
+  exactly once per page, together, as one small line. No other disclaimer
+  line, banner, or footnote. Contract names in the address footer
+  (`GridOracle`, `MarketFactory`, `MockUSDT` beside their addresses) are
+  data, not disclaimers, and don't count toward this rule.
+- **No event branding.** No "OKX Dev Day 2026", no hackathon name, no track
+  name, no "built for…" line.
+- **No defensive negations.** State what the product is, never what it
+  isn't — "Cash-settled in MockUSDT", not "No electricity is delivered."
+  The "never tokenised energy" rule above is met by describing the product
+  accurately, not by denying the wrong description on the page.
+- **Landing page (`/`):** hero headline 10 words or fewer; one supporting
+  line of 20 words or fewer; each section introduced in at most one
+  sentence; no paragraph over two sentences.
+- **Terminal (`/trade`):** labels and numbers only. Only empty states and
+  errors may be sentences — one short sentence each.
+- **Where a label can replace a sentence, use the label.** `Strike $30.00`,
+  not "The strike for this market is $30."
 
 ---
 
@@ -187,26 +250,37 @@ a worse failure mode here than almost any UI bug elsewhere in the product.
 - **No illustrative or placeholder data, anywhere** — not a skeleton chart
   with fake candles, not a sample order book, not lorem-ipsum copy staged
   as if it were live. If data doesn't exist yet, **show an honest empty
-  state that says so** — e.g. "No trade history yet — this market is in
-  demo mode with no `BinaryMarket` deployed," not a spinner that never
-  resolves or a table quietly populated with invented rows.
-- **A market shows as settled only if a `BinaryMarket` for it is actually
-  deployed on chain and `resolved()`/`yesWon()` say so.** Until then —
-  even for a dayKey whose oracle reading is already published and
-  obviously past — the UI shows the oracle reading directly, stated as a
-  fact about the reading, never as a market outcome. Correct: "North Hub
-  settled at $39.57/MWh, above the $30 strike." Wrong: "SETTLED · YES" —
-  that implies a market resolved a claim that, right now, no deployed
-  contract has actually made. See `web/components/settlement-panel.tsx`
-  for the canonical wording.
+  state that says so** in one short sentence — e.g. "No trades yet." —
+  not a spinner that never resolves or a table quietly populated with
+  invented rows.
+- **Every contract fact is read from the chain, never typed into copy.** A
+  market's name, strike, day, status, outcome, prices and trades come from
+  its `BinaryMarket`'s own reads and events (`web/lib/markets.tsx`); the
+  only non-chain input is the list of market addresses published from
+  `shared/addresses.json`. For each market day, one of three states:
+  - **No `BinaryMarket` exists** — show the oracle reading directly, as a
+    fact about the reading, never as a market outcome: "Texas power price settled
+    at $39.57/MWh." No strike is stated — without a contract there isn't
+    one.
+  - **A `BinaryMarket` exists but hasn't resolved** — trading until
+    `resolveAfter`, then **awaiting resolution**. The reading may be shown
+    with the contract's strike ("…, above the $30 strike."), but never as
+    an outcome.
+  - **`resolved()` is true** — show the outcome from `yesWon()`:
+    "Resolved · YES". `cancelled()` shows as cancelled.
+  Wrong in every state: "SETTLED · YES" before `resolved()` says so, or any
+  line asserting that no market is deployed.
 - **Live ERCOT prices are labelled market data, visually and textually
   distinct from on-chain verified readings.** The candlestick chart (real
   `ercot_spp_real_time_15_min` prices, not yet submitted to the oracle) and
   the feed page's verified-readings table (a committed file plus a live
   `getReading()` check) are two different trust levels and must never be
-  presented as interchangeable. Caption the chart's data source explicitly
-  (dataset name, hub) rather than implying it carries the same
-  on-chain-verified status as a published reading.
+  presented as interchangeable. Caption the chart as live prices for
+  reference, and name what markets settle on instead — the verified daily
+  Texas power price — rather than implying the chart carries the same
+  on-chain-verified status as a published price. The dataset name and its hash stay in the
+  candle file (and the caption's tooltip), not in visible copy — per the
+  dictionary (§5), the hub code is never shown.
 
 ---
 
@@ -216,40 +290,53 @@ Header: wordmark top-left (see §2), a minimal nav, and an "Open terminal"
 button — no wallet button on this page; connecting a wallet is a terminal
 action, not a marketing-page one.
 
-**Hero.** States the product's category in plain, confident words — not a
-slogan (see §2's banned-headline rule). One supporting line. The testnet is
-stated in the hero itself, not buried in a footnote (see §5, §6).
+**Hero — opens with the daily swing.** The headline states, plainly, the
+cheapest and dearest hour of the latest day in the data ("Texas power
+cost $21.68 at 9am and $105.52 at 7pm."), with a small mono line giving
+the date, Central time and the unit. One supporting line states the
+product: trade YES or NO on whether Texas power will cost more than the
+strike on a given day. The numbers come from `build_feed_data.py`'s
+`write_price_summary()` (`web/public/data/price-summary.json`), computed
+from the exact hashed source files of the latest published daily price,
+held to the same 24-hour completeness check, and cross-checked against
+that day's published value. The page's one disclaimer line (X Layer
+testnet · MockUSDT, §5) is the hero eyebrow, not a footnote.
 
-**01 / Problem.** Power prices are the most volatile in the world, and the
-data behind settlement is unverifiable. Cite the real spike: **26 January
-2026, $694.03/MWh** at HB_NORTH day-ahead — a real number from
-`data/metrics/`, not a hypothetical. This is the evidence, not an
-illustration of the evidence.
+**01 / Normal range.** One sentence explains $/MWh (roughly what a
+thousand homes use in an hour) — the only place it's explained. Two
+stats: the normal range (the middle 80% of published days, 10th to 90th
+percentile) and the exception — **26 January 2026, $694.03/MWh**, about
+**25×** the median day. Below them, the page's main chart: the daily
+Texas power price over time, the normal range shaded. It defaults to the
+last 90 published days, where the normal range is legible, with a toggle
+to the full year, which shows the 26 January peak, marked. Each number
+appears once, in the stats — the chart shows shape.
 
-**02 / How it works — the page's centrepiece, and its most carefully made
-element.** An interactive four-stage diagram:
+**02 / How we verify — the page's centrepiece, and its most carefully
+made element, and the one place ERCOT is named.** An interactive
+four-stage diagram:
 
-1. **Source** — ERCOT market data via GridStatus.
-2. **Compute** — the pipeline builds the daily metric and SHA-256-hashes
-   the raw inputs.
-3. **Publish** — the reading is written to `GridOracle` on X Layer.
-4. **Settle** — digital options and dated futures resolve against the
-   finalized reading.
+1. **Source** — ERCOT, Texas's official grid price, via GridStatus.
+2. **Compute** — the average of 24 hourly prices, SHA-256-hashed with its
+   inputs.
+3. **Publish** — the price is written to the oracle on X Layer.
+4. **Settle** — YES/NO questions settle against the published price.
 
 Each stage shows **real evidence** on hover or tap — never illustrative
 placeholder content (§6): a real source filename from `sourceFiles`, the
-real `sourceHash`, the real `GridOracle` address with a real transaction
+real SHA-256 source hash, the real `GridOracle` address with a real transaction
 link to the X Layer explorer, and a real published reading. See
 `web/components/landing/data-path-diagram.tsx` for the canonical
 implementation and its data sources (`web/public/data/evidence-demo-day.json`,
 `web/public/data/addresses.json`, `/data/ERCOT_HBNORTH_DA_AVG.json`).
 
-**03 / Proof.** A handful of real verified readings, each showing its
-verification state (§4's MISMATCH rule applies here too), plus a link to
-the full feed.
+**03 / Proof.** Every published Texas power price — date, price, its live
+Verified state (§4's MISMATCH rule applies here too) and its oracle
+transaction.
 
 **04 / Open terminal.** The call to action, restated once, not repeated
-elsewhere on the page.
+elsewhere on the page. It names the listed YES/NO questions from chain
+state (§6).
 
 **Spacing, type scale, and rhythm — DAQ's standard, given concrete
 numbers** (derived from studying daqconsulting.com, not copied from it —
@@ -281,14 +368,19 @@ string is either a number, a label, or an honest status.
 - **Top:** instrument bar — plain-English name, current underlying price,
   strike, settlement date, status. See §5 for naming, §6 for the
   settled-state rule.
-- **Left:** market selector. **No compatible `BinaryMarket` is deployed yet.**
-  The trade-safe `MarketFactory` is deployed, but until a
-  market actually exists on chain, the selector shows an honest empty
-  state (§6) explaining that, never a dropdown padded with placeholders or
-  a list implying markets exist that don't.
-- **Centre:** the chart (§9).
-- **Right:** order ticket (`trade-panel.tsx` — see §12).
-- **Bottom:** tabs — positions, history, settlement.
+- **Left:** market selector — every listed Texas power price question,
+  named and labelled from its own contract state (§5, §6). With none
+  listed, an honest empty state; never a list padded with placeholders.
+- **Centre:** the chart (§9), with the selected question's strike line.
+- **Right:** a compact settlement summary (labels and numbers the
+  instrument bar doesn't already show), plus the order ticket
+  (`trade-panel.tsx` — see §12) when the ticket is configured for the
+  selected market.
+- **Bottom:** tabs — positions (the connected wallet's mUSDT, YES and NO
+  balances for the selected market), history (the market's real trades,
+  from its `Swapped` events, shown as Buy YES / Buy NO, or "No trades
+  yet."), settlement (the full on-chain evidence).
+  The summary and the evidence are never the same panel shown twice.
 
 Dense, per Interactive Brokers / Trading 212 (§3): compact rows, numbers
 aligned, no element sized for visual effect rather than legibility.
@@ -306,16 +398,13 @@ data (§6).
   body, wick, and border all use the same up/down pair, no separate chart
   palette for candles.
 - **Timeframe row:** `15m`, `1H`, `4H`, `1D`, `1W`, in that order.
-- **Hub switcher:** `HB_NORTH`, `HB_WEST`.
+- **No hub switcher.** The chart shows the Texas power price's hub only;
+  hubs are never shown (§5).
 - **OHLC legend, top-left**, updating live as the crosshair moves: open,
   high, low, close for the hovered bar, in tabular mono type, coloured by
   that bar's up/down state.
 - **Price scale on the right.**
 - **Crosshair** enabled, both axes.
-- **An emphasised zero line** where zero is meaningful (the basis chart) —
-  a heavier stroke than the ordinary grid, per the existing
-  `shared/feed-spec.md` §5 rule: "visually emphasized (not just an axis
-  gridline) — crossing it is the story."
 - **The strike as a labelled horizontal line** on the chart, in `--warning`,
   dashed, with its dollar value in the axis label.
 - **Neutral dark theme**: chart background transparent over `--background`,
@@ -368,8 +457,8 @@ only when every item is a pass.
 1. No banned visual pattern from §2 is present anywhere on the page.
 2. No logo — the wordmark is text-only, everywhere it appears.
 3. No word appears that a finance student wouldn't understand on first
-   read (no unexplained "reserve", "liquidity" as a primary label, raw
-   metricId as a primary label, etc. — see §5).
+   read (no unexplained "reserve", "liquidity" as a primary label, no
+   metricId anywhere, etc. — see §5).
 4. Every number on the page is real — sourced from a committed file, a
    live chain read, or a live ERCOT fetch — never illustrative, sample, or
    placeholder data (§6).
@@ -383,29 +472,29 @@ only when every item is a pass.
 9. "Strike" is used, never "Threshold."
 10. YES/NO are quoted in cents as the primary figure; reserves/pool depth
     only appear in a details panel, never as the headline number.
-11. Every instrument is named in words first, with the metricId present
-    only as small secondary mono detail.
-12. Binary markets are called digital options; any dated/linear product is
-    called a dated future — the two terms are never interchanged.
+11. Every listed market is named as the question "Will Texas power cost
+    more than $X on [date]?", and no metricId is shown.
+12. YES/NO questions are called YES/NO questions — never digital options
+    or binary markets (§5 dictionary).
 13. Units match `shared/metrics.md` per metric exactly, including that the
     `+` sign appears only on the basis spread and negative intervals are
     never shown with a dollar sign.
 14. The word "tokenised" never appears describing GRIDFLEX's product.
 15. The phrase "real money" never appears; the page states X Layer testnet
-    and MockUSDT by name wherever settlement or value is discussed.
+    and MockUSDT by name, exactly once, as one small line (§5 copy budget).
 16. No empty/loading state is silently blank or spinner-forever — every
     such state has honest copy explaining why there's nothing to show.
-17. A market is shown as "settled" only if a deployed `BinaryMarket`'s
-    on-chain `resolved()` says so; otherwise the oracle reading is shown
-    as a reading, not a market outcome.
+17. Every contract fact is read from chain, in one of §6's three states:
+    no `BinaryMarket` → the oracle reading only; unresolved → trading or
+    awaiting resolution; `resolved()` → the outcome from `yesWon()`. No
+    line claims that no market is deployed.
 18. Live ERCOT market-data (the chart) is visually/textually distinguished
     from on-chain verified readings (the feed table) — they are never
     presented as the same trust level.
 19. The chart shows Japanese candlesticks in `--up`/`--down`, a `15m 1H 4H
-    1D 1W` timeframe row, an `HB_NORTH`/`HB_WEST` hub switcher, a top-left
-    OHLC legend that updates with the crosshair, the price scale on the
-    right, a crosshair, and — where zero is meaningful — an emphasised
-    zero line.
+    1D 1W` timeframe row, no hub switcher, a top-left OHLC legend that
+    updates with the crosshair, the price scale on the right, and a
+    crosshair.
 20. The strike appears on the chart as a labelled horizontal line.
 21. Lightweight Charts' TradingView attribution mark is present, not
     removed.
@@ -416,8 +505,10 @@ only when every item is a pass.
     is a number, a label, or an honest status.
 24. Changes to `web/components/{trade-panel,wallet-button,web3-provider,
     market-live-data}.tsx` follow the integration ownership rule in §12.
-25. Landing-page motion animates only `transform` and `opacity` — nothing
-    else is animated (§13).
+25. Landing-page scroll-triggered reveals and the diagram's stage-to-stage
+    animation animate only `transform` and `opacity`; landing-page hover/
+    press micro-interactions may additionally animate `color` (text/
+    border only) — no other property, and no exception on `/trade` (§13).
 26. The terminal (`/trade`) has no decorative motion anywhere on it (§13).
 27. `prefers-reduced-motion` disables all animation and smooth scrolling
     completely, on both pages (§13).
@@ -426,6 +517,36 @@ only when every item is a pass.
 29. Nothing on either page loops or moves on its own while idle (§13).
 30. No component on either page shows a default/stock library look — every
     shadcn or library component is restyled to this brief (§2).
+31. Every interactive element on the landing page (buttons, links, the
+    nav, the diagram's stage tiles, feed table rows) has a 150–250ms
+    hover/press transition, and the diagram's active stage additionally
+    lifts subtly on hover (§13).
+32. The hero headline reveals word by word on load, once, using only
+    `transform`/`opacity` — it does not replay on scroll-back or resize
+    (§13).
+33. Every sentence tells the reader something they need and don't already
+    know — nothing repeated, obvious, or written to impress (§5 copy
+    budget).
+34. No fact is stated twice on the page, outside rows of a data table
+    (§5 copy budget).
+35. "X Layer testnet" and "MockUSDT" each appear exactly once, in the same
+    single small line; no other disclaimer exists on the page. The address
+    footer's contract names are data and don't count (§5).
+36. No event branding — "OKX Dev Day 2026" or any hackathon, track, or
+    "built for" line — appears anywhere.
+37. No defensive negation — no sentence says what GRIDFLEX isn't or doesn't
+    do.
+38. Landing page: hero headline ≤ 10 words; one supporting line ≤ 20
+    words; each section intro ≤ 1 sentence; no paragraph > 2 sentences.
+39. Terminal: every string is a label or a number, except empty states and
+    errors, which are one short sentence each.
+40. No sentence remains where a label would carry the same information.
+41. No removed term (§5 dictionary) appears on a public page: no "North
+    Hub", no "ERCOT" outside *How we verify*, no "digital option" or
+    "binary market", no "mint", "set" or "swap" as a trading term, no
+    "sourceHash", no "dayKey", no basis, hub, dispute window or finalize.
+    Contract names beside addresses and the verbatim source file names in
+    *How we verify* are data and don't count.
 
 ---
 
@@ -453,12 +574,27 @@ jobs (§1). See §14 for which libraries implement this and why.
 - Duration **400–700ms**, gentle easing (an ease-out curve — quick start,
   soft settle, no bounce, no overshoot).
 - Smooth momentum scrolling is on for this page.
-- Immediate, responsive feedback on hover and click — no perceptible delay
-  between a pointer action and the UI acknowledging it.
 - The four-stage diagram (§7) **animates between stages** when a stage is
   clicked or hovered, so the data visibly flows from Source to Settle —
   the transition itself is part of what teaches the reader the pipeline's
   shape, not just a state swap.
+- **Micro-interactions.** Every interactive element on the page — buttons,
+  links, the nav, the diagram's stage tiles, the feed table's rows —
+  responds to hover and press with a **150–250ms** transition, no
+  perceptible delay between the pointer action and the transition
+  starting. This is the one place on the landing page where the
+  transform/opacity-only rule above gets a narrow, deliberate exception:
+  a hover/press transition may animate `transform`, `opacity`, **or
+  `color`** (text or border colour only — never a background, a gradient,
+  a glow, or a box-shadow, all still banned by §2/§4). Scroll-triggered
+  reveals and the diagram's stage-to-stage animation are not part of this
+  exception and stay `transform`/`opacity`-only as specified above. The
+  diagram's active stage additionally lifts subtly on hover — a small
+  `translateY`, layered on top of its existing highlight, never a shadow.
+- **Hero headline reveal.** The hero headline reveals word by word on
+  load — `transform`/`opacity` only, per the rule above, since this is an
+  entrance sequence rather than a hover response. It runs once, on the
+  first load; it does not replay on scroll-back, resize, or re-hover.
 
 **Terminal (`/trade`):**
 

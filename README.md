@@ -39,13 +39,35 @@ Turns public ERCOT market data into the numbers our contracts settle on.
 ## Run
 
     export $(cat .env | xargs)        # mac / linux
-    python fetch_ercot.py             # yesterday only
-    python fetch_ercot.py --days 30   # last 30 days
-    python fetch_ercot.py --days 365 --skip-fuelmix
+    python fetch_ercot.py                 # yesterday and today
+    python fetch_ercot.py --days 30       # last 30 days and today
+    python fetch_ercot.py --fill-gaps     # also any day missing since the
+                                          # latest complete day
+    python fetch_ercot.py --feed-metrics  # also the feed-only metrics
+    python fetch_ercot.py --fuel-mix      # also the fuel mix
 
 On Windows PowerShell, set the key with:
 
     $env:GRIDSTATUS_API_KEY = "your_key_here"
+
+By default only the Texas power price (North Hub day-ahead) is fetched, in
+one request covering every day the cache can't answer. Today and the last 3
+days before it (UTC) are re-fetched each run.
+Everything older comes from the `data/raw/` cache, because settled prices
+don't change. The current month is cached one file per day, so its earlier
+days are never re-read. Past months keep their whole-month files. If a
+re-fetched chunk's bytes changed upstream, the old version moves to
+`data/raw/superseded/`, because published hashes cite those files. A reading
+already published onchain is never rewritten.
+
+To refresh everything the site shows and redeploy it in one go:
+
+    ./refresh_data.sh              # fetch, rebuild feed + candles, build, deploy
+    ./refresh_data.sh --no-deploy  # same, without the deploy
+
+It prints the GridStatus rows it used: about 3,100 per refresh (3 days of
+prices, about 790, plus 3 days of candle data, about 2,300), the same on
+any day of the month.
 
 ## What it produces
 
@@ -103,8 +125,8 @@ contract metrics. See `shared/metrics.md` for the full writeup.
 
 ## Verification
 
-Fetches are chunked by calendar month, so a long range produces several files
-in `data/raw/`. Every metric record lists the exact files it depends on, in
+Fetches are chunked by calendar month, and by day while a month is still in
+progress, so a long range produces several files in `data/raw/`. Every metric record lists the exact files it depends on, in
 hash order, under `sourceFiles`. `sourceHash` is the SHA-256 of those files
 concatenated in that order:
 
@@ -143,7 +165,8 @@ Datasets used:
 - `ercot_fuel_mix` — 5-minute
 
 Free plan allows 500,000 rows/month and 1 request per second. Always filter
-by location. The cache in `data/raw/` means re-runs cost nothing.
+by location. The cache in `data/raw/` means re-runs only re-read the last 3
+days.
 
 ## Adding another zone
 
@@ -259,10 +282,14 @@ python3 scripts/export_abi.py
 
 ## Web interface
 
-`web/` is a Vinext/React application using viem. With no addresses it opens in
-safe demo mode. Once the four `NEXT_PUBLIC_*_ADDRESS` values are present in
-`web/.env.local`, it connects MetaMask to X Layer testnet and can mint demo
-collateral, mint a YES+NO set, swap, resolve or cancel, and redeem.
+`web/` is a Vinext/React application using viem. It needs no environment to
+run: contract addresses and the list of markets come from
+`web/public/data/addresses.json`, written from `shared/addresses.json` by
+`build_feed_data.py`. The order ticket trades whichever listed market is
+selected. With a wallet on X Layer testnet it can get demo collateral, buy YES
+or NO (a complete set is minted and the other side swapped in, in one action),
+resolve or cancel after trading closes, and redeem. `web/.env.example` lists
+the optional overrides.
 
 ```bash
 cd web

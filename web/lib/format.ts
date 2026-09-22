@@ -40,3 +40,57 @@ export function formatPercent(fraction: number, digits = 1): string {
 export function formatCount(value: number, unit: string): string {
   return `${value} ${unit}`;
 }
+
+/**
+ * The two clocks every "Updated" line shows: ERCOT's own (Texas) and the
+ * team's (London). Each zone's abbreviation comes from a locale that names
+ * it (en-US says CDT/CST, en-GB says BST/GMT); dates and times always use
+ * en-US fields so both halves read the same way.
+ */
+const UPDATED_CLOCKS = [
+  { label: 'Texas', timeZone: 'America/Chicago', zoneLocale: 'en-US' },
+  { label: 'London', timeZone: 'Europe/London', zoneLocale: 'en-GB' },
+] as const;
+
+function clockReading(date: Date, timeZone: string, zoneLocale: string) {
+  const fields = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+  const zone =
+    new Intl.DateTimeFormat(zoneLocale, { timeZone, timeZoneName: 'short' })
+      .formatToParts(date)
+      .find((part) => part.type === 'timeZoneName')?.value ?? timeZone;
+  return {
+    date: `${fields.day} ${fields.month} ${fields.year}`,
+    time: `${fields.hour}:${fields.minute} ${zone}`,
+  };
+}
+
+/**
+ * When the data was last refreshed, in Texas and London time, e.g.
+ * "22 Sep 2026, 06:03 CDT (Texas) · 12:03 BST (London)". The London date
+ * is repeated only when it differs from the Texas one. Returns null for a
+ * missing or unparseable timestamp, so callers show nothing rather than
+ * "Invalid Date".
+ */
+export function formatUpdated(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const [texas, london] = UPDATED_CLOCKS.map((clock) => ({
+    label: clock.label,
+    ...clockReading(date, clock.timeZone, clock.zoneLocale),
+  }));
+  const londonText = london.date === texas.date ? london.time : `${london.date}, ${london.time}`;
+  return `${texas.date}, ${texas.time} (${texas.label}) · ${londonText} (${london.label})`;
+}

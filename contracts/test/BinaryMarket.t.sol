@@ -313,6 +313,25 @@ contract BinaryMarketTest is Test {
         assertFalse(equalMarket.yesWon());
     }
 
+    /// Regression: the 8 Sep 2026 market ("above $30?") with the real finalized
+    /// reading $39.57 (3957 cents) must resolve YES and say so in its Resolved
+    /// event. A NO was once reported for this exact case; the cause was a stale
+    /// yesWon() read from a lagging RPC node, not the contract (resolve_markets.py
+    /// now reads the outcome from this event in the receipt).
+    function testEightSeptemberReadingResolvesYesAndEmitsOutcome() public {
+        int256 finalizedValue = 3_957;
+        _submitAndFinalize(DAY_KEY, finalizedValue);
+        vm.warp(RESOLVE_AFTER);
+
+        vm.expectEmit(true, false, false, true, address(market));
+        emit BinaryMarket.Resolved(true, finalizedValue);
+        market.resolve();
+
+        assertTrue(market.resolved());
+        assertTrue(market.yesWon());
+        assertEq(market.threshold(), 3_000);
+    }
+
     function testNegativeBasisAndNegativeThresholdResolveCorrectly() public {
         BinaryMarket basisMarket =
             _deployMarket(BASIS_METRIC_ID, 20_260_812, -1_500, RESOLVE_AFTER, DISPUTE_WINDOW);

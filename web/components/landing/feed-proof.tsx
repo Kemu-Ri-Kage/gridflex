@@ -4,13 +4,12 @@ import { SectionHeading } from '@/components/landing/section-heading';
 
 export function FeedProof() {
   return (
-    <section className="border-b border-border py-16 sm:py-24" id="feed">
+    <section className="border-b border-border py-16 sm:py-24" id="proof">
       <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
         <Reveal>
-          <SectionHeading index="03" title="The feed as proof" />
+          <SectionHeading index="03" title="Proof" />
           <p className="mb-10 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Every reading below is a committed file plus a fresh onchain check, run live in your
-            browser against <span className="font-mono">GridOracle</span> — not a screenshot.
+            Each price below is checked live against the oracle in your browser.
           </p>
           <FeedPanel />
         </Reveal>

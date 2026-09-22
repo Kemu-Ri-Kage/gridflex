@@ -17,16 +17,35 @@ Metrics produced (one value per Central-time day):
   ERCOT_FUELMIX_<FUEL>          share of generation by fuel, percent x 100
                                 (feed display only — not a contract metric)
 
+By default only ERCOT_HBNORTH_DA_AVG is fetched: the site shows only the
+Texas power price and every live market settles on it. The other metrics
+are feed-only and fetched on request (--feed-metrics, --fuel-mix).
+
 Usage
 -----
-    python fetch_ercot.py                  # yesterday only
-    python fetch_ercot.py --days 30        # last 30 days
+    python fetch_ercot.py                  # yesterday and today
+    python fetch_ercot.py --days 30        # last 30 days and today
     python fetch_ercot.py --days 365       # last year (watch the row budget)
+    python fetch_ercot.py --fill-gaps      # also every day missing since the
+                                           # latest complete day in data/metrics
+    python fetch_ercot.py --feed-metrics   # also basis, negative intervals and
+                                           # the load-weighted index
+    python fetch_ercot.py --fuel-mix       # also the fuel mix feed
+    python fetch_ercot.py --plan           # dry run: print the requests a run
+                                           # would make, without touching the API
+    python fetch_ercot.py --usage          # print this month's GridStatus usage
+                                           # against the plan's limits, then exit
+
+Requests: one per dataset per run, spanning every day the cache can't
+answer (see fetch). The default run is one request. A run refuses to start
+a fetch that would push it past --max-requests (default 12) - the free plan
+meters requests as well as rows, and a mistaken flag can burn a month's
+allowance in one go.
 
 Row budget: the GridStatus free plan allows 500,000 rows/month. With the
 location filters below, one year costs roughly 8,800 (day-ahead) + 35,000
-(real-time) + 105,000 (fuel mix) rows. Fuel mix is the expensive one because
-it arrives every 5 minutes, so --skip-fuelmix is available.
+(real-time) + 105,000 (fuel mix) rows per location. Fuel mix is the
+expensive one because it arrives every 5 minutes.
 """
 
 import argparse
@@ -35,7 +54,7 @@ import json
 import os
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -134,9 +153,41 @@ EXPECTED_ROWS = {
 FUELMIX_MIN_COVERAGE = 0.95
 
 RAW_DIR = Path("data/raw")
+SUPERSEDED_DIR = RAW_DIR / "superseded"
 METRICS_DIR = Path("data/metrics")
+PUBLISH_LEDGER = Path("data/publish-ledger.json")
 
 RATE_LIMIT_SLEEP = 1.5          # free plan allows 1 request/second
+
+# Only today and the last RECENT_DAYS market days before it (UTC) are
+# re-fetched on every run: GridStatus can still fill in or correct their
+# intervals. Anything older is settled and read from the cache - including
+# earlier days of the current month, which is why the current month is
+# cached one day per chunk.
+RECENT_DAYS = 3
+
+# A dataset's uncached chunks are read in ONE request spanning all of them,
+# then split into their chunk files. Only a backfill longer than this is
+# broken up (at chunk boundaries): a year in one response trips a brotli
+# decode bug in the HTTP stack (see month_chunks).
+MAX_REQUEST_DAYS = 31
+
+# Rows GridStatus returned to this process - what the free plan meters - and
+# the requests that returned them. Cached chunks cost nothing and are not
+# counted.
+rows_fetched = 0
+requests_made = 0
+
+# HTTP requests the GridStatus client actually sent (counted on the real
+# client only, see count_http_requests). Normally equal to requests_made; it
+# is higher when a single get_dataset call had to page through a response,
+# because the plan meters every page as a request.
+http_requests = 0
+
+# Upper bound on requests_made for this process. None means no limit; the
+# command-line tools set it (--max-requests). Checked in fetch() before a
+# dataset's requests are sent, so a run stops before spending, not after.
+request_budget = None
 
 
 # --------------------------------------------------------------------------
@@ -170,7 +221,67 @@ def get_client() -> "GridStatusClient":
     except AttributeError:
         pass          # client internals changed; chunking still protects us
 
+    count_http_requests(client)
     return client
+
+
+def count_http_requests(client):
+    """
+    Count every HTTP request the client sends, not just every get_dataset()
+    call. get_dataset() pages through a response when it is bigger than the
+    plan's rows-per-response limit, and each page is a metered request; a
+    count taken at the call level would under-report exactly when it
+    matters. Wraps client.get, the one method every request goes through.
+    """
+    original = getattr(client, "get", None)
+    if original is None:
+        return client
+
+    def counted(*args, **kwargs):
+        global http_requests
+        http_requests += 1
+        return original(*args, **kwargs)
+
+    client.get = counted
+    return client
+
+
+def api_usage(client):
+    """This month's usage against the plan's limits, from /v1/api_usage."""
+    usage = client.get_api_usage()
+    limits = usage.get("limits", {}) or {}
+    period = usage.get("current_period_usage", {}) or {}
+    return {
+        "plan": usage.get("plan_name"),
+        "requests_used": period.get("total_requests"),
+        "requests_limit": limits.get("api_requests_limit"),
+        "rows_used": period.get("total_api_rows_returned"),
+        "rows_limit": limits.get("api_rows_returned_limit"),
+        "rows_per_response_limit": limits.get("api_rows_per_response_limit"),
+        "raw": usage,
+    }
+
+
+def print_usage(client):
+    """Print the plan's usage. Nothing here contains the key."""
+    summary = api_usage(client)
+
+    def fmt(value):
+        return f"{value:,}" if isinstance(value, (int, float)) else str(value)
+
+    print(f"GridStatus plan: {summary['plan']}")
+    print(f"  requests this period: {fmt(summary['requests_used'])}"
+          f" of {fmt(summary['requests_limit'])}")
+    print(f"  rows this period:     {fmt(summary['rows_used'])}"
+          f" of {fmt(summary['rows_limit'])}")
+    print(f"  rows per response:    {fmt(summary['rows_per_response_limit'])}")
+    for key in ("current_period_start", "current_period_end", "period_start",
+                "period_end", "reset_date", "resets_at"):
+        if key in summary["raw"]:
+            print(f"  {key}: {summary['raw'][key]}")
+    print("  full response:")
+    print("    " + json.dumps(summary["raw"], indent=2, default=str)
+          .replace("\n", "\n    "))
 
 
 def month_chunks(start, end):
@@ -181,7 +292,9 @@ def month_chunks(start, end):
     large enough to trip a brotli decode bug in the HTTP stack (we hit it, it
     reproduces). Smaller responses stay well clear of it. A failure halfway
     through costs one month rather than the whole pull. And each chunk caches
-    separately, so re-running only fetches what is missing.
+    separately, so re-running only fetches what is missing or not yet final
+    (see chunk_is_final). plan_chunks() splits these further into days
+    where a month is still in progress.
     """
     s = pd.Timestamp(start)
     e = pd.Timestamp(end)
@@ -195,17 +308,208 @@ def month_chunks(start, end):
     return out
 
 
-def fetch_chunk(client, dataset, start, end, location=None):
-    """Fetch one chunk, cache the raw bytes, return (DataFrame, path)."""
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    slug = f"{dataset}__{location or 'all'}__{start}__{end}"
-    cache_path = RAW_DIR / f"{slug}.json"
+def utc_today():
+    return datetime.now(timezone.utc).date()
 
+
+def is_dst_changeover(day):
+    """
+    True on the two Central days a year that are 23 or 25 hours long. They
+    never have EXPECTED_ROWS hours, so their metric files are never written
+    (see shared/metrics.md) - a missing file on one of them isn't a gap.
+    """
+    start = pd.Timestamp(day).tz_localize(CENTRAL)
+    end = pd.Timestamp(day + timedelta(days=1)).tz_localize(CENTRAL)
+    return end - start != pd.Timedelta(hours=24)
+
+
+def latest_complete_day(metric_id=DAY_AHEAD["metric_id"], metrics_dir=None):
+    """
+    The last day of the unbroken run of metric files that starts at the
+    earliest one: the day before the first missing day, or the newest file
+    when nothing is missing. None with no files at all.
+
+    Judged on the day-ahead settlement price, the metric every other daily
+    contract metric is computed alongside. DST changeover days are skipped,
+    never counted as missing.
+    """
+    metrics_dir = metrics_dir or METRICS_DIR
+    prefix = f"{metric_id}__"
+    days = set()
+    for path in metrics_dir.glob(f"{prefix}*.json"):
+        try:
+            days.add(date.fromisoformat(path.stem[len(prefix):]))
+        except ValueError:
+            continue
+    if not days:
+        return None
+    day, last = min(days), max(days)
+    while day < last:
+        following = day + timedelta(days=1)
+        if following not in days and not is_dst_changeover(following):
+            return day
+        day = following
+    return last
+
+
+def fetch_window(days, fill_gaps=False, today=None, metrics_dir=None):
+    """
+    The [start, end) market days one run reads.
+
+    The end is tomorrow, so today is included: ERCOT publishes a day's
+    day-ahead prices on the afternoon before it (about 13:30 Central), which
+    is before 00:00 UTC of that day, so on any UTC date that day's prices
+    already exist. Real-time data for today is still partial and fails the
+    completeness check, as it should.
+
+    The start is `days` before today. With fill_gaps it moves back to the
+    day after the latest complete day in data/metrics, so a day that was
+    never fetched - one that aged out of the recent window before any run
+    reached it - is filled. Which of these days are re-fetched rather than
+    read from cache is still decided by chunk_is_final (RECENT_DAYS).
+    """
+    today = today or utc_today()
+    start = today - timedelta(days=days)
+    if fill_gaps:
+        complete = latest_complete_day(metrics_dir=metrics_dir)
+        if complete is not None:
+            start = min(start, complete + timedelta(days=1))
+    return start, today + timedelta(days=1)
+
+
+def chunk_is_final(start, end, today=None):
+    """
+    True when a cached chunk [start, end) can be trusted without re-fetching:
+    it ends before the last RECENT_DAYS days, so every day in it is settled.
+    "Today" is the UTC date, the same clock main() uses to pick the fetch
+    window.
+    """
+    today = today or utc_today()
+    end_day = date.fromisoformat(str(end)[:10])
+    return end_day <= today - timedelta(days=RECENT_DAYS)
+
+
+def chunk_path(dataset, location, start, end):
+    return RAW_DIR / f"{dataset}__{location or 'all'}__{start}__{end}.json"
+
+
+def day_chunks(start, end):
+    """[start, end) as one-day pieces."""
+    first = date.fromisoformat(str(start)[:10])
+    last = date.fromisoformat(str(end)[:10])
+    return [(str(first + timedelta(days=i)), str(first + timedelta(days=i + 1)))
+            for i in range((last - first).days)]
+
+
+def plan_chunks(dataset, location, start, end, today=None):
+    """
+    The chunks to read for [start, end), chosen so settled data is never
+    fetched twice.
+
+    A month that is still in progress (any of it within the last RECENT_DAYS
+    days) is read one day per chunk. Each day's filename never changes, so
+    once a day has aged out of the recent window its cached file is final
+    and stays - no re-read of the month so far, and no sliding "last N days"
+    chunk that would need its oldest day fetched again under a new name.
+
+    A settled month uses its whole-month file when that is cached. If it
+    isn't but some of its days are (it was read day by day while it was in
+    progress), the days are used and only missing days are fetched. With
+    neither, it is one whole-month request, which keeps a first large pull
+    to one request per month.
+    """
+    today = today or utc_today()
+    out = []
+    for piece_start, piece_end in month_chunks(start, end):
+        if not chunk_is_final(piece_start, piece_end, today):
+            out.extend(day_chunks(piece_start, piece_end))
+            continue
+        if chunk_path(dataset, location, piece_start, piece_end).exists():
+            out.append((piece_start, piece_end))
+            continue
+        days = day_chunks(piece_start, piece_end)
+        if any(chunk_path(dataset, location, s, e).exists() for s, e in days):
+            out.extend(days)
+        else:
+            out.append((piece_start, piece_end))
+    return out
+
+
+def store_chunk(cache_path, payload):
+    """
+    Write fresh bytes for a chunk, keeping any different earlier version.
+
+    Metric files cite chunk filenames in sourceFiles, and a reading already
+    published onchain carries a hash of the bytes that were there then.
+    Overwriting them would leave that hash unreproducible, so a changed chunk
+    moves its old bytes to data/raw/superseded/ first. Identical bytes are
+    left alone.
+    """
     if cache_path.exists():
-        print(f"    cached   {start} -> {end}")
-        return pd.read_json(cache_path.open(), orient="records"), cache_path
+        old = cache_path.read_bytes()
+        if old == payload.encode():
+            return
+        SUPERSEDED_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        archived = SUPERSEDED_DIR / f"{cache_path.stem}__{stamp}.json"
+        cache_path.rename(archived)
+        print(f"    changed upstream; previous bytes kept in {archived}")
+    cache_path.write_text(payload)
 
-    print(f"    fetching {start} -> {end} ...")
+
+def chunks_to_fetch(dataset, location, chunks, today=None):
+    """The planned chunks the cache can't answer: missing, or not yet final."""
+    return [(s, e) for s, e in chunks
+            if not (chunk_path(dataset, location, s, e).exists()
+                    and chunk_is_final(s, e, today))]
+
+
+def request_spans(chunks):
+    """
+    Group chunks (in date order) into request spans: one span from the first
+    to the last, unless that is longer than MAX_REQUEST_DAYS, in which case
+    it breaks at chunk boundaries. Cached final chunks lying inside a span
+    are re-read by the request but never rewritten (see fetch).
+    """
+    spans = []
+    for start, end in chunks:
+        if spans:
+            span_start = date.fromisoformat(spans[-1][0])
+            if (date.fromisoformat(end) - span_start).days <= MAX_REQUEST_DAYS:
+                spans[-1] = (spans[-1][0], end)
+                continue
+        spans.append((start, end))
+    return spans
+
+
+def plan_requests(dataset, location, start, end, today=None):
+    """
+    The requests fetch() would send for [start, end): the spans covering the
+    planned chunks the cache can't answer. No API call is made. Used by
+    --plan and by the request budget check.
+    """
+    chunks = plan_chunks(dataset, location, start, end, today)
+    return request_spans(chunks_to_fetch(dataset, location, chunks, today))
+
+
+def check_request_budget(dataset, location, spans):
+    """Stop before sending if these spans would exceed request_budget."""
+    if request_budget is None or not spans:
+        return
+    if requests_made + len(spans) > request_budget:
+        raise SystemExit(
+            f"Refusing to fetch {dataset} ({location or 'all'}): this run has "
+            f"made {requests_made} request(s) and needs {len(spans)} more, "
+            f"over the budget of {request_budget}.\n"
+            "Run with --plan to see what would be fetched, or raise "
+            "--max-requests if that is really intended."
+        )
+
+
+def fetch_span(client, dataset, start, end, location=None):
+    """One GridStatus request for [start, end). Counts rows and requests."""
+    global rows_fetched, requests_made
+    print(f"    fetching {start} -> {end} (one request) ...")
     # timezone=CENTRAL makes start/end mean Central-time midnights, so a "day"
     # of data is a real ERCOT market day rather than a UTC day that straddles
     # two of them.
@@ -216,15 +520,41 @@ def fetch_chunk(client, dataset, start, end, location=None):
 
     df = client.get_dataset(**kwargs)
     time.sleep(RATE_LIMIT_SLEEP)
+    rows_fetched += len(df)
+    requests_made += 1
+    return df
 
-    cache_path.write_text(df.to_json(orient="records", date_format="iso"))
-    return df, cache_path
+
+def split_into_chunks(df, chunks):
+    """
+    {chunk: rows of df whose Central market day falls in it}. A chunk's rows
+    serialise to the same bytes a request for just that chunk returns
+    (checked against the cache: a 20-day response split by day matched all
+    18 separately fetched day files byte for byte), so a day file means the
+    same thing however it was fetched.
+    """
+    if df.empty or "interval_start_utc" not in df.columns:
+        return {chunk: df.iloc[0:0] for chunk in chunks}
+    days = to_central_day(df)["market_day"].astype(str)
+    return {(s, e): df[(days >= s) & (days < e)] for s, e in chunks}
 
 
 def fetch(client, dataset, start, end, location=None, tag=""):
     """
-    Pull one dataset for a date range, month by month, and return it as a
-    single DataFrame along with a source hash and the list of cache files.
+    Pull one dataset for a date range and return it as a single DataFrame
+    along with a source hash and the list of cache files.
+
+    plan_chunks() decides which cache files cover the range. The ones the
+    cache can't answer (missing, or inside the recent window) are read in a
+    single request spanning all of them - one request per dataset per run,
+    never one per day - and the response is split back into those chunk
+    files, each written through store_chunk (changed bytes are kept in
+    data/raw/superseded/). A chunk that is already cached and final is never
+    rewritten, even when the request's span covers it. A final chunk the
+    response had no rows for isn't written, so the next run asks again.
+
+    Every chunk is then read back from its file, so the frame and the hash
+    come from exactly the same bytes.
 
     The source hash covers the concatenated raw bytes of every chunk, in date
     order. Anyone can reproduce it:
@@ -234,9 +564,27 @@ def fetch(client, dataset, start, end, location=None, tag=""):
     Caching matters: you will run this many times while debugging, and every
     re-fetch spends rows from the free monthly allowance.
     """
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    chunks = plan_chunks(dataset, location, start, end)
+    wanted = chunks_to_fetch(dataset, location, chunks)
+    print(f"    {len(chunks) - len(wanted)} of {len(chunks)} chunk(s) from cache")
+    spans = request_spans(wanted)
+    check_request_budget(dataset, location, spans)
+    for span_start, span_end in spans:
+        in_span = [c for c in wanted if span_start <= c[0] and c[1] <= span_end]
+        response = fetch_span(client, dataset, span_start, span_end, location)
+        for (s, e), rows in split_into_chunks(response, in_span).items():
+            if rows.empty and chunk_is_final(s, e):
+                continue
+            store_chunk(chunk_path(dataset, location, s, e),
+                        rows.to_json(orient="records", date_format="iso"))
+
     frames, paths = [], []
-    for chunk_start, chunk_end in month_chunks(start, end):
-        df, path = fetch_chunk(client, dataset, chunk_start, chunk_end, location)
+    for chunk_start, chunk_end in chunks:
+        path = chunk_path(dataset, location, chunk_start, chunk_end)
+        if not path.exists():
+            continue
+        df = pd.read_json(path, orient="records")
         if len(df):
             frames.append(df)
         paths.append(path)
@@ -530,8 +878,18 @@ def fuel_shares(df):
 # WRITE
 # --------------------------------------------------------------------------
 
+def published_readings():
+    """{"<metricId>:<dayKey>": ledger entry} for readings already submitted
+    onchain, from publish.py's ledger. Empty when nothing is published."""
+    if not PUBLISH_LEDGER.exists():
+        return {}
+    ledger = json.loads(PUBLISH_LEDGER.read_text(encoding="utf-8"))
+    return {key: entry for key, entry in ledger.items()
+            if isinstance(entry, dict) and entry.get("txHash")}
+
+
 def write_metric(metric_id, day, value, source_hash, source_files,
-                  start_utc, end_utc, extra=None):
+                  start_utc, end_utc, extra=None, published=None):
     """
     One JSON file per metric per day. This is exactly what publish.py will
     later hand to the oracle contract.
@@ -547,7 +905,21 @@ def write_metric(metric_id, day, value, source_hash, source_files,
     otherwise. A field that looks like an instant but is actually a day
     identifier is exactly the trap dayKey replaces; keeping the old names
     around "for compatibility" would just give it a second way back in.
+
+    A reading already published onchain (`published`, from
+    published_readings) is never rewritten. A later run over a different
+    date range hashes a different set of chunks, so rewriting it would
+    change its sourceHash and the feed would report a MISMATCH against the
+    chain. If the recomputed value differs from the published one, that is
+    printed as a warning, not written. Returns None when nothing was written.
     """
+    path = METRICS_DIR / f"{metric_id}__{day}.json"
+    entry = (published or {}).get(f"{metric_id}:{day_key(day)}")
+    if entry is not None and path.exists():
+        if int(entry.get("value", value)) != value:
+            print(f"  WARNING {metric_id} {day}: recomputed {value}, published "
+                  f"{entry['value']} - published file kept unchanged")
+        return None
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
     record = {
         "metricId": metric_id,
@@ -563,7 +935,6 @@ def write_metric(metric_id, day, value, source_hash, source_files,
     }
     if extra:
         record.update(extra)
-    path = METRICS_DIR / f"{metric_id}__{day}.json"
     path.write_text(json.dumps(record, indent=2))
     return path
 
@@ -572,23 +943,90 @@ def write_metric(metric_id, day, value, source_hash, source_files,
 # MAIN
 # --------------------------------------------------------------------------
 
+def datasets_for_run(feed_metrics=False, fuel_mix=False):
+    """(label, dataset, location) for everything a run with these flags reads."""
+    out = [("Day-ahead prices, HB_NORTH", DAY_AHEAD["dataset"], DAY_AHEAD["location"])]
+    if feed_metrics:
+        out.append(("West-North basis", BASIS["dataset"], BASIS["location"]))
+        out.append(("Negative intervals, HB_WEST", REAL_TIME["dataset"],
+                    REAL_TIME["location"]))
+        for point in INDEX["zones"]:
+            out.append((f"Load-weighted index, {point}", INDEX["price_dataset"], point))
+        out.append(("Load-weighted index, load", INDEX["load_dataset"], None))
+    if fuel_mix:
+        out.append(("Fuel mix", FUEL_MIX["dataset"], None))
+    return out
+
+
+def print_plan(start, end, feed_metrics=False, fuel_mix=False):
+    """What a run would fetch, computed from the cache alone. No API calls."""
+    total = 0
+    for label, dataset, location in datasets_for_run(feed_metrics, fuel_mix):
+        spans = plan_requests(dataset, location, start, end)
+        total += len(spans)
+        print(f"{label}: {len(spans)} request(s)")
+        for span_start, span_end in spans:
+            print(f"    {span_start} -> {span_end}")
+    print(f"\nPLAN ONLY - no requests were made. This run would make {total} "
+          f"GridStatus request(s)" + (f", over the budget of {request_budget}."
+                                      if request_budget and total > request_budget
+                                      else "."))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=1,
-                        help="how many days back from yesterday (default 1)")
-    parser.add_argument("--skip-fuelmix", action="store_true",
-                        help="skip the fuel mix feed to save row budget")
-    parser.add_argument("--skip-index", action="store_true",
-                        help="skip the load-weighted statewide index "
-                             "(5 extra queries per month chunk)")
+                        help="how many days before today to read, plus today "
+                             "(default 1)")
+    parser.add_argument("--fill-gaps", action="store_true",
+                        help="also read every day missing since the latest "
+                             "complete day in data/metrics")
+    parser.add_argument("--feed-metrics", action="store_true",
+                        help="also fetch the feed-only metrics the site no "
+                             "longer shows: West Hub day-ahead (basis), West "
+                             "Hub real-time (negative intervals) and the "
+                             "load-weighted index (4 load zones + load)")
+    parser.add_argument("--fuel-mix", action="store_true",
+                        help="also fetch the fuel mix feed (about 288 rows/day)")
+    parser.add_argument("--plan", action="store_true",
+                        help="dry run: print the GridStatus requests this run "
+                             "would make and exit without making any")
+    parser.add_argument("--usage", action="store_true",
+                        help="print this month's GridStatus usage against the "
+                             "plan's limits and exit (one request)")
+    parser.add_argument("--max-requests", type=int, default=12,
+                        help="refuse to fetch past this many GridStatus "
+                             "requests in one run (default 12; 0 = no limit)")
     args = parser.parse_args()
 
-    end_date = datetime.now(timezone.utc).date()
-    start_date = end_date - timedelta(days=args.days)
-    start, end = str(start_date), str(end_date)
+    global request_budget
+    request_budget = args.max_requests or None
 
-    print(f"GRIDFLEX pipeline: {start} to {end}\n")
+    if args.usage:
+        print_usage(get_client())
+        return
+
+    start_date, end_date = fetch_window(args.days, fill_gaps=args.fill_gaps)
+    start, end = str(start_date), str(end_date)
+    recent_start = utc_today() - timedelta(days=args.days)
+
+    print(f"GRIDFLEX pipeline: {start} to {end}")
+    if start_date < recent_start:
+        print(f"  filling missing days {start} to {recent_start - timedelta(days=1)}")
+    print()
+
+    if args.plan:
+        print_plan(start, end, feed_metrics=args.feed_metrics,
+                   fuel_mix=args.fuel_mix)
+        return
+
     client = get_client()
+
+    # Readings already onchain keep their committed file - see write_metric.
+    published = published_readings()
+
+    def write(*args, **kwargs):
+        return write_metric(*args, published=published, **kwargs)
 
     # ---- day-ahead price ------------------------------------------------
     print("Day-ahead prices, HB_NORTH")
@@ -596,48 +1034,53 @@ def main():
         client, DAY_AHEAD["dataset"], start, end,
         location=DAY_AHEAD["location"])
     for day, result in day_ahead_average(df_da).items():
-        write_metric(DAY_AHEAD["metric_id"], day, result["value"],
+        write(DAY_AHEAD["metric_id"], day, result["value"],
                      hash_da, files_da, result["start_utc"], result["end_utc"],
                      {"hoursUsed": result["hours_used"]})
         print(f"  {day}  ${result['value'] / 100:8.2f}/MWh"
               f"   ({result['hours_used']} hours)")
 
-    # ---- west-north basis spread ------------------------------------------
-    print("\nWest-North day-ahead basis")
-    df_west, hash_w, files_w = fetch(
-        client, BASIS["dataset"], start, end, location=BASIS["location"])
+    # ---- feed-only metrics (--feed-metrics) -------------------------------
+    # The site shows only the Texas power price, and every live market
+    # settles on it, so a refresh reads North Hub day-ahead prices alone.
+    # These four stay computable on request; their files are still written
+    # to web/public/data/ from whatever data/metrics holds.
+    if args.feed_metrics:
+        # ---- west-north basis spread -------------------------------------
+        print("\nWest-North day-ahead basis")
+        df_west, hash_w, files_w = fetch(
+            client, BASIS["dataset"], start, end, location=BASIS["location"])
 
-    # The basis is West MINUS North, so its source hash has to cover both
-    # legs. Hashing only West would let someone verify half the inputs to a
-    # number and believe they had verified all of it — worse than publishing
-    # no hash at all. Same combining rule as the index: hash the leg hashes
-    # in a fixed order.
-    basis_hash = hashlib.sha256((hash_w + hash_da).encode()).hexdigest()
-    basis_files = files_w + files_da
+        # The basis is West MINUS North, so its source hash has to cover both
+        # legs. Hashing only West would let someone verify half the inputs to a
+        # number and believe they had verified all of it — worse than publishing
+        # no hash at all. Same combining rule as the index: hash the leg hashes
+        # in a fixed order.
+        basis_hash = hashlib.sha256((hash_w + hash_da).encode()).hexdigest()
+        basis_files = files_w + files_da
 
-    for day, result in basis_spread(df_west, df_da).items():
-        write_metric(BASIS["metric_id"], day, result["value"],
-                     basis_hash, basis_files,
-                     result["start_utc"], result["end_utc"],
-                     {"westAvg": round(result["west"], 2),
-                      "northAvg": round(result["north"], 2)})
-        print(f"  {day}  {result['value'] / 100:+8.2f}/MWh"
-              f"   (W {result['west']:6.2f}  N {result['north']:6.2f})")
+        for day, result in basis_spread(df_west, df_da).items():
+            write(BASIS["metric_id"], day, result["value"],
+                         basis_hash, basis_files,
+                         result["start_utc"], result["end_utc"],
+                         {"westAvg": round(result["west"], 2),
+                          "northAvg": round(result["north"], 2)})
+            print(f"  {day}  {result['value'] / 100:+8.2f}/MWh"
+                  f"   (W {result['west']:6.2f}  N {result['north']:6.2f})")
 
-    # ---- real-time negative intervals -----------------------------------
-    print("\nReal-time negative intervals, HB_WEST")
-    df_rt, hash_rt, files_rt = fetch(
-        client, REAL_TIME["dataset"], start, end,
-        location=REAL_TIME["location"])
-    for day, result in negative_intervals(df_rt).items():
-        write_metric(REAL_TIME["metric_id"], day, result["value"],
-                     hash_rt, files_rt, result["start_utc"], result["end_utc"],
-                     {"intervalsUsed": result["intervals_used"]})
-        print(f"  {day}  {result['value']:3d} negative"
-              f"   (of {result['intervals_used']} intervals)")
+        # ---- real-time negative intervals --------------------------------
+        print("\nReal-time negative intervals, HB_WEST")
+        df_rt, hash_rt, files_rt = fetch(
+            client, REAL_TIME["dataset"], start, end,
+            location=REAL_TIME["location"])
+        for day, result in negative_intervals(df_rt).items():
+            write(REAL_TIME["metric_id"], day, result["value"],
+                         hash_rt, files_rt, result["start_utc"], result["end_utc"],
+                         {"intervalsUsed": result["intervals_used"]})
+            print(f"  {day}  {result['value']:3d} negative"
+                  f"   (of {result['intervals_used']} intervals)")
 
-    # ---- load-weighted statewide index -----------------------------------
-    if not args.skip_index:
+        # ---- load-weighted statewide index -------------------------------
         print("\nLoad-weighted ERCOT index (4 load zones, hourly weights)")
         price_frames, hashes, files = {}, [], []
         for point in INDEX["zones"]:
@@ -657,7 +1100,7 @@ def main():
         index_hash = hashlib.sha256("".join(hashes).encode()).hexdigest()
 
         for day, result in load_weighted_index(price_frames, df_load).items():
-            write_metric(INDEX["metric_id"], day, result["value"],
+            write(INDEX["metric_id"], day, result["value"],
                          index_hash, files,
                          result["start_utc"], result["end_utc"],
                          {"hoursUsed": result["hours"],
@@ -667,21 +1110,25 @@ def main():
                   + "  ".join(f"{z[:3].upper()} {s:.0%}" for z, s in sorted(w.items())))
 
     # ---- fuel mix (feed only) -------------------------------------------
-    if not args.skip_fuelmix:
+    if args.fuel_mix:
         print("\nFuel mix")
         df_fm, hash_fm, files_fm = fetch(
             client, FUEL_MIX["dataset"], start, end)
         for day, result in fuel_shares(df_fm).items():
             shares = result["shares"]
             for fuel, share in shares.items():
-                write_metric(FUEL_MIX["metric_prefix"] + fuel, day, share,
+                write(FUEL_MIX["metric_prefix"] + fuel, day, share,
                              hash_fm, files_fm,
                              result["start_utc"], result["end_utc"])
             top = sorted(shares.items(), key=lambda kv: -kv[1])[:3]
             summary = "  ".join(f"{f} {v / 100:.1f}%" for f, v in top)
             print(f"  {day}  {summary}")
 
-    print(f"\nWrote metric files to {METRICS_DIR}/")
+    print(f"\nGridStatus requests this run: {requests_made}")
+    if http_requests != requests_made:
+        print(f"GridStatus HTTP requests sent (paged responses): {http_requests}")
+    print(f"GridStatus rows fetched this run: {rows_fetched:,}")
+    print(f"Wrote metric files to {METRICS_DIR}/")
     print(f"Raw responses cached in {RAW_DIR}/ (gitignore this folder)")
 
 

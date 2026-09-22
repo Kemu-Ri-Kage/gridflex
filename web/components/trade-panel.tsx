@@ -3,21 +3,19 @@
 import * as React from 'react';
 import { ArrowUpRight, ExternalLink, Loader2 } from 'lucide-react';
 
-import { useWeb3, type SwapQuote } from '@/components/web3-provider';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+  useWeb3,
+  type BuyQuote,
+  type TradeSide,
+} from '@/components/web3-provider';
 import { xLayerTestnet } from '@/lib/contracts';
 import { formatToken } from '@/lib/format';
+import { useMarkets } from '@/lib/markets';
+import { ticketState } from '@/lib/ticket-state';
 import { parsePositiveTokenAmount } from '@/lib/trade';
-
-type TradeSide = 'YES' | 'NO';
 
 function validTokenAmount(value: string): boolean {
   try {
@@ -28,41 +26,52 @@ function validTokenAmount(value: string): boolean {
   }
 }
 
+/**
+ * The order ticket for the selected market (design-brief.md §5: one
+ * product, bought as YES or NO; labels and numbers only). Every number is
+ * read from that market's contract through the Web3Provider, which the
+ * order column points at the selection.
+ */
 export function TradePanel() {
   const {
     account,
     configured,
+    market,
     snapshot,
     pendingAction,
     error,
+    connectError,
     lastTransaction,
     connect,
     mintCollateral,
-    mintSet,
-    quoteToward,
-    swapToward,
+    quoteBuy,
+    buy,
     resolve,
     cancel,
     redeem,
   } = useWeb3();
+  const { now } = useMarkets();
   const [side, setSide] = React.useState<TradeSide>('YES');
-  const [mintAmount, setMintAmount] = React.useState('100');
-  const [tradeAmount, setTradeAmount] = React.useState('100');
+  const [amount, setAmount] = React.useState('100');
   const [quoteState, setQuoteState] = React.useState<{
     key: string;
-    quote?: SwapQuote;
+    quote?: BuyQuote;
     unavailable: boolean;
   }>({ key: '', unavailable: false });
-  const quoteKey = `${side}:${tradeAmount}`;
+
+  const { ready, settled, closed, cancellable, tradingOpen } = ticketState(
+    snapshot,
+    market,
+    Math.floor(now / 1000),
+  );
+  const quoteKey = `${market ?? ''}:${side}:${amount}`;
 
   React.useEffect(() => {
-    if (!configured || !validTokenAmount(tradeAmount)) {
-      return;
-    }
+    if (!tradingOpen || !validTokenAmount(amount)) return;
 
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      void quoteToward(side, tradeAmount)
+      void quoteBuy(side, amount)
         .then((nextQuote) => {
           if (!cancelled) {
             setQuoteState({
@@ -73,9 +82,7 @@ export function TradePanel() {
           }
         })
         .catch(() => {
-          if (!cancelled) {
-            setQuoteState({ key: quoteKey, unavailable: true });
-          }
+          if (!cancelled) setQuoteState({ key: quoteKey, unavailable: true });
         });
     }, 250);
 
@@ -83,18 +90,15 @@ export function TradePanel() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [configured, quoteKey, quoteToward, side, tradeAmount]);
+  }, [tradingOpen, quoteKey, quoteBuy, side, amount, snapshot.priceE18]);
 
-  const validMintAmount = validTokenAmount(mintAmount);
-  const validTradeAmount = validTokenAmount(tradeAmount);
+  const validAmount = validTokenAmount(amount);
   const quote = quoteState.key === quoteKey ? quoteState.quote : undefined;
   const quoteUnavailable =
     quoteState.key === quoteKey && quoteState.unavailable;
-  const canMint = Boolean(
-    account && configured && validMintAmount && !pendingAction,
-  );
-  const canSwap = Boolean(
-    account && configured && validTradeAmount && quote && !pendingAction,
+  const busy = Boolean(pendingAction);
+  const canBuy = Boolean(
+    account && tradingOpen && validAmount && quote && !busy,
   );
   const yesPrice = Number(snapshot.priceE18) / 1e16;
   const noPrice = 100 - yesPrice;
@@ -105,15 +109,11 @@ export function TradePanel() {
         <CardTitle className="text-sm font-semibold text-foreground">
           Order ticket
         </CardTitle>
-        <CardDescription>
-          Mint a complete set, then swap into the side you want.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-3 py-4">
         {!configured && (
           <div className="rounded-[2px] border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">
-            Demo preview — contract addresses will activate after the X Layer
-            deployment.
+            Contracts not configured.
           </div>
         )}
 
@@ -124,8 +124,12 @@ export function TradePanel() {
             onClick={() => setSide('YES')}
             variant="outline"
           >
-            YES{' '}
-            <span className="ml-auto font-mono">{yesPrice.toFixed(1)}¢</span>
+            YES
+            <span className="ml-auto font-mono text-xs">
+              {ready
+                ? `${yesPrice.toFixed(1)}¢ · ${Math.round(yesPrice)}% implied`
+                : '—'}
+            </span>
           </Button>
           <Button
             aria-pressed={side === 'NO'}
@@ -133,28 +137,34 @@ export function TradePanel() {
             onClick={() => setSide('NO')}
             variant="outline"
           >
-            NO <span className="ml-auto font-mono">{noPrice.toFixed(1)}¢</span>
+            NO
+            <span className="ml-auto font-mono text-xs">
+              {ready
+                ? `${noPrice.toFixed(1)}¢ · ${Math.round(noPrice)}% implied`
+                : '—'}
+            </span>
           </Button>
         </div>
 
         <div>
           <label
             className="mb-2 block text-xs text-muted-foreground"
-            htmlFor="mint-amount"
+            htmlFor="order-amount"
           >
-            Complete set amount
+            Amount
           </label>
           <div className="relative">
             <Input
-              aria-invalid={!validMintAmount}
+              aria-invalid={!validAmount}
               className="h-10 rounded-[2px] border-border bg-background pr-20 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
-              id="mint-amount"
+              disabled={!tradingOpen}
+              id="order-amount"
               inputMode="decimal"
               min="0"
-              onChange={(event) => setMintAmount(event.target.value)}
+              onChange={(event) => setAmount(event.target.value)}
               step="0.01"
               type="number"
-              value={mintAmount}
+              value={amount}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
               mUSDT
@@ -162,24 +172,24 @@ export function TradePanel() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-px rounded-[2px] border border-border bg-border text-xs">
+        <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
           <div>
-            <div className="bg-card px-2 py-2 text-muted-foreground">mUSDT</div>
-            <div className="truncate bg-card px-2 pb-2 font-mono text-foreground">
-              {formatToken(snapshot.collateralBalance)}
+            <div className="text-muted-foreground">Estimated output</div>
+            <div className="mt-1 font-mono text-foreground">
+              {quote ? `${formatToken(quote.totalOut)} ${side}` : '—'}
             </div>
           </div>
           <div>
-            <div className="bg-card px-2 py-2 text-muted-foreground">YES</div>
-            <div className="truncate bg-card px-2 pb-2 font-mono text-up">
-              {formatToken(snapshot.yesBalance)}
+            <div className="text-muted-foreground">Minimum received</div>
+            <div className="mt-1 font-mono text-foreground">
+              {quote ? `${formatToken(quote.minimumTotalOut)} ${side}` : '—'}
             </div>
           </div>
-          <div>
-            <div className="bg-card px-2 py-2 text-muted-foreground">NO</div>
-            <div className="truncate bg-card px-2 pb-2 font-mono text-down">
-              {formatToken(snapshot.noBalance)}
-            </div>
+          <div className="col-span-2 text-muted-foreground">
+            0.50% slippage protection · 5-minute deadline
+            {quoteUnavailable && (
+              <span className="ml-2 text-warning">Live quote unavailable.</span>
+            )}
           </div>
         </div>
 
@@ -193,88 +203,29 @@ export function TradePanel() {
         ) : (
           <div className="grid gap-2">
             <Button
+              className={
+                'h-10 rounded-[2px] shadow-none ' +
+                (side === 'YES'
+                  ? 'bg-up text-background hover:bg-up/85'
+                  : 'bg-down text-background hover:bg-down/85')
+              }
+              disabled={!canBuy}
+              onClick={() => void buy(side, amount)}
+            >
+              {ready && !tradingOpen ? 'Trading closed' : `Buy ${side}`}
+            </Button>
+            <Button
               className="rounded-[2px] shadow-none"
-              disabled={!configured || Boolean(pendingAction)}
+              disabled={!configured || busy}
               onClick={() => void mintCollateral()}
               variant="outline"
             >
               Get 1,000 demo mUSDT
             </Button>
-            <Button
-              className="h-10 rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
-              disabled={!canMint}
-              onClick={() => void mintSet(mintAmount)}
-            >
-              Mint YES + NO set
-            </Button>
-
-            <div className="mt-2">
-              <label
-                className="mb-2 block text-xs text-muted-foreground"
-                htmlFor="trade-amount"
-              >
-                Trade input
-              </label>
-              <div className="relative">
-                <Input
-                  aria-invalid={!validTradeAmount}
-                  className="h-10 rounded-[2px] border-border bg-background pr-20 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
-                  id="trade-amount"
-                  inputMode="decimal"
-                  min="0"
-                  onChange={(event) => setTradeAmount(event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={tradeAmount}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
-                  {side === 'YES' ? 'NO' : 'YES'}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
-              <div>
-                <div className="text-muted-foreground">Estimated output</div>
-                <div className="mt-1 font-mono text-foreground">
-                  {quote ? `${formatToken(quote.amountOut)} ${side}` : '—'}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Minimum received</div>
-                <div className="mt-1 font-mono text-foreground">
-                  {quote
-                    ? `${formatToken(quote.minimumAmountOut)} ${side}`
-                    : '—'}
-                </div>
-              </div>
-              <div className="col-span-2 text-muted-foreground">
-                0.50% slippage protection · 5-minute deadline
-                {quoteUnavailable && (
-                  <span className="ml-2 text-warning">
-                    Live quote unavailable.
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <Button
-              className="h-9 rounded-[2px] shadow-none"
-              disabled={!canSwap}
-              onClick={() => void swapToward(side, tradeAmount)}
-              variant="secondary"
-            >
-              Swap towards {side}
-            </Button>
             <div className="grid grid-cols-3 gap-2">
               <Button
                 className="rounded-[2px] shadow-none"
-                disabled={
-                  !configured ||
-                  Boolean(pendingAction) ||
-                  snapshot.resolved ||
-                  snapshot.cancelled
-                }
+                disabled={!closed || settled || busy}
                 onClick={() => void resolve()}
                 size="sm"
                 variant="ghost"
@@ -283,12 +234,7 @@ export function TradePanel() {
               </Button>
               <Button
                 className="rounded-[2px] shadow-none"
-                disabled={
-                  !configured ||
-                  Boolean(pendingAction) ||
-                  snapshot.resolved ||
-                  snapshot.cancelled
-                }
+                disabled={!cancellable || settled || busy}
                 onClick={() => void cancel()}
                 size="sm"
                 variant="ghost"
@@ -297,11 +243,7 @@ export function TradePanel() {
               </Button>
               <Button
                 className="rounded-[2px] shadow-none"
-                disabled={
-                  !configured ||
-                  Boolean(pendingAction) ||
-                  (!snapshot.resolved && !snapshot.cancelled)
-                }
+                disabled={!settled || busy}
                 onClick={() => void redeem()}
                 size="sm"
                 variant="ghost"
@@ -318,9 +260,10 @@ export function TradePanel() {
               <Loader2 className="size-3.5 animate-spin" /> {pendingAction}…
             </span>
           )}
-          {!pendingAction && error && (
-            <span className="text-down">{error}</span>
-          )}
+          {!pendingAction &&
+            (error ?? (!account ? connectError : undefined)) && (
+              <span className="text-down">{error ?? connectError}</span>
+            )}
           {!pendingAction && !error && lastTransaction && (
             <a
               className="inline-flex items-center gap-1.5 text-foreground underline-offset-4 hover:underline"
@@ -333,9 +276,8 @@ export function TradePanel() {
           )}
         </div>
 
-        <div className="border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
-          Cash-settled demo market. No electricity, stock, or physical asset is
-          delivered. Cancelled markets pay 0.5 mUSDT per YES or NO token.
+        <div className="border-t border-border pt-3 font-mono text-xs text-muted-foreground">
+          Cancelled: 0.5 mUSDT per YES or NO
         </div>
       </CardContent>
     </Card>

@@ -1,246 +1,179 @@
 # GRIDFLEX demo markets
 
-Six candidate markets for the hackathon demo — three per contract metric
-(`ERCOT_HBNORTH_DA_AVG`, `ERCOT_WEST_NORTH_DA_BASIS`) — built from the full
-year of data in `data/metrics/` (2025-09-10 through 2026-09-09, 363
-published days per metric; the two DST changeover days have no data and no
-market may resolve on them).
+Four markets, all on the one public product — the Texas power price,
+`ERCOT_HBNORTH_DA_AVG` (see `shared/design-brief.md` §5). They come in two
+kinds, and `create_markets.py` reads the kind of each one from the
+Summary table below:
 
-**Read the seasonal-patterns section before the thresholds below.** One of
-them — `ERCOT_WEST_NORTH_DA_BASIS` — behaves so differently in the exact
-calendar window the demo happens in that the annually-obvious threshold
-would be a dead market on demo day. The threshold recommendations already
-account for this; this isn't a footnote, it changed the actual numbers
-chosen.
+- **Live**: a future market day that people can trade now. No reading exists
+  when the market is created, and none can. Trading closes at **12:30 Texas
+  time on the day before the market day**. That is one hour before ERCOT
+  publishes that day's day-ahead price at 13:30 Central, so nobody can
+  trade on a price that has already been published.
+- **Replay**: a market day that has already settled, so the video can show
+  the whole cycle (mint → trade → close → resolve → redeem) in one take.
+  Its reading must already be **published and finalized** on-chain. Trading
+  stays open for **45 minutes from the moment the market is created**, and
+  after that `resolve()` works straight away.
 
----
-
-## Seasonal patterns that matter for this demo
-
-The hackathon's dates only exist once in the dataset: build 17–25 September
-2026 and the Singapore finale 6 October 2026 have exactly one historical
-analog, **17 September – 6 October 2025** (20 published days). Everything
-"seasonal" below is that 20-day window compared to the full 363-day year —
-a real pattern, but a small sample (one day = 5 percentage points of the
-window's rate), stated with that precision in mind, not more.
-
-**`ERCOT_HBNORTH_DA_AVG` shifts up, but not enough to break a $30 threshold.**
-Annual median $28.24, window median ~$29.95 (min $22.48, max $36.01, all 20
-days clustered in a $22–36 band — no summer or winter-storm spikes in this
-window at all). A few annually-fine thresholds stop working here: $26 and
-$28 both cross on 75–90% of window days — reading as "obviously yes" to
-anyone watching the demo rather than a real market. **$30 survives both
-checks** (annual 41.0%, window 50.0%) and is the only round number in the
-tested range that does. That's not a coincidence to route around — it's
-why $30 is used for all three `ERCOT_HBNORTH_DA_AVG` markets below.
-
-**`ERCOT_WEST_NORTH_DA_BASIS` is where the seasonal effect is real and
-large.** Annual median is $0.50 — close to the $0 line, which is exactly
-why $0 looked like the obvious threshold. But in the 17 Sep – 6 Oct window,
-basis was **positive on all 20 of 20 days** (min +$2.10, max +$8.64, mean
-+$4.60) — not one day below zero. A market asking "will basis exceed $0"
-listed for any day in the actual demo window would have resolved YES on
-every single analogous day last year. That is a dead market, not a
-tradeable one, and it's the same trap `ERCOT_HBWEST_NEG_INTERVALS` was
-rejected for (see `shared/metrics.md`) — just discovered by season instead
-of by metric.
-
-The likely mechanism, consistent with what `basis_spread()`'s own comment
-says (negative basis = West oversupplied relative to transmission, i.e.
-wind/solar curtailment): late September/early October is a shoulder
-season — past summer peak demand, before winter's wind ramp-up and storm
-risk (the +$180 to +$694 day-ahead spikes in `data/metrics/` all cluster in
-January 2026). Less curtailment pressure on the West side shows up directly
-as basis staying positive. This is a real seasonal regime, not noise — see
-the fuller year-round shape in `shared/metrics.md`'s data if you want the
-month-by-month picture.
-
-**Consequence for market design:** the two `ERCOT_WEST_NORTH_DA_BASIS`
-markets that actually resolve inside the demo window use **$4**, not $0 —
-tuned to the window (60.0% crossed) rather than the annual rate (17.1%,
-which is *not* independently in the 35–65% band — deliberately overridden
-here because the annual rate is the wrong number for a market that is
-guaranteed to resolve on a specific date already known to fall in this
-season). The one `ERCOT_WEST_NORTH_DA_BASIS` market that resolves on a past
-date outside this window uses the annual-calibrated $0, which is
-appropriate there because that date isn't subject to the seasonal effect.
+Every close below is shown in Texas and London time. `create_markets.py`
+prints the same two clocks in its dry run and in its live confirmation.
 
 ---
 
-## `ERCOT_HBNORTH_DA_AVG` — three markets
+## How a close is enforced
 
-All three use **$30/MWh**, validated above as the one round threshold that
-is genuinely uncertain both annually (41.0%) and in the exact demo-week
-analog (50.0%). Varying the resolution date rather than the threshold is
-deliberate, not a shortcut — see above.
+`resolveAfter` is the trading close, and the contract enforces it.
+`contracts/src/BinaryMarket.sol` reverts `mintSet`, `swap` and `seedPool`
+with `TradingClosed()` once `block.timestamp >= resolveAfter`, and
+`resolve()` reverts `ResolveTooEarly` before it. Outcome tokens are still
+ordinary ERC-20s after the close, so wallet-to-wallet transfers keep
+working, but nothing new can be minted and nothing can go through the pool.
 
-### 1. Live full-lifecycle demo (past dayKey)
+**Dispute window, by kind.** `cancel()` voids a market that has no
+published reading once `resolveAfter + disputeWindow` has passed.
 
-> **"Did the ERCOT North Hub day-ahead average exceed $30/MWh on September
-> 8, 2026?"**
+- **Replay: 0.** Its reading is already published, so `cancel()` can never
+  succeed. This is the past-day-demo value from `shared/deployment.md`.
+- **Live: 7 days.** A live market's reading can't be on-chain at its close.
+  `fetch_ercot.py` can only reach day D once the UTC date has moved past
+  D, which is at least ~30 hours after close, and publish/finalize are
+  manual runs after that. With 0, anyone could void a live market in that
+  gap. Seven days leaves room for a missed run while still letting a market
+  whose data never arrives be cancelled in the end.
 
-- Threshold: $30.00/MWh
-- Resolves on: **`dayKey 20260908`** (2026-09-08) — already settled
-- Historical base rate: 41.0% of the past year's days closed above $30
-  (149/363)
-- Actual outcome: **$39.57/MWh — YES.** Use this one to run the whole
-  lifecycle live: list it as if trading were still open, place a trade,
-  then resolve and redeem against the real, already-computed
-  `data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-08.json` record — no waiting
-  for tomorrow's data.
-
-### 2. Demo-day market
-
-> **"Will the ERCOT North Hub day-ahead average exceed $30/MWh on
-> September 24, 2026?"**
-
-- Threshold: $30.00/MWh
-- Resolves on: **`dayKey 20260924`** (2026-09-24, inside the build window,
-  ahead of the 25 Sep submission)
-- Historical base rate: 41.0% annual, 50.0% in the exact 17 Sep–6 Oct
-  analog window — genuinely live either way at the time this is listed
-- Outcome: unknown at listing time, by construction — this is the one
-  meant to actually be uncertain when the audience sees it
-
-### 3. Eve-of-finale market (Singapore) — moved from 20261006, see note below
-
-> **"Will the ERCOT North Hub day-ahead average exceed $30/MWh on
-> October 5, 2026?"**
-
-- Threshold: $30.00/MWh
-- Resolves on: **`dayKey 20261005`** (2026-10-05, the day before the live
-  finale)
-- Historical base rate: same 41.0% / 50.0% split as the rest of this
-  metric's markets — 5 October falls inside the same 17 Sep–6 Oct analog
-  window already used to calibrate $30, so no recalculation was needed
-- 5 October 2025's own analog was $22.48 — a NO. Worth saying out loud on
-  stage: this specific historical day would have resolved NO, which is the
-  honest answer to "so is $30 actually uncertain here" — yes, both
-  outcomes really happen in this window, not just the YES cited for market
-  1.
-- Good closing-moment market: list it days ahead, let it trade through the
-  finale build-up, resolve on stage using the metric file computed the
-  afternoon before — see the timing note below for why it isn't the finale
-  day itself.
+The dispute window only delays `cancel()`. `resolve()` never reads it: it
+works as soon as `resolveAfter` has passed and the oracle reports the
+reading final (`isFinal`). The oracle's own wait between publish and
+finalize is separate, set in `GridOracle`.
 
 ---
 
-## `ERCOT_WEST_NORTH_DA_BASIS` — three markets
+## Replay market
 
-### 1. Live full-lifecycle demo (past dayKey)
+### 1. Texas power, 11 September 2025, above $25
 
-> **"Did the West–North day-ahead basis exceed $0/MWh on August 12,
-> 2026?"**
+> **"Did Texas power cost more than $25 on September 11, 2025?"**
 
-- Threshold: $0.00/MWh
-- Resolves on: **`dayKey 20260812`** (2026-08-12) — already settled
-- Historical base rate: 55.4% of the past year's days closed with positive
-  basis (201/363) — this date is outside the Sep/Oct seasonal window, so
-  the annual rate is the right calibration here
-- Actual outcome: **West $13.78, North $24.10, basis −$10.32 — NO.**
-  West traded at a steep discount to North that day (real congestion, the
-  regime $0 as a threshold is actually testing). Pairs well with market 1
-  above: one live-demoed market resolves YES, the other NO, showing the
-  redemption path works both directions, not just the convenient one.
+- Metric: `ERCOT_HBNORTH_DA_AVG`, **`dayKey 20250911`**
+- Strike: $25.00/MWh (on-chain threshold `2500`)
+- Reading: **$26.38/MWh** (`2638`), already published and finalized
+  (`data/metrics/ERCOT_HBNORTH_DA_AVG__2025-09-11.json`) — **YES wins**
+- Trading close: 45 minutes after creation. `resolveAfter` is computed just
+  before `createMarket` is sent, not when the operator types `yes`, so the
+  whole 45 minutes counts from creation.
+- Resolvable as soon as trading closes. Record the video within that
+  window: trade, wait for the close, resolve, redeem.
 
-### 2. Demo-day market
+---
 
-> **"Will the West–North day-ahead basis exceed $4/MWh on September 24,
-> 2026?"**
+## Live markets
 
-- Threshold: $4.00/MWh — **not $0.** See "Seasonal patterns" above: $0
-  resolved YES on all 20 days of the 2025 analog window, which is not a
-  market, it's a foregone conclusion.
-- Resolves on: **`dayKey 20260924`** (2026-09-24)
-- Historical base rate: 60.0% in the 17 Sep–6 Oct analog window (12/20).
-  Flag honestly: annual rate for $4 is only 17.1% — this threshold is
-  deliberately tuned to the season this market actually resolves in, not
-  to the full year, because the full year includes winter/spring months
-  this market cannot land in.
+All three have the same strike, **$45/MWh** (threshold `4500`). What changes
+from one to the next is the market day.
 
-### 3. Eve-of-finale market (Singapore) — moved from 20261006, see note below
+### 2. Texas power, 26 September 2026
 
-> **"Will the West–North day-ahead basis exceed $4/MWh on October 5,
-> 2026?"**
+> **"Will Texas power cost more than $45 on September 26, 2026?"**
 
-- Threshold: $4.00/MWh
-- Resolves on: **`dayKey 20261005`** (2026-10-05, the day before the live
-  finale)
-- Historical base rate: same 60.0% window rate as above — 5 October falls
-  inside the same 17 Sep–6 Oct analog window, so the rate is unchanged, no
-  recalculation needed
-- 5 October 2025's own analog was +$3.74 — a NO, and a close one: $0.26
-  short of the $4 line. Almost the mirror image of the old 6 October
-  citation (a narrow YES) — still exactly the kind of close call that makes
-  for a good on-stage resolution moment, just landing the other way
+- **`dayKey 20260926`**
+- Trading close: **2026-09-25 12:30 CDT (Texas) / 18:30 BST (London)**.
+  That is the evening of the submission day in London.
+
+### 3. Texas power, 30 September 2026
+
+> **"Will Texas power cost more than $45 on September 30, 2026?"**
+
+- **`dayKey 20260930`**
+- Trading close: **2026-09-29 12:30 CDT (Texas) / 18:30 BST (London)**
+
+### 4. Texas power, 2 October 2026
+
+> **"Will Texas power cost more than $45 on October 2, 2026?"**
+
+- **`dayKey 20261002`**
+- Trading close: **2026-10-01 12:30 CDT (Texas) / 18:30 BST (London)**.
+  It stays open for trading through the judges' review period, which runs
+  until 30 September.
+- Resolution: `fetch_ercot.py` stops at "yesterday in UTC", so 2 October
+  can be fetched once UTC reaches 2026-10-03 (08:00 SGT on 3 October; see
+  the note at the end). After that come publish and finalize, and then
+  `resolve()` works. That leaves time for it to settle before the
+  6 October finale.
 
 ---
 
 ## Summary table
 
-| # | Metric | Question threshold | dayKey | Date | Base rate used | Basis for rate |
+| # | Metric | Question threshold | dayKey | Date | Kind | Trading close |
 |---|---|---|---|---|---|---|
-| 1 | `ERCOT_HBNORTH_DA_AVG` | > $30 | `20260908` | 2026-09-08 (past) | 41.0% | annual |
-| 2 | `ERCOT_HBNORTH_DA_AVG` | > $30 | `20260924` | 2026-09-24 | 41.0% / 50.0% | annual + window agree |
-| 3 | `ERCOT_HBNORTH_DA_AVG` | > $30 | `20261005` | 2026-10-05 | 41.0% / 50.0% | annual + window agree (unchanged, see note) |
-| 4 | `ERCOT_WEST_NORTH_DA_BASIS` | > $0 | `20260812` | 2026-08-12 (past) | 55.4% | annual (outside seasonal window) |
-| 5 | `ERCOT_WEST_NORTH_DA_BASIS` | > $4 | `20260924` | 2026-09-24 | 60.0% | **window** (annual rate, 17.1%, does not apply here) |
-| 6 | `ERCOT_WEST_NORTH_DA_BASIS` | > $4 | `20261005` | 2026-10-05 | 60.0% | **window** (annual rate, 17.1%, does not apply here; unchanged, see note) |
+| 1 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20250911` | 2025-09-11 (past, $26.38 — YES) | replay | 45 min after creation |
+| 2 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260926` | 2026-09-26 | live | 2026-09-25 12:30 CDT (Texas) / 18:30 BST (London) |
+| 3 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260930` | 2026-09-30 | live | 2026-09-29 12:30 CDT (Texas) / 18:30 BST (London) |
+| 4 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261002` | 2026-10-02 | live | 2026-10-01 12:30 CDT (Texas) / 18:30 BST (London) |
 
-Markets 1 and 4 are already-settled `dayKey`s with real `data/metrics/`
-records behind them — both usable today for a live trade → resolve →
-redeem walkthrough without waiting for a future date to arrive. Neither
-`dayKey` in the full set of six falls on a DST changeover day.
+`create_markets.py` and `finalize.py --verify` both parse this table, so
+keep its seven-column shape. Metric is column 2, dayKey column 4 and Kind
+column 6. The Trading close column is written for humans, and
+`tests/test_create_markets.py` checks it against the close the script
+computes.
 
-### Note: why markets 3 and 6 moved from 20261006 to 20261005
+None of these dayKeys is a DST changeover day. Contracts can't settle on
+those days (see `shared/metrics.md`).
 
-Both originally targeted `dayKey 20261006` — the finale date itself. That
-doesn't work, and not because of ERCOT's publication schedule (real
-day-ahead prices for 6 October post around 1:30pm Central on 5 October,
-well before the demo). The blocker is `fetch_ercot.py`'s own date
-arithmetic:
+---
+
+## Calibration: how often $45 has been crossed
+
+The data runs from 2025-09-10 to 2026-09-09 and covers 363 published days.
+
+- **Over the whole year:** 27 of 363 days closed above $45, which is
+  **7.4%**.
+- **17 September to 6 October 2025**, the calendar match for the demo
+  window: **0 of 20** days. Every day in that window fell between $22.48
+  and $36.01. The same days last year were 26 Sep $28.54, 30 Sep $33.30 and
+  2 Oct $30.07, all NO.
+- **Latest days in the dataset:** $39.57 on 8 Sep and $45.18 on 9 Sep 2026.
+  Prices have been running higher than they did a year earlier, and 9 Sep
+  crossed $45.
+
+By the history alone, $45 points strongly to NO. The earlier plan used $30
+for this metric because it was the one round strike that looked uncertain
+in both the annual data (41.0%) and the demo-window match (50.0%). $45 was
+chosen for these markets anyway. These numbers are here so the choice is
+made knowingly. They describe what has already happened and don't predict
+these dates.
+
+---
+
+## Markets created under the earlier plan (already on chain)
+
+The earlier six-market plan created two markets, and both are recorded in
+`shared/addresses.json` → `markets`. Their trading closed on 2026-09-21. They
+are no longer in the Summary table, so `create_markets.py` won't touch them
+and `finalize.py --verify` no longer checks them by default. Use
+`--verify --metric … --day-key …` to check one.
+
+| Metric | Threshold | dayKey | Outcome |
+|---|---|---|---|
+| `ERCOT_HBNORTH_DA_AVG` | > $30 | `20260908` | $39.57 — YES |
+| `ERCOT_WEST_NORTH_DA_BASIS` | > $0 | `20260812` | −$10.32 — NO |
+
+---
+
+## Note: why a market day D can't resolve on day D
+
+`fetch_ercot.py`'s own date arithmetic:
 
 ```python
 end_date = datetime.now(timezone.utc).date()
 start_date = end_date - timedelta(days=args.days)
 ```
 
-`end_date` is always *today in UTC*, and the fetch window is exclusive at
-that end — the pipeline only ever reaches through "yesterday" relative to
-its own UTC run-time, never "today." The demo window, 10:00–14:00 SGT on 6
-October, is 02:00–06:00 UTC on 6 October — the UTC calendar date is already
-`2026-10-06` for the entire demo. Running the pipeline at any point in that
-window, with any `--days` value, therefore stops at Central midnight 6
-October: it caps out at **5 October's** market day. 6 October is
-structurally excluded, not just late — the earliest the pipeline could ever
-include it is when UTC reaches `2026-10-07`, i.e. **2026-10-07 08:00 SGT**,
-a full day after the demo ends.
-
-`dayKey 20261005` doesn't have this problem: its data has been complete
-since the afternoon of 4 October, and the pipeline's own arithmetic makes
-it fetchable starting UTC `2026-10-06 00:00` — **2026-10-06 08:00 SGT**,
-two hours before the demo even starts, and it stays fetchable throughout.
-Because 5 October falls inside the same 17 Sep–6 Oct 2025 analog window
-already used to calibrate both metrics' thresholds, none of the crossing
-rates needed to change — only the specific-day analog citations did (now
-$22.48/NO for `ERCOT_HBNORTH_DA_AVG`, +$3.74/NO for
-`ERCOT_WEST_NORTH_DA_BASIS`, in each market's own section above).
-
-**Post-hackathon improvement, not a pre-hackathon fix:** the cutoff could
-be anchored to Central data availability instead of the UTC clock, which
-would let a market like this resolve on the finale day itself. That change
-is not happening before the hackathon — this arithmetic decides which
-market days exist at all, and changing it now, this close to the
-submission and demo dates, is exactly the kind of edit that should get its
-own dedicated testing pass, not a same-week retrofit under time pressure.
-
-## Caveats
-
-- The seasonal window is 20 days from a single year — real and large
-  enough to change a threshold recommendation (see the basis case), but
-  not enough data to say more precisely than "roughly 50–65%," and it
-  should be re-checked once a second year of data exists.
-- All six base rates are historical, not predictive — same caveat as any
-  metric in `shared/metrics.md`: this describes what has already happened
-  under real ERCOT market conditions, not a guarantee about the specific
-  dates above, which is what makes them real markets rather than reruns.
+`end_date` is always *today in UTC*, and the fetch window excludes that
+end. So the pipeline only reaches "yesterday" relative to its own UTC run
+time. ERCOT publishes day D's prices at 13:30 Central on D−1, but the
+pipeline can't include D until UTC reaches D+1 00:00. Anchoring the cutoff
+to when Central data is available would remove this gap. That is a
+post-hackathon change: this arithmetic decides which market days exist at
+all, and it deserves its own testing pass, not a same-week retrofit.

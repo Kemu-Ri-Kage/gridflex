@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# Refresh GRIDFLEX market data on demand, commit it, and redeploy the site.
+#
+#   ./refresh_data.sh              fetch, rebuild, commit, push, build, deploy
+#   ./refresh_data.sh --no-deploy  everything except the deploy
+#   ./refresh_data.sh --no-fetch   no GridStatus at all: rebuild the feed data
+#                                  from data/metrics as it is, then commit,
+#                                  push, build and deploy (candles are left
+#                                  as they are - rebuilding them re-fetches
+#                                  the recent days). Needs no API key.
+#
+# Fetches only what the site and the live markets use, one GridStatus request
+# per dataset (three in all), each spanning every day the cache can't answer:
+#   North Hub day-ahead hourly   the Texas power price, which markets settle on
+#                                (fetch_ercot.py: today, the last 3 days, and
+#                                every day missing since the latest complete day)
+#   North Hub real-time 15-min   the 4H, 1D and 1W candles  (build_candles.py)
+#   North Hub 5-min dispatch     the 15m and 1H candles     (build_candles.py)
+# The feed-only metrics (West Hub, basis, load-weighted index, negative
+# intervals, fuel mix) are not fetched; run fetch_ercot.py --feed-metrics or
+# build_candles.py --west-hub by hand if they are ever needed.
+#
+# Then feed data (build_feed_data.py), a commit of the regenerated data files
+# on the current branch, a push, `pnpm build`, and `wrangler deploy` of the
+# built worker. Prints the GridStatus requests and rows it used.
+#
+# Refuses to run on main. Deploys only what is committed and pushed: it stops
+# before fetching if anything under web/ other than web/public/data/ has
+# uncommitted changes, and again before building if anything is left over.
+#
+# Both fetch steps refuse to go past 12 GridStatus requests in one run (their
+# --max-requests default). To see what a run would fetch without spending
+# anything: `python3 fetch_ercot.py --days 3 --fill-gaps --plan` and
+# `python3 build_candles.py --plan`; `python3 fetch_ercot.py --usage` prints
+# the month's usage against the plan's limits.
+#
+# Needs GRIDSTATUS_API_KEY - taken from the environment, or loaded from .env
+# without ever being printed - and a logged-in wrangler for the deploy.
+# Runs in the foreground and starts nothing that outlives it; Ctrl-C stops it.
+# It does not publish anything onchain.
+set -euo pipefail
+
+deploy=1
+fetch=1
+for arg in "$@"; do
+  case "$arg" in
+    --no-deploy) deploy=0 ;;
+    --no-fetch) fetch=0 ;;
+    -h | --help)
+      sed -n '2,35p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $arg (see --help)" >&2
+      exit 2
+      ;;
+  esac
+done
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$repo_root"
+
+python_bin="${PYTHON_BIN:-}"
+if [[ -z "$python_bin" ]]; then
+  if [[ -x "$repo_root/.venv/bin/python" ]]; then
+    python_bin="$repo_root/.venv/bin/python"
+  else
+    python_bin="python3"
+  fi
+fi
+pnpm_bin="${PNPM_BIN:-pnpm}"
+git_remote="${GIT_REMOTE:-origin}"
+
+# Days of prices to re-read each refresh besides today: the window
+# fetch_ercot.py treats as not yet final. Days older than that which were
+# never fetched are filled by --fill-gaps.
+fetch_days=3
+
+# The files this script regenerates, and so the only ones it commits.
+data_paths=(data/metrics web/public/data)
+
+# Everything the site build reads from the repo.
+build_paths=(web data/metrics)
+
+branch="$(git symbolic-ref --quiet --short HEAD || true)"
+if [[ -z "$branch" ]]; then
+  echo "Not on a branch (detached HEAD). Check out a feature branch first." >&2
+  exit 1
+fi
+if [[ "$branch" == "main" ]]; then
+  echo "Refusing to run on main. Check out a feature branch first." >&2
+  exit 1
+fi
+
+# The site is built from the working tree, so anything uncommitted under web/
+# would ship without being in any commit. Only web/public/data/ may differ:
+# this run regenerates and commits it.
+dirty="$(git status --porcelain --untracked-files=all -- web ':(exclude)web/public/data')"
+if [[ -n "$dirty" ]]; then
+  echo "Uncommitted changes under web/ would be deployed without a commit:" >&2
+  echo "$dirty" >&2
+  echo "Commit or stash them first." >&2
+  exit 1
+fi
+
+if [[ "$fetch" == 1 ]]; then
+  if [[ -z "${GRIDSTATUS_API_KEY:-}" && -f "$repo_root/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$repo_root/.env"
+    set +a
+  fi
+  if [[ -z "${GRIDSTATUS_API_KEY:-}" ]]; then
+    echo "GRIDSTATUS_API_KEY is not set and .env did not provide it." >&2
+    exit 1
+  fi
+fi
+
+run_log="$(mktemp)"
+trap 'rm -f "$run_log"' EXIT
+
+if [[ "$fetch" == 1 ]]; then
+  echo "[1/6] Fetching ERCOT prices"
+  "$python_bin" fetch_ercot.py --days "$fetch_days" --fill-gaps | tee "$run_log"
+
+  echo
+  echo "[2/6] Rebuilding candle data"
+  "$python_bin" build_candles.py | tee -a "$run_log"
+else
+  echo "[1/6] Fetch skipped (--no-fetch)"
+  echo "[2/6] Candles left as they are (--no-fetch)"
+fi
+
+echo
+echo "[3/6] Rebuilding feed data"
+"$python_bin" build_feed_data.py
+
+# Sum a "<label>: N" line across the fetch and candle steps (0 when none
+# ran - grep finding nothing must not trip set -e/pipefail).
+run_total() {
+  { grep -o "$1: [0-9,]*" "$run_log" || true; } |
+    awk -F': ' '{ gsub(",", "", $2); total += $2 } END { print total + 0 }'
+}
+rows_used="$(run_total 'GridStatus rows fetched this run')"
+requests_used="$(run_total 'GridStatus requests this run')"
+
+echo
+echo "[4/6] Committing and pushing the data on $branch"
+git add -A -- "${data_paths[@]}"
+if git diff --cached --quiet -- "${data_paths[@]}"; then
+  echo "No data changed; nothing to commit."
+else
+  # --only (the pathspec) commits the data paths alone, whatever else is staged.
+  git commit --quiet -m "Refresh market data, $(date -u +%Y-%m-%d)" -- "${data_paths[@]}"
+  git log -1 --format='  %h %s'
+fi
+git push --quiet "$git_remote" "HEAD:refs/heads/$branch"
+
+leftover="$(git status --porcelain --untracked-files=all -- "${build_paths[@]}")"
+if [[ -n "$leftover" ]]; then
+  echo "Not deploying: these build inputs differ from the commit:" >&2
+  echo "$leftover" >&2
+  exit 1
+fi
+commit="$(git rev-parse --short HEAD)"
+
+echo
+echo "[5/6] Building the site from $commit"
+(cd "$repo_root/web" && "$pnpm_bin" build)
+
+echo
+if [[ "$deploy" == 1 ]]; then
+  echo "[6/6] Deploying $commit"
+  (cd "$repo_root/web" && "$pnpm_bin" exec wrangler deploy --config dist/server/wrangler.json)
+else
+  echo "[6/6] Deploy skipped (--no-deploy)"
+fi
+
+echo
+echo "GridStatus requests used by this refresh: $requests_used"
+echo "GridStatus rows used by this refresh: $rows_used"

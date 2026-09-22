@@ -486,15 +486,31 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--day-key", type=parse_day)
+    parser.add_argument(
+        "--published-only",
+        action="store_true",
+        help="restrict candidates to data/publish-ledger.json entries with a txHash - skips "
+        "metric-day files that were never submitted, instead of round-tripping to the chain "
+        "for each one just to learn that. Off by default: every discovered metric file is a "
+        "candidate, same as today.",
+    )
     return parser
 
 
 def validate_args(args: argparse.Namespace) -> None:
     if args.verify:
-        if args.live or args.check or args.start or args.end or args.days or args.limit:
+        if (
+            args.live
+            or args.check
+            or args.start
+            or args.end
+            or args.days
+            or args.limit
+            or args.published_only
+        ):
             raise PublisherError(
-                "--verify is mutually exclusive with --live/--check and the "
-                "date-range/--limit flags."
+                "--verify is mutually exclusive with --live/--check, the "
+                "date-range/--limit flags, and --published-only."
             )
         if bool(args.metric) != (args.day_key is not None):
             raise PublisherError(
@@ -507,6 +523,8 @@ def validate_args(args: argparse.Namespace) -> None:
         return
     if args.day_key is not None:
         raise PublisherError("--day-key is only valid together with --verify.")
+    if args.check and args.published_only:
+        raise PublisherError("--published-only has no effect with --check; drop one.")
     if args.days is not None and args.days <= 0:
         raise PublisherError("--days must be positive.")
     if args.limit is not None and args.limit <= 0:
@@ -539,10 +557,22 @@ def main(argv: list[str] | None = None) -> int:
         dispute_window = get_dispute_window(contract)
 
         readings, invalid = collect_readings(args)
+        ledger = load_ledger()
+        if args.published_only:
+            # Only publish.py's own ledger says a reading was ever actually
+            # submitted (a txHash) - the local metric file existing says
+            # nothing about that. Filtering here, before the RPC loop below,
+            # is what skips the ~1,440 never-published files instead of
+            # round-tripping to the chain for each one just to learn
+            # STATUS_NOT_PUBLISHED.
+            readings = [
+                r
+                for r in readings
+                if isinstance(ledger.get(r.ledger_key), dict) and ledger[r.ledger_key].get("txHash")
+            ]
         if args.limit is not None:
             readings = readings[: args.limit]
 
-        ledger = load_ledger()
         now = int(time.time())
         evaluations: list[Evaluation] = []
         eligible: list[Evaluation] = []

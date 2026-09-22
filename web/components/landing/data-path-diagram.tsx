@@ -7,14 +7,15 @@ import { ExternalLink } from 'lucide-react';
 import { explorerAddressUrl, explorerTxUrl } from '@/lib/explorer';
 import { useCommittedRecord, useAddresses, useEvidence } from '@/lib/site-data';
 import { formatPrice } from '@/lib/format';
+import { dayLabel, strikeLabel, useMarkets, type Market } from '@/lib/markets';
 
 type StageId = 'source' | 'compute' | 'publish' | 'settle';
 
 const STAGES: { id: StageId; label: string; dek: string }[] = [
-  { id: 'source', label: 'Source', dek: 'ERCOT market data via GridStatus' },
-  { id: 'compute', label: 'Compute', dek: 'Pipeline builds the metric, hashes the inputs' },
-  { id: 'publish', label: 'Publish', dek: 'Reading written to GridOracle on X Layer' },
-  { id: 'settle', label: 'Settle', dek: 'Contracts resolve against the finalized reading' },
+  { id: 'source', label: 'Source', dek: "ERCOT, Texas's official grid price, via GridStatus" },
+  { id: 'compute', label: 'Compute', dek: 'Average of 24 hourly prices, hashed with its inputs' },
+  { id: 'publish', label: 'Publish', dek: 'Price written to the oracle on X Layer' },
+  { id: 'settle', label: 'Settle', dek: 'YES/NO questions settle against the published price' },
 ];
 
 function prefersReducedMotion(): boolean {
@@ -44,10 +45,6 @@ function AnimatedEvidence({ stageKey, children }: { stageKey: StageId; children:
   );
 }
 
-function Mono({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-foreground">{children}</span>;
-}
-
 function EvidencePanel({ stage }: { stage: StageId }) {
   const evidence = useEvidence();
   const addresses = useAddresses();
@@ -56,10 +53,10 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   if (stage === 'source') {
     return (
       <div className="space-y-3">
+        {/* The file names are the hash inputs, shown verbatim so the hash
+            can be reproduced - data, like an address (design-brief.md §5). */}
         <p className="text-sm leading-6 text-muted-foreground">
-          Day-ahead hourly settlement prices at ERCOT hub <Mono>HB_NORTH</Mono>, dataset{' '}
-          <Mono>ercot_spp_day_ahead_hourly</Mono>, fetched from GridStatus.io — which
-          redistributes public ERCOT data.
+          Hourly day-ahead prices from ERCOT, Texas&apos;s official grid price, via GridStatus.io
         </p>
         {evidence ? (
           <div className="border border-border bg-background/60 p-3 font-mono text-xs leading-5 text-muted-foreground">
@@ -70,12 +67,13 @@ function EvidencePanel({ stage }: { stage: StageId }) {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">Loading real source files…</p>
+          <p className="text-xs text-muted-foreground">Loading…</p>
         )}
-        <p className="text-xs text-muted-foreground">
-          {evidence?.sourceFiles.length ?? 4} monthly chunks feed the {evidence?.marketDay ?? '2026-09-08'}{' '}
-          reading — cached raw, never re-fetched once present.
-        </p>
+        {evidence && (
+          <p className="font-mono text-xs text-muted-foreground">
+            {evidence.sourceFiles.length} source files · {dayLabel(evidence.dayKey, true)} reading
+          </p>
+        )}
       </div>
     );
   }
@@ -84,11 +82,10 @@ function EvidencePanel({ stage }: { stage: StageId }) {
     return (
       <div className="space-y-3">
         <p className="text-sm leading-6 text-muted-foreground">
-          SHA-256 over the raw bytes of every source chunk above, concatenated in order — anyone
-          can reproduce it from the same files.
+          SHA-256 of the files above, in order.
         </p>
         <div className="border border-border bg-background/60 p-3">
-          <div className="text-xs text-muted-foreground">sourceHash</div>
+          <div className="text-xs text-muted-foreground">SHA-256</div>
           <div className="mt-1 break-all font-mono text-sm text-foreground">
             {evidence?.sourceHash ?? 'loading…'}
           </div>
@@ -103,15 +100,11 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   if (stage === 'publish') {
     return (
       <div className="space-y-3">
-        <p className="text-sm leading-6 text-muted-foreground">
-          The reading — value, sourceHash, and the market day — is written on-chain to{' '}
-          <Mono>GridOracle</Mono> on X Layer testnet by the authorized reporter.
-        </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="border border-border bg-background/60 p-3">
             <div className="text-xs text-muted-foreground">GridOracle</div>
             <a
-              className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 hover:underline"
+              className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 transition-colors duration-200 hover:text-foreground hover:underline"
               href={addresses ? explorerAddressUrl(addresses.GridOracle) : undefined}
               rel="noreferrer"
               target="_blank"
@@ -121,9 +114,9 @@ function EvidencePanel({ stage }: { stage: StageId }) {
             </a>
           </div>
           <div className="border border-border bg-background/60 p-3">
-            <div className="text-xs text-muted-foreground">ReadingSubmitted tx</div>
+            <div className="text-xs text-muted-foreground">Oracle tx</div>
             <a
-              className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 hover:underline"
+              className="mt-1 flex items-center gap-1 truncate font-mono text-sm text-chart-1 transition-colors duration-200 hover:text-foreground hover:underline"
               href={record?.txHash ? explorerTxUrl(record.txHash) : undefined}
               rel="noreferrer"
               target="_blank"
@@ -140,23 +133,52 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   return (
     <div className="space-y-3">
       <p className="text-sm leading-6 text-muted-foreground">
-        Digital options and dated futures resolve strictly against the finalized reading — cash-settled
-        on X Layer testnet, never against a live price feed a counterparty could dispute.
+        YES/NO questions settle against this price.
       </p>
       <div className="border border-border bg-background/60 p-4">
         <div className="text-xs text-muted-foreground">
-          North Hub day-ahead average · {record?.marketDay ?? evidence?.marketDay ?? '2026-09-08'}
+          Texas power price ·{' '}
+          {record ? dayLabel(record.dayKey, true) : evidence ? dayLabel(evidence.dayKey, true) : '…'}
         </div>
         <div className="mt-1 font-mono text-xl font-semibold text-foreground">
           {record ? formatPrice(record.value, 'MWh') : 'loading…'}
         </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          North Hub settled at {record ? formatPrice(record.value, 'MWh') : '…'}, above the $30
-          strike used by the market listed on this day (dayKey {record?.dayKey ?? evidence?.dayKey}).
-        </div>
+        {record && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            <SettleStatus dayKey={record.dayKey} value={record.value} />
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+/**
+ * design-brief.md §6, driven by chain state: with no BinaryMarket for the
+ * day, only the reading is stated; with one, its strike and status come
+ * from the contract.
+ */
+function SettleStatus({ dayKey, value }: { dayKey: number; value: number }) {
+  const { markets, now } = useMarkets();
+  if (!markets) return <>…</>;
+
+  const reading = `Texas power price settled at ${formatPrice(value, 'MWh')}`;
+  const market = markets.find((m) => m.metricId === 'ERCOT_HBNORTH_DA_AVG' && m.dayKey === dayKey);
+  if (!market) return <>{reading}.</>;
+
+  const side = value > market.threshold ? 'above' : 'at or below';
+  return (
+    <>
+      {reading}, {side} the {strikeLabel(market)} strike. {marketSentence(market, now)}
+    </>
+  );
+}
+
+function marketSentence(market: Market, now: number): string {
+  if (!market.live) return '';
+  if (market.live.resolved) return `Market resolved ${market.live.yesWon ? 'YES' : 'NO'}.`;
+  if (market.live.cancelled) return 'Market cancelled.';
+  return now < market.resolveAfter * 1000 ? 'Market trading.' : 'Market awaiting resolution.';
 }
 
 export function DataPathDiagram() {
@@ -195,7 +217,7 @@ export function DataPathDiagram() {
             <button
               aria-selected={active === stage.id}
               className={
-                'flex flex-col gap-2 bg-card px-4 py-5 text-left transition-colors focus:outline-none ' +
+                'flex flex-col gap-2 bg-card px-4 py-5 text-left transition-[transform,background-color] duration-200 hover:-translate-y-0.5 focus:outline-none ' +
                 (active === stage.id ? 'bg-accent' : 'hover:bg-accent/60')
               }
               key={stage.id}

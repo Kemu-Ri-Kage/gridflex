@@ -3,5 +3,27 @@
   "GridOracleDeployTx": "0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf",
   "MarketFactory": "0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9",
   "MockUSDT": "0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A",
-  "chainId": 1952
+  "chainId": 1952,
+  "markets": [
+    {
+      "createTxHash": "0x74bde77879ccd4bcdd4c7242ce05f4a7bb471da78f7c8a375827df80dd049e3b",
+      "market": "0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07"
+    },
+    {
+      "createTxHash": "0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677",
+      "market": "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1"
+    },
+    {
+      "createTxHash": "0x11451ce0c51bd02a960bb9ae436b8cc9c6366b8f02ad15d75a47e15ee5e16d46",
+      "market": "0xb1FaDd618FFC37E26bf75143E6C852d6D3992F94"
+    },
+    {
+      "createTxHash": "0x4e83bd1b6aca3ff62edddb40f712d6c82651fb21f189f60c456c8cebf453d90e",
+      "market": "0x204Ef0871892c52b7Abf00AC4755333c5e7F73af"
+    },
+    {
+      "createTxHash": "0xff500e0e9c841e075761b3a5daf1721992032aa33f3cd7ef1c6c23a3dbe4e412",
+      "market": "0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604"
+    }
+  ]
 }

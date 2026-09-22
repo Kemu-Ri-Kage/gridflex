@@ -3,6 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pandas as pd
+
 import build_feed_data
 import publish
 
@@ -114,6 +116,128 @@ class TestWriteAggregates(unittest.TestCase):
             self.assertEqual(written, by_metric["ERCOT_HBNORTH_DA_AVG"])
             empty_written = json.loads((out / "ERCOT_WEST_NORTH_DA_BASIS.json").read_text())
             self.assertEqual(empty_written, [])
+
+
+class TestWriteAddresses(unittest.TestCase):
+    def test_publishes_market_addresses_and_create_txs_only(self):
+        source = {
+            "chainId": 1952,
+            "GridOracle": "0xoracle",
+            "MarketFactory": "0xfactory",
+            "MockUSDT": "0xusdt",
+            "transactions": {"GridOracle": "0xdeploy"},
+            "markets": [
+                {
+                    "market": "0xmarket",
+                    "createTxHash": "0xcreate",
+                    "metricId": "ERCOT_HBNORTH_DA_AVG",
+                    "dayKey": 20260908,
+                    "threshold": 3000,
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_path = root / "addresses.json"
+            source_path.write_text(json.dumps(source))
+            original = build_feed_data.ADDRESSES_SOURCE
+            build_feed_data.ADDRESSES_SOURCE = source_path
+            try:
+                build_feed_data.write_addresses(root)
+            finally:
+                build_feed_data.ADDRESSES_SOURCE = original
+            written = json.loads((root / "addresses.json").read_text())
+        # Strike, day and metric are read from the contract, never republished.
+        self.assertEqual(written["markets"], [{"market": "0xmarket", "createTxHash": "0xcreate"}])
+        self.assertEqual(written["GridOracleDeployTx"], "0xdeploy")
+
+    def test_no_markets_key_publishes_an_empty_list(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_path = root / "addresses.json"
+            source_path.write_text(json.dumps({"chainId": 1952}))
+            original = build_feed_data.ADDRESSES_SOURCE
+            build_feed_data.ADDRESSES_SOURCE = source_path
+            try:
+                build_feed_data.write_addresses(root)
+            finally:
+                build_feed_data.ADDRESSES_SOURCE = original
+            written = json.loads((root / "addresses.json").read_text())
+        self.assertEqual(written["markets"], [])
+
+
+def make_hourly_day(prices, first_start_utc="2026-09-09T05:00:00Z"):
+    """Hourly rows starting at Central midnight (05:00Z during CDT)."""
+    starts = pd.date_range(first_start_utc, periods=len(prices), freq="h", tz="UTC")
+    return pd.DataFrame(
+        {
+            "interval_start_utc": starts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "interval_end_utc": (starts + pd.Timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "spp": prices,
+        }
+    )
+
+
+class TestHourlySwing(unittest.TestCase):
+    # 30 every hour except 10 at 04:00 Central and 50 at 18:00 Central:
+    # mean is exactly 30.00, published as 3000.
+    PRICES = [30.0] * 24
+    PRICES[4] = 10.0
+    PRICES[18] = 50.0
+
+    def test_cheapest_and_dearest_hour_in_central_time(self):
+        swing = build_feed_data.hourly_swing(make_hourly_day(self.PRICES), "2026-09-09", 3000)
+        self.assertEqual(swing["cheapest"]["hourStartCentral"], "04:00")
+        self.assertEqual(swing["cheapest"]["value"], 1000)
+        self.assertEqual(swing["dearest"]["hourStartCentral"], "18:00")
+        self.assertEqual(swing["dearest"]["value"], 5000)
+        # 04:00 CDT is 09:00 UTC - the instant, not just the label
+        self.assertEqual(
+            swing["cheapest"]["hourStartUtc"],
+            int(pd.Timestamp("2026-09-09T09:00:00Z").timestamp()),
+        )
+
+    def test_rows_from_the_neighbouring_day_are_excluded(self):
+        # 23:00 Central on the 8th and 00:00 Central on the 10th, both extreme
+        hourly = pd.concat(
+            [
+                make_hourly_day([999.0], "2026-09-09T04:00:00Z"),
+                make_hourly_day(self.PRICES),
+                make_hourly_day([-999.0], "2026-09-10T05:00:00Z"),
+            ],
+            ignore_index=True,
+        )
+        swing = build_feed_data.hourly_swing(hourly, "2026-09-09", 3000)
+        self.assertEqual(swing["cheapest"]["value"], 1000)
+        self.assertEqual(swing["dearest"]["value"], 5000)
+
+    def test_incomplete_day_is_refused_not_summarised(self):
+        with self.assertRaisesRegex(ValueError, "23/24 hours"):
+            build_feed_data.hourly_swing(make_hourly_day(self.PRICES[:23]), "2026-09-09", 3000)
+
+    def test_hours_that_do_not_average_to_the_published_value_are_refused(self):
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            build_feed_data.hourly_swing(make_hourly_day(self.PRICES), "2026-09-09", 3001)
+
+
+class TestPriceRange(unittest.TestCase):
+    def test_middle_eighty_percent_median_and_peak(self):
+        # 1..10 dollars plus one 1000-dollar spike, as cents
+        values = [100 * n for n in range(1, 11)] + [100_000]
+        records = [
+            {"dayKey": 20260101 + i, "value": value} for i, value in enumerate(values)
+        ]
+        result = build_feed_data.price_range(records)
+        self.assertEqual(result["days"], 11)
+        self.assertEqual(result["firstDayKey"], 20260101)
+        self.assertEqual(result["lastDayKey"], 20260111)
+        self.assertEqual(result["median"], 600)
+        # pandas linear quantiles over 11 points: 10th pct = 200, 90th = 1000
+        self.assertEqual(result["low"], 200)
+        self.assertEqual(result["high"], 1000)
+        self.assertEqual(
+            result["peak"], {"dayKey": 20260111, "value": 100_000, "timesMedian": 167}
+        )
 
 
 if __name__ == "__main__":

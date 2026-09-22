@@ -283,7 +283,7 @@ Exactly as `publish-spec.md` §4.3 describes: `getReading()` and `isFinal()`
 are free view calls, so `--verify` needs only `XLAYER_RPC_URL` — no key, no
 keystore, runnable from a laptop in Singapore with nothing else configured.
 
-### 6.1 Default: the six demo markets
+### 6.1 Default: the demo markets
 
 With no further flags, `--verify` parses `shared/demo-markets.md`'s
 **`## Summary table`** section specifically — the pipe-delimited table near
@@ -292,7 +292,7 @@ part of that document that's already structured for exactly this purpose;
 the rest is written for a human audience (footnotes, seasonal analysis,
 revision notes) and would make a fragile parse target.
 
-For each of the six rows, report one of:
+For each row, report one of:
 
 ```
 ERCOT_HBNORTH_DA_AVG      dayKey 20260908   PUBLISHED, FINALIZED

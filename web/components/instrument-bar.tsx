@@ -1,54 +1,64 @@
 'use client';
 
-import { FEATURED_MARKET } from '@/lib/market-copy';
-import { useEvidence } from '@/lib/site-data';
 import { formatPrice } from '@/lib/format';
+import {
+  marketName,
+  marketStatus,
+  payLine,
+  statusLabel,
+  useMarkets,
+  useOracleReading,
+  type MarketStatus,
+} from '@/lib/markets';
 
-/**
- * The date has already passed regardless of what the oracle evidence file
- * says, so this doesn't block on evidence loading: `Date.now()` alone is
- * enough to know 8 Sep 2026 is behind us. marketDayEndUtc (once loaded) is
- * used only to refine the boundary to the exact Central-day cutoff instead
- * of a UTC calendar-date guess.
- */
-function usePastSettlement(marketDayEndUtc?: number): boolean {
-  if (marketDayEndUtc) return Date.now() >= marketDayEndUtc * 1000;
-  return Date.now() >= new Date(`${FEATURED_MARKET.marketDay}T23:59:59Z`).getTime();
-}
+const STATUS_TONE: Record<MarketStatus, string> = {
+  trading: 'border-up/40 text-up',
+  awaiting: 'border-warning/40 text-warning',
+  resolved: 'border-foreground/40 text-foreground',
+  cancelled: 'border-border text-muted-foreground',
+};
 
 export function InstrumentBar() {
-  const evidence = useEvidence();
-  const past = usePastSettlement(evidence?.marketDayEndUtc);
+  const { markets, selected, error, now } = useMarkets();
+  const reading = useOracleReading(selected?.metricIdBytes, selected?.dayKey);
+
+  if (!selected) {
+    return (
+      <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground sm:px-6">
+        {error ?? (markets ? 'No contracts listed yet.' : 'Loading…')}
+      </div>
+    );
+  }
+
+  const status = marketStatus(selected, now);
 
   return (
     <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-mono text-lg font-semibold tracking-tight text-foreground sm:text-xl">
-            {FEATURED_MARKET.name}
+            {marketName(selected)}
           </h1>
-          <span
-            className={
-              'border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] ' +
-              (past
-                ? 'border-warning/40 text-warning'
-                : 'border-up/40 text-up')
-            }
-          >
-            {past ? 'past settlement date' : 'trading'}
-          </span>
+          {status && (
+            <span
+              className={
+                'border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] ' +
+                STATUS_TONE[status]
+              }
+            >
+              {statusLabel(selected, now)}
+            </span>
+          )}
         </div>
         <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
-          {FEATURED_MARKET.description}
+          {payLine(selected)}
         </p>
       </div>
       <div className="font-mono text-xs tabular-nums text-muted-foreground sm:text-right">
-        <div>
-          Strike ${FEATURED_MARKET.strikeDollars.toFixed(2)} · dayKey {FEATURED_MARKET.dayKey}
-        </div>
-        {evidence && (
+        <div>Strike {formatPrice(selected.threshold)}</div>
+        {reading && (
           <div className="mt-0.5 text-foreground">
-            Oracle reading: {formatPrice(evidence.value, 'MWh')}
+            Oracle reading {formatPrice(reading.value, 'MWh')}
           </div>
         )}
       </div>

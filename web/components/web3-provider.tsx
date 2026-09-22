@@ -14,13 +14,13 @@ import {
 } from 'viem';
 
 import {
-  addresses,
+  addresses as envAddresses,
   binaryMarketAbi,
-  contractsConfigured,
   mockUsdtAbi,
   outcomeTokenAbi,
   xLayerTestnet,
 } from '@/lib/contracts';
+import { useAddresses } from '@/lib/site-data';
 import {
   DEFAULT_SLIPPAGE_BPS,
   minimumOutputForQuote,
@@ -34,7 +34,17 @@ declare global {
   }
 }
 
-type MarketSnapshot = {
+export type TradeSide = 'YES' | 'NO';
+
+/**
+ * One market's state as the order ticket needs it. `address` names the
+ * market these numbers describe, so a snapshot read for one market can
+ * never be shown beside another's name; `loaded` is false until the first
+ * read of the current market lands.
+ */
+export type MarketSnapshot = {
+  address?: Address;
+  loaded: boolean;
   priceE18: bigint;
   yesReserve: bigint;
   noReserve: bigint;
@@ -46,47 +56,69 @@ type MarketSnapshot = {
   resolved: boolean;
   cancelled: boolean;
   yesWon: boolean;
+  /** Unix seconds. Trading closes and resolve() opens at this instant. */
+  resolveAfter: number;
+  /** Seconds after resolveAfter before cancel() is available. */
+  disputeWindow: number;
 };
 
-export type SwapQuote = {
-  amountOut: bigint;
-  minimumAmountOut: bigint;
+/** A Buy YES / Buy NO quote: mint `amount` of both sides, swap the other side in. */
+export type BuyQuote = {
+  /** The mUSDT locked, which is also the count of each side minted. */
+  amountIn: bigint;
+  /** What swapping the unwanted side into the wanted one returns now. */
+  swapOut: bigint;
+  minimumSwapOut: bigint;
+  /** amountIn + swapOut: the wanted side held after both steps. */
+  totalOut: bigint;
+  minimumTotalOut: bigint;
   slippageBps: bigint;
 };
 
 type Web3ContextValue = {
   account?: Address;
+  /** undefined until mounted; false when no EIP-1193 wallet is injected. */
+  walletDetected?: boolean;
+  /** True when a collateral token and a market are known. */
   configured: boolean;
+  /** The market every read and transaction targets. Set by selectMarket. */
+  market?: Address;
+  selectMarket: (address?: Address) => void;
   snapshot: MarketSnapshot;
   pendingAction?: string;
+  /** Trade and read errors, shown in the order ticket. */
   error?: string;
+  /** Wallet connection errors only, shown under the Connect button. */
+  connectError?: string;
   lastTransaction?: Hash;
   connect: () => Promise<void>;
   disconnect: () => void;
   refresh: () => Promise<void>;
   mintCollateral: () => Promise<void>;
-  mintSet: (amount: string) => Promise<void>;
-  quoteToward: (
-    side: 'YES' | 'NO',
-    amount: string,
-  ) => Promise<SwapQuote | undefined>;
-  swapToward: (side: 'YES' | 'NO', amount: string) => Promise<void>;
+  quoteBuy: (side: TradeSide, amount: string) => Promise<BuyQuote | undefined>;
+  buy: (side: TradeSide, amount: string) => Promise<void>;
   resolve: () => Promise<void>;
   cancel: () => Promise<void>;
   redeem: () => Promise<void>;
 };
 
-const demoSnapshot: MarketSnapshot = {
+const emptySnapshot: MarketSnapshot = {
+  loaded: false,
   priceE18: 500_000_000_000_000_000n,
-  yesReserve: 10_000_000_000n,
-  noReserve: 10_000_000_000n,
+  yesReserve: 0n,
+  noReserve: 0n,
   collateralBalance: 0n,
   yesBalance: 0n,
   noBalance: 0n,
   resolved: false,
   cancelled: false,
   yesWon: false,
+  resolveAfter: 0,
+  disputeWindow: 0,
 };
+
+export const NO_WALLET_MESSAGE =
+  'No wallet found in this browser. Install OKX Wallet or MetaMask, then reload.';
 
 const Web3Context = React.createContext<Web3ContextValue | null>(null);
 const publicClient = createPublicClient({
@@ -100,18 +132,58 @@ function errorMessage(error: unknown): string {
   return 'The wallet rejected or could not complete the request.';
 }
 
+function subscribeToNothing() {
+  return () => {};
+}
+
+function validAddress(value: string | undefined): Address | undefined {
+  return value && /^0x[0-9a-fA-F]{40}$/.test(value)
+    ? getAddress(value)
+    : undefined;
+}
+
 export function Web3Provider({ children }: { children: React.ReactNode }) {
+  const published = useAddresses();
+  // The collateral every market uses: from the published address file
+  // (build_feed_data.py's write_addresses), or the env override if set.
+  const collateral = React.useMemo<Address | undefined>(
+    () => envAddresses.collateral ?? validAddress(published?.MockUSDT),
+    [published],
+  );
+
   const [account, setAccount] = React.useState<Address>();
-  const [snapshot, setSnapshot] = React.useState<MarketSnapshot>(demoSnapshot);
+  // Whether an EIP-1193 wallet is injected: read from the window on the
+  // client, undefined during server rendering.
+  const walletDetected = React.useSyncExternalStore(
+    subscribeToNothing,
+    () => Boolean(window.ethereum),
+    () => undefined,
+  );
+  const [market, setMarket] = React.useState<Address>();
+  const [snapshot, setSnapshot] = React.useState<MarketSnapshot>(emptySnapshot);
   const [pendingAction, setPendingAction] = React.useState<string>();
   const [error, setError] = React.useState<string>();
+  const [connectError, setConnectError] = React.useState<string>();
   const [lastTransaction, setLastTransaction] = React.useState<Hash>();
+  // The market the latest read was started for; a read that finishes after
+  // the selection moved on is dropped rather than shown for the new market.
+  const marketRef = React.useRef<Address | undefined>(undefined);
+
+  const selectMarket = React.useCallback((address?: Address) => {
+    const next = address ? getAddress(address) : undefined;
+    if (marketRef.current === next) return;
+    marketRef.current = next;
+    setMarket(next);
+    setSnapshot(emptySnapshot);
+    setError(undefined);
+    setLastTransaction(undefined);
+  }, []);
 
   const connect = React.useCallback(async () => {
-    setError(undefined);
+    setConnectError(undefined);
     const ethereum = window.ethereum;
     if (!ethereum) {
-      setError('MetaMask or another EVM wallet was not found in this browser.');
+      setConnectError(NO_WALLET_MESSAGE);
       return;
     }
 
@@ -151,13 +223,14 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       }
 
       setAccount(getAddress(accounts[0]));
-    } catch (connectError) {
-      setError(errorMessage(connectError));
+    } catch (walletError) {
+      setConnectError(errorMessage(walletError));
     }
   }, []);
 
   const disconnect = React.useCallback(() => {
     setAccount(undefined);
+    setConnectError(undefined);
     setSnapshot((current) => ({
       ...current,
       collateralBalance: 0n,
@@ -167,8 +240,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refresh = React.useCallback(async () => {
-    const marketAddress = addresses.market;
-    if (!marketAddress) return;
+    const target = marketRef.current;
+    if (!target) return;
 
     try {
       const [
@@ -180,63 +253,39 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         resolved,
         cancelled,
         yesWon,
+        resolveAfter,
+        disputeWindow,
       ] = await publicClient.multicall({
         allowFailure: false,
         contracts: [
-          {
-            address: marketAddress,
-            abi: binaryMarketAbi,
-            functionName: 'price',
-          },
-          {
-            address: marketAddress,
-            abi: binaryMarketAbi,
-            functionName: 'yesReserve',
-          },
-          {
-            address: marketAddress,
-            abi: binaryMarketAbi,
-            functionName: 'noReserve',
-          },
-          {
-            address: marketAddress,
-            abi: binaryMarketAbi,
-            functionName: 'yesToken',
-          },
-          {
-            address: marketAddress,
-            abi: binaryMarketAbi,
-            functionName: 'noToken',
-          },
-          {
-            address: marketAddress,
-            abi: binaryMarketAbi,
-            functionName: 'resolved',
-          },
-          {
-            address: marketAddress,
-            abi: binaryMarketAbi,
-            functionName: 'cancelled',
-          },
-          {
-            address: marketAddress,
-            abi: binaryMarketAbi,
-            functionName: 'yesWon',
-          },
-        ],
+          'price',
+          'yesReserve',
+          'noReserve',
+          'yesToken',
+          'noToken',
+          'resolved',
+          'cancelled',
+          'yesWon',
+          'resolveAfter',
+          'disputeWindow',
+        ].map((functionName) => ({
+          address: target,
+          abi: binaryMarketAbi,
+          functionName,
+        })),
       });
 
       const outcomeAddresses = [yesToken as Address, noToken as Address];
       let collateralBalance = 0n;
       let yesBalance = 0n;
       let noBalance = 0n;
-      if (account && addresses.collateral) {
+      if (account && collateral) {
         [collateralBalance, yesBalance, noBalance] =
           (await publicClient.multicall({
             allowFailure: false,
             contracts: [
               {
-                address: addresses.collateral,
+                address: collateral,
                 abi: mockUsdtAbi,
                 functionName: 'balanceOf',
                 args: [account],
@@ -257,7 +306,10 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           })) as [bigint, bigint, bigint];
       }
 
+      if (marketRef.current !== target) return;
       setSnapshot({
+        address: target,
+        loaded: true,
         priceE18: priceE18 as bigint,
         yesReserve: yesReserve as bigint,
         noReserve: noReserve as bigint,
@@ -269,16 +321,20 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         resolved: resolved as boolean,
         cancelled: cancelled as boolean,
         yesWon: yesWon as boolean,
+        resolveAfter: Number(resolveAfter),
+        disputeWindow: Number(disputeWindow),
       });
     } catch (readError) {
+      if (marketRef.current !== target) return;
       setError(`Could not read X Layer: ${errorMessage(readError)}`);
     }
-  }, [account]);
+  }, [account, collateral]);
 
   React.useEffect(() => {
+    if (!market) return;
     const timer = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(timer);
-  }, [refresh]);
+  }, [market, refresh]);
 
   React.useEffect(() => {
     const ethereum = window.ethereum;
@@ -288,9 +344,14 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       const next = Array.isArray(nextAccounts) ? nextAccounts[0] : undefined;
       setAccount(typeof next === 'string' ? getAddress(next) : undefined);
     };
+    const handleChain = () => void refresh();
     ethereum.on('accountsChanged', handleAccounts);
-    return () => ethereum.removeListener?.('accountsChanged', handleAccounts);
-  }, []);
+    ethereum.on('chainChanged', handleChain);
+    return () => {
+      ethereum.removeListener?.('accountsChanged', handleAccounts);
+      ethereum.removeListener?.('chainChanged', handleChain);
+    };
+  }, [refresh]);
 
   const write = React.useCallback(
     async (
@@ -336,70 +397,86 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     [account, refresh],
   );
 
+  /** Approve `spender` for `amount` of `token` unless the allowance already covers it. */
+  const ensureAllowance = React.useCallback(
+    async (
+      label: string,
+      token: Address,
+      abi: typeof mockUsdtAbi,
+      spender: Address,
+      amount: bigint,
+    ): Promise<boolean> => {
+      if (!account) return false;
+      try {
+        const allowance = (await publicClient.readContract({
+          address: token,
+          abi,
+          functionName: 'allowance',
+          args: [account, spender],
+        })) as bigint;
+        if (allowance >= amount) return true;
+      } catch {
+        // Fall through and approve; a failed read must not block the trade.
+      }
+      return write(label, {
+        address: token,
+        abi,
+        functionName: 'approve',
+        args: [spender, amount],
+      });
+    },
+    [account, write],
+  );
+
   const mintCollateral = React.useCallback(async () => {
-    if (!addresses.collateral || !account) return;
-    await write('Minting test collateral', {
-      address: addresses.collateral,
+    if (!collateral || !account) return;
+    await write('Getting demo mUSDT', {
+      address: collateral,
       abi: mockUsdtAbi,
       functionName: 'mint',
       args: [account, parsePositiveTokenAmount('1000')],
     });
-  }, [account, write]);
+  }, [account, collateral, write]);
 
-  const mintSet = React.useCallback(
-    async (amount: string) => {
-      if (!addresses.collateral || !addresses.market) return;
-      let units: bigint;
-      try {
-        units = parsePositiveTokenAmount(amount);
-      } catch (amountError) {
-        setError(errorMessage(amountError));
-        return;
-      }
-      const approved = await write('Approving collateral', {
-        address: addresses.collateral,
-        abi: mockUsdtAbi,
-        functionName: 'approve',
-        args: [addresses.market, units],
-      });
-      if (!approved) return;
-      await write('Minting YES + NO set', {
-        address: addresses.market,
-        abi: binaryMarketAbi,
-        functionName: 'mintSet',
-        args: [units],
-      });
-    },
-    [write],
-  );
-
-  const quoteToward = React.useCallback(
-    async (
-      side: 'YES' | 'NO',
-      amount: string,
-    ): Promise<SwapQuote | undefined> => {
-      if (!addresses.market) return undefined;
+  const quoteBuy = React.useCallback(
+    async (side: TradeSide, amount: string): Promise<BuyQuote | undefined> => {
+      const target = marketRef.current;
+      if (!target) return undefined;
       const units = parsePositiveTokenAmount(amount);
+      // Buying YES sends the minted NO into the pool (yesForNo = false).
       const yesForNo = side === 'NO';
-      const amountOut = (await publicClient.readContract({
-        address: addresses.market,
+      const swapOut = (await publicClient.readContract({
+        address: target,
         abi: binaryMarketAbi,
         functionName: 'quoteSwap',
         args: [yesForNo, units],
       })) as bigint;
-
+      const minimumSwapOut = minimumOutputForQuote(swapOut);
       return {
-        amountOut,
-        minimumAmountOut: minimumOutputForQuote(amountOut),
+        amountIn: units,
+        swapOut,
+        minimumSwapOut,
+        totalOut: units + swapOut,
+        minimumTotalOut: units + minimumSwapOut,
         slippageBps: DEFAULT_SLIPPAGE_BPS,
       };
     },
     [],
   );
 
-  const swapToward = React.useCallback(
-    async (side: 'YES' | 'NO', amount: string) => {
-      if (!addresses.market || !snapshot.yesToken || !snapshot.noToken) return;
+  /**
+   * Buy YES or Buy NO in one action: lock `amount` mUSDT for a complete set,
+   * then swap the unwanted side into the wanted one with the same slippage
+   * guard and deadline the contract enforces. Approvals are sent only when
+   * the current allowance does not already cover the step.
+   */
+  const buy = React.useCallback(
+    async (side: TradeSide, amount: string) => {
+      const target = marketRef.current;
+      if (!collateral || !target) {
+        setError('Contracts not configured.');
+        return;
+      }
       let units: bigint;
       try {
         units = parsePositiveTokenAmount(amount);
@@ -407,79 +484,103 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         setError(errorMessage(amountError));
         return;
       }
-      const yesForNo = side === 'NO';
-      const inputToken = yesForNo ? snapshot.yesToken : snapshot.noToken;
 
-      let protectedQuote: SwapQuote | undefined;
+      let protectedQuote: BuyQuote | undefined;
       try {
-        protectedQuote = await quoteToward(side, amount);
+        protectedQuote = await quoteBuy(side, amount);
         if (!protectedQuote)
           throw new Error('The market quote is unavailable.');
       } catch (quoteError) {
-        setError(
-          `Could not prepare the protected swap: ${errorMessage(quoteError)}`,
-        );
+        setError(`Could not prepare the order: ${errorMessage(quoteError)}`);
         return;
       }
 
-      const approved = await write(`Approving ${yesForNo ? 'YES' : 'NO'}`, {
-        address: inputToken,
-        abi: outcomeTokenAbi,
-        functionName: 'approve',
-        args: [addresses.market, units],
-      });
+      const approved = await ensureAllowance(
+        'Approving mUSDT',
+        collateral,
+        mockUsdtAbi,
+        target,
+        units,
+      );
       if (!approved) return;
+      const minted = await write(`Buying ${side}`, {
+        address: target,
+        abi: binaryMarketAbi,
+        functionName: 'mintSet',
+        args: [units],
+      });
+      if (!minted) return;
+
+      const yesForNo = side === 'NO';
+      const tokens = (await publicClient.multicall({
+        allowFailure: false,
+        contracts: [
+          { address: target, abi: binaryMarketAbi, functionName: 'yesToken' },
+          { address: target, abi: binaryMarketAbi, functionName: 'noToken' },
+        ],
+      })) as [Address, Address];
+      const inputToken = yesForNo ? tokens[0] : tokens[1];
+
+      const inputApproved = await ensureAllowance(
+        `Approving ${yesForNo ? 'YES' : 'NO'}`,
+        inputToken,
+        outcomeTokenAbi,
+        target,
+        units,
+      );
+      if (!inputApproved) return;
 
       let deadline: bigint;
       try {
-        const latestQuote = await quoteToward(side, amount);
+        const latestQuote = await quoteBuy(side, amount);
         if (!latestQuote) throw new Error('The market quote is unavailable.');
-        if (latestQuote.amountOut < protectedQuote.minimumAmountOut) {
+        if (latestQuote.swapOut < protectedQuote.minimumSwapOut) {
           throw new Error(
-            'The price moved beyond the 0.50% tolerance during approval. Review the new quote and try again.',
+            'The price moved beyond the 0.50% tolerance while the order was being prepared. Review the new quote and try again.',
           );
         }
         const latestBlock = await publicClient.getBlock({ blockTag: 'latest' });
         deadline = swapDeadline(latestBlock.timestamp);
       } catch (quoteError) {
-        setError(
-          `Could not prepare the protected swap: ${errorMessage(quoteError)}`,
-        );
+        setError(`Could not prepare the order: ${errorMessage(quoteError)}`);
         return;
       }
 
-      await write(`Swapping toward ${side}`, {
-        address: addresses.market,
+      await write(`Buying ${side}`, {
+        address: target,
         abi: binaryMarketAbi,
         functionName: 'swap',
-        args: [yesForNo, units, protectedQuote.minimumAmountOut, deadline],
+        args: [yesForNo, units, protectedQuote.minimumSwapOut, deadline],
       });
     },
-    [quoteToward, snapshot.noToken, snapshot.yesToken, write],
+    [collateral, ensureAllowance, quoteBuy, write],
   );
 
   const resolve = React.useCallback(async () => {
-    if (!addresses.market) return;
-    await write('Resolving market', {
-      address: addresses.market,
+    const target = marketRef.current;
+    if (!target) return;
+    await write('Resolving', {
+      address: target,
       abi: binaryMarketAbi,
       functionName: 'resolve',
     });
   }, [write]);
 
   const redeem = React.useCallback(async () => {
-    if (!addresses.market) return;
-    await write('Redeeming outcome tokens', {
-      address: addresses.market,
+    const target = marketRef.current;
+    if (!target) return;
+    await write('Redeeming', {
+      address: target,
       abi: binaryMarketAbi,
       functionName: 'redeem',
     });
   }, [write]);
 
   const cancel = React.useCallback(async () => {
-    if (!addresses.market) return;
-    await write('Cancelling unresolvable market', {
-      address: addresses.market,
+    const target = marketRef.current;
+    if (!target) return;
+    await write('Cancelling', {
+      address: target,
       abi: binaryMarketAbi,
       functionName: 'cancel',
     });
@@ -488,35 +589,42 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const value = React.useMemo<Web3ContextValue>(
     () => ({
       account,
-      configured: contractsConfigured,
+      walletDetected,
+      configured: Boolean(collateral && market),
+      market,
+      selectMarket,
       snapshot,
       pendingAction,
       error,
+      connectError,
       lastTransaction,
       connect,
       disconnect,
       refresh,
       mintCollateral,
-      mintSet,
-      quoteToward,
-      swapToward,
+      quoteBuy,
+      buy,
       resolve,
       cancel,
       redeem,
     }),
     [
       account,
+      walletDetected,
+      collateral,
+      market,
+      selectMarket,
       snapshot,
       pendingAction,
       error,
+      connectError,
       lastTransaction,
       connect,
       disconnect,
       refresh,
       mintCollateral,
-      mintSet,
-      quoteToward,
-      swapToward,
+      quoteBuy,
+      buy,
       resolve,
       cancel,
       redeem,

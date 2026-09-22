@@ -8,7 +8,7 @@ and a reading already onchain is never rewritten by a later run.
 import json
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -266,6 +266,84 @@ class TestFeedMeta(unittest.TestCase):
             self.assertIsNone(
                 build_feed_data.latest_computed_at("ERCOT_HBNORTH_DA_AVG", Path(directory))
             )
+
+
+class TestFetchWindow(unittest.TestCase):
+    """Which market days one run reads: today, the recent days, and gaps."""
+
+    TODAY = date(2026, 9, 22)
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.metrics = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def have(self, *days, metric="ERCOT_HBNORTH_DA_AVG"):
+        for day in days:
+            (self.metrics / f"{metric}__{day}.json").write_text("{}")
+
+    def have_range(self, first, last):
+        day = first
+        while day <= last:
+            if not fetch_ercot.is_dst_changeover(day):
+                self.have(day)
+            day += timedelta(days=1)
+
+    def window(self, days=3, fill_gaps=True):
+        return fetch_ercot.fetch_window(days, fill_gaps, self.TODAY, self.metrics)
+
+    def test_today_is_included(self):
+        # end is exclusive: [19 Sep, 23 Sep) is 19, 20, 21 and today, 22 Sep.
+        self.assertEqual(self.window(fill_gaps=False),
+                         (date(2026, 9, 19), date(2026, 9, 23)))
+
+    def test_the_current_gap_is_filled(self):
+        # The state the audit found: files up to 9 Sep, then 19-21 Sep.
+        self.have_range(date(2026, 9, 1), date(2026, 9, 9))
+        self.have_range(date(2026, 9, 19), date(2026, 9, 21))
+        self.assertEqual(fetch_ercot.latest_complete_day("ERCOT_HBNORTH_DA_AVG", self.metrics),
+                         date(2026, 9, 9))
+        self.assertEqual(self.window(), (date(2026, 9, 10), date(2026, 9, 23)))
+
+    def test_no_gap_leaves_the_recent_window_alone(self):
+        self.have_range(date(2026, 9, 1), date(2026, 9, 21))
+        self.assertEqual(self.window(), (date(2026, 9, 19), date(2026, 9, 23)))
+
+    def test_a_run_missed_for_a_week_is_filled(self):
+        # No gap inside the files, but nothing after 10 Sep.
+        self.have_range(date(2026, 9, 1), date(2026, 9, 10))
+        self.assertEqual(self.window()[0], date(2026, 9, 11))
+
+    def test_gap_filling_is_off_unless_asked_for(self):
+        self.have_range(date(2026, 9, 1), date(2026, 9, 9))
+        self.assertEqual(self.window(fill_gaps=False)[0], date(2026, 9, 19))
+
+    def test_dst_changeover_days_are_not_gaps(self):
+        # 8 Mar 2026 (23h) and 1 Nov 2026 (25h) never get a metric file.
+        self.assertTrue(fetch_ercot.is_dst_changeover(date(2026, 3, 8)))
+        self.assertTrue(fetch_ercot.is_dst_changeover(date(2025, 11, 2)))
+        self.assertFalse(fetch_ercot.is_dst_changeover(date(2026, 9, 10)))
+        self.have_range(date(2026, 3, 1), date(2026, 3, 15))
+        self.assertEqual(fetch_ercot.latest_complete_day("ERCOT_HBNORTH_DA_AVG", self.metrics),
+                         date(2026, 3, 15))
+
+    def test_other_metrics_do_not_decide_the_gap(self):
+        # Negative-interval days go missing upstream for good; they must not
+        # drag every future run back to them.
+        self.have_range(date(2026, 9, 1), date(2026, 9, 21))
+        self.have(date(2026, 9, 1), date(2026, 9, 21), metric="ERCOT_HBWEST_NEG_INTERVALS")
+        self.assertEqual(self.window()[0], date(2026, 9, 19))
+
+    def test_no_metric_files_at_all(self):
+        self.assertIsNone(fetch_ercot.latest_complete_day("ERCOT_HBNORTH_DA_AVG", self.metrics))
+        self.assertEqual(self.window()[0], date(2026, 9, 19))
+
+    def test_gap_days_come_from_the_cache_once_fetched(self):
+        # Gap days are older than the recent window: fetched once, then final.
+        self.assertTrue(fetch_ercot.chunk_is_final("2026-09-10", "2026-09-11", self.TODAY))
+        self.assertFalse(fetch_ercot.chunk_is_final("2026-09-22", "2026-09-23", self.TODAY))
 
 
 if __name__ == "__main__":

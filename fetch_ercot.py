@@ -19,9 +19,11 @@ Metrics produced (one value per Central-time day):
 
 Usage
 -----
-    python fetch_ercot.py                  # yesterday only
-    python fetch_ercot.py --days 30        # last 30 days
+    python fetch_ercot.py                  # yesterday and today
+    python fetch_ercot.py --days 30        # last 30 days and today
     python fetch_ercot.py --days 365       # last year (watch the row budget)
+    python fetch_ercot.py --fill-gaps      # also every day missing since the
+                                           # latest complete day in data/metrics
 
 Row budget: the GridStatus free plan allows 500,000 rows/month. With the
 location filters below, one year costs roughly 8,800 (day-ahead) + 35,000
@@ -140,8 +142,9 @@ PUBLISH_LEDGER = Path("data/publish-ledger.json")
 
 RATE_LIMIT_SLEEP = 1.5          # free plan allows 1 request/second
 
-# Only the last RECENT_DAYS market days (before today, UTC) are re-fetched on
-# every run: GridStatus can still fill in or correct their intervals. Anything
+# Only today and the last RECENT_DAYS market days before it (UTC) are
+# re-fetched on every run: GridStatus can still fill in or correct their
+# intervals. Anything
 # older is settled and read from the cache - including earlier days of the
 # current month, which is why the current month is cached one day per chunk.
 RECENT_DAYS = 3
@@ -211,6 +214,71 @@ def month_chunks(start, end):
 
 def utc_today():
     return datetime.now(timezone.utc).date()
+
+
+def is_dst_changeover(day):
+    """
+    True on the two Central days a year that are 23 or 25 hours long. They
+    never have EXPECTED_ROWS hours, so their metric files are never written
+    (see shared/metrics.md) - a missing file on one of them isn't a gap.
+    """
+    start = pd.Timestamp(day).tz_localize(CENTRAL)
+    end = pd.Timestamp(day + timedelta(days=1)).tz_localize(CENTRAL)
+    return end - start != pd.Timedelta(hours=24)
+
+
+def latest_complete_day(metric_id=DAY_AHEAD["metric_id"], metrics_dir=None):
+    """
+    The last day of the unbroken run of metric files that starts at the
+    earliest one: the day before the first missing day, or the newest file
+    when nothing is missing. None with no files at all.
+
+    Judged on the day-ahead settlement price, the metric every other daily
+    contract metric is computed alongside. DST changeover days are skipped,
+    never counted as missing.
+    """
+    metrics_dir = metrics_dir or METRICS_DIR
+    prefix = f"{metric_id}__"
+    days = set()
+    for path in metrics_dir.glob(f"{prefix}*.json"):
+        try:
+            days.add(date.fromisoformat(path.stem[len(prefix):]))
+        except ValueError:
+            continue
+    if not days:
+        return None
+    day, last = min(days), max(days)
+    while day < last:
+        following = day + timedelta(days=1)
+        if following not in days and not is_dst_changeover(following):
+            return day
+        day = following
+    return last
+
+
+def fetch_window(days, fill_gaps=False, today=None, metrics_dir=None):
+    """
+    The [start, end) market days one run reads.
+
+    The end is tomorrow, so today is included: ERCOT publishes a day's
+    day-ahead prices on the afternoon before it (about 13:30 Central), which
+    is before 00:00 UTC of that day, so on any UTC date that day's prices
+    already exist. Real-time data for today is still partial and fails the
+    completeness check, as it should.
+
+    The start is `days` before today. With fill_gaps it moves back to the
+    day after the latest complete day in data/metrics, so a day that was
+    never fetched - one that aged out of the recent window before any run
+    reached it - is filled. Which of these days are re-fetched rather than
+    read from cache is still decided by chunk_is_final (RECENT_DAYS).
+    """
+    today = today or utc_today()
+    start = today - timedelta(days=days)
+    if fill_gaps:
+        complete = latest_complete_day(metrics_dir=metrics_dir)
+        if complete is not None:
+            start = min(start, complete + timedelta(days=1))
+    return start, today + timedelta(days=1)
 
 
 def chunk_is_final(start, end, today=None):
@@ -699,7 +767,11 @@ def write_metric(metric_id, day, value, source_hash, source_files,
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=1,
-                        help="how many days back from yesterday (default 1)")
+                        help="how many days before today to read, plus today "
+                             "(default 1)")
+    parser.add_argument("--fill-gaps", action="store_true",
+                        help="also read every day missing since the latest "
+                             "complete day in data/metrics")
     parser.add_argument("--skip-fuelmix", action="store_true",
                         help="skip the fuel mix feed to save row budget")
     parser.add_argument("--skip-index", action="store_true",
@@ -707,11 +779,14 @@ def main():
                              "(5 extra queries per month chunk)")
     args = parser.parse_args()
 
-    end_date = datetime.now(timezone.utc).date()
-    start_date = end_date - timedelta(days=args.days)
+    start_date, end_date = fetch_window(args.days, fill_gaps=args.fill_gaps)
     start, end = str(start_date), str(end_date)
+    recent_start = utc_today() - timedelta(days=args.days)
 
-    print(f"GRIDFLEX pipeline: {start} to {end}\n")
+    print(f"GRIDFLEX pipeline: {start} to {end}")
+    if start_date < recent_start:
+        print(f"  filling missing days {start} to {recent_start - timedelta(days=1)}")
+    print()
     client = get_client()
 
     # Readings already onchain keep their committed file - see write_metric.

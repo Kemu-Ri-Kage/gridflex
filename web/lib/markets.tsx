@@ -21,7 +21,15 @@ import {
   xLayerTestnet,
 } from '@/lib/contracts';
 import { formatPrice } from '@/lib/format';
+import {
+  keepSettled,
+  readMarketsLive,
+  type LiveRead,
+  type MarketLive,
+} from '@/lib/market-live';
 import { useAddresses } from '@/lib/site-data';
+
+export type { MarketLive } from '@/lib/market-live';
 
 /**
  * Every contract fact the site states - a market's strike, day, metric,
@@ -56,13 +64,6 @@ export interface MarketFacts {
   resolveAfter: number;
   yesToken: Address;
   noToken: Address;
-}
-
-export interface MarketLive {
-  resolved: boolean;
-  cancelled: boolean;
-  yesWon: boolean;
-  priceE18: bigint;
 }
 
 export interface Market extends MarketFacts {
@@ -214,21 +215,18 @@ async function readFacts(
   };
 }
 
-async function readLive(address: Address): Promise<MarketLive> {
-  const read = (functionName: string) =>
-    client.readContract({ address, abi: binaryMarketAbi, functionName });
-  const [resolved, cancelled, yesWon, priceE18] = await Promise.all([
-    read('resolved'),
-    read('cancelled'),
-    read('yesWon'),
-    read('price'),
-  ]);
-  return {
-    resolved: resolved as boolean,
-    cancelled: cancelled as boolean,
-    yesWon: yesWon as boolean,
-    priceE18: priceE18 as bigint,
-  };
+/**
+ * Every listed market's live state in one Multicall3 call, so resolved and
+ * yesWon always come from the same block (lib/market-live.ts). Separate
+ * calls can be answered by different RPC nodes, and one a few blocks behind
+ * would pair resolved = true with the pre-resolution yesWon = false.
+ */
+function readLiveAll(addresses: readonly Address[]): Promise<MarketLive[]> {
+  return readMarketsLive(
+    (contracts: LiveRead[]) => client.multicall({ contracts, allowFailure: false }),
+    binaryMarketAbi,
+    addresses,
+  );
 }
 
 interface MarketsValue {
@@ -283,14 +281,13 @@ export function MarketsProvider({ children }: { children: React.ReactNode }) {
     if (!facts || facts.length === 0) return;
     let cancelled = false;
     const poll = () => {
-      void Promise.all(facts.map((m) => readLive(m.address)))
+      void readLiveAll(facts.map((m) => m.address))
         .then((states) => {
           if (cancelled) return;
-          setLive(
-            Object.fromEntries(
-              states.map((state, i) => [facts[i].address, state]),
-            ),
+          const next = Object.fromEntries(
+            states.map((state, i) => [facts[i].address, state]),
           );
+          setLive((previous) => keepSettled(previous, next));
           setNow(Date.now());
           setError(undefined);
         })

@@ -3,6 +3,11 @@
 #
 #   ./refresh_data.sh              fetch, rebuild, commit, push, build, deploy
 #   ./refresh_data.sh --no-deploy  everything except the deploy
+#   ./refresh_data.sh --no-fetch   no GridStatus at all: rebuild the feed data
+#                                  from data/metrics as it is, then commit,
+#                                  push, build and deploy (candles are left
+#                                  as they are - rebuilding them re-fetches
+#                                  the recent days). Needs no API key.
 #
 # Fetches only what the site and the live markets use, one GridStatus request
 # per dataset (three in all), each spanning every day the cache can't answer:
@@ -30,11 +35,13 @@
 set -euo pipefail
 
 deploy=1
+fetch=1
 for arg in "$@"; do
   case "$arg" in
     --no-deploy) deploy=0 ;;
+    --no-fetch) fetch=0 ;;
     -h | --help)
-      sed -n '2,29p' "$0"
+      sed -n '2,35p' "$0"
       exit 0
       ;;
     *)
@@ -90,34 +97,42 @@ if [[ -n "$dirty" ]]; then
   exit 1
 fi
 
-if [[ -z "${GRIDSTATUS_API_KEY:-}" && -f "$repo_root/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$repo_root/.env"
-  set +a
-fi
-if [[ -z "${GRIDSTATUS_API_KEY:-}" ]]; then
-  echo "GRIDSTATUS_API_KEY is not set and .env did not provide it." >&2
-  exit 1
+if [[ "$fetch" == 1 ]]; then
+  if [[ -z "${GRIDSTATUS_API_KEY:-}" && -f "$repo_root/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$repo_root/.env"
+    set +a
+  fi
+  if [[ -z "${GRIDSTATUS_API_KEY:-}" ]]; then
+    echo "GRIDSTATUS_API_KEY is not set and .env did not provide it." >&2
+    exit 1
+  fi
 fi
 
 run_log="$(mktemp)"
 trap 'rm -f "$run_log"' EXIT
 
-echo "[1/6] Fetching ERCOT prices"
-"$python_bin" fetch_ercot.py --days "$fetch_days" --fill-gaps | tee "$run_log"
+if [[ "$fetch" == 1 ]]; then
+  echo "[1/6] Fetching ERCOT prices"
+  "$python_bin" fetch_ercot.py --days "$fetch_days" --fill-gaps | tee "$run_log"
 
-echo
-echo "[2/6] Rebuilding candle data"
-"$python_bin" build_candles.py | tee -a "$run_log"
+  echo
+  echo "[2/6] Rebuilding candle data"
+  "$python_bin" build_candles.py | tee -a "$run_log"
+else
+  echo "[1/6] Fetch skipped (--no-fetch)"
+  echo "[2/6] Candles left as they are (--no-fetch)"
+fi
 
 echo
 echo "[3/6] Rebuilding feed data"
 "$python_bin" build_feed_data.py
 
-# Sum a "<label>: N" line across the fetch and candle steps.
+# Sum a "<label>: N" line across the fetch and candle steps (0 when none
+# ran - grep finding nothing must not trip set -e/pipefail).
 run_total() {
-  grep -o "$1: [0-9,]*" "$run_log" |
+  { grep -o "$1: [0-9,]*" "$run_log" || true; } |
     awk -F': ' '{ gsub(",", "", $2); total += $2 } END { print total + 0 }'
 }
 rows_used="$(run_total 'GridStatus rows fetched this run')"

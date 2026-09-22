@@ -216,6 +216,37 @@ class RefreshScriptTest(unittest.TestCase):
         self.assertFalse(any("wrangler" in c for c in self.calls()))
         self.assertIn("Deploy skipped", result.stdout)
 
+    def test_no_fetch_rebuilds_commits_pushes_and_deploys_without_gridstatus(self):
+        before = self.git("rev-parse", "HEAD")
+        env = {k: v for k, v in os.environ.items() if k != "GRIDSTATUS_API_KEY"}
+        result = run(["bash", "refresh_data.sh", "--no-fetch"], cwd=self.repo, check=False, env={
+            **env, "PYTHON_BIN": str(self.python), "PNPM_BIN": str(self.pnpm),
+            "STUB_LOG": str(self.log), "STUB_REPO": str(self.repo),
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        steps = [c for c in self.calls() if c.startswith("python ")]
+        self.assertEqual(steps, ["python build_feed_data.py"])
+        head = self.git("rev-parse", "HEAD")
+        self.assertNotEqual(head, before)
+        self.assertEqual(self.remote_head(), head)
+        deploy = next(c for c in self.calls() if "wrangler deploy" in c)
+        self.assertIn(f"head={head}", deploy)
+        self.assertIn("dirty=[]", deploy)
+        self.assertIn("requests used by this refresh: 0", result.stdout)
+
+    def test_no_fetch_still_refuses_main(self):
+        self.git("checkout", "--quiet", "main")
+        result = self.refresh("--no-fetch")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Refusing to run on main", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_no_fetch_with_no_deploy_commits_and_pushes_only(self):
+        result = self.refresh("--no-fetch", "--no-deploy")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.remote_head(), self.git("rev-parse", "HEAD"))
+        self.assertFalse(any("wrangler" in c for c in self.calls()))
+
 
 if __name__ == "__main__":
     unittest.main()

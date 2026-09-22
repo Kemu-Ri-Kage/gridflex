@@ -39,15 +39,20 @@ Turns public ERCOT market data into the numbers our contracts settle on.
 ## Run
 
     export $(cat .env | xargs)        # mac / linux
-    python fetch_ercot.py             # yesterday only
-    python fetch_ercot.py --days 30   # last 30 days
-    python fetch_ercot.py --days 365 --skip-fuelmix
+    python fetch_ercot.py                 # yesterday and today
+    python fetch_ercot.py --days 30       # last 30 days and today
+    python fetch_ercot.py --fill-gaps     # also any day missing since the
+                                          # latest complete day
+    python fetch_ercot.py --feed-metrics  # also the feed-only metrics
+    python fetch_ercot.py --fuel-mix      # also the fuel mix
 
 On Windows PowerShell, set the key with:
 
     $env:GRIDSTATUS_API_KEY = "your_key_here"
 
-Only the last 3 days (before today, UTC) are re-fetched each run.
+By default only the Texas power price (North Hub day-ahead) is fetched, in
+one request covering every day the cache can't answer. Today and the last 3
+days before it (UTC) are re-fetched each run.
 Everything older comes from the `data/raw/` cache, because settled prices
 don't change. The current month is cached one file per day, so its earlier
 days are never re-read. Past months keep their whole-month files. If a

@@ -4,11 +4,20 @@
 #   ./refresh_data.sh              fetch, rebuild, commit, push, build, deploy
 #   ./refresh_data.sh --no-deploy  everything except the deploy
 #
-# Steps: ERCOT prices (fetch_ercot.py: today, the last 3 days, and every day
-# missing since the latest complete day - no fuel mix, the site doesn't show
-# it), candles (build_candles.py), feed data (build_feed_data.py), a commit of
-# the regenerated data files on the current branch, a push, `pnpm build`, then
-# `wrangler deploy` of the built worker. Prints the GridStatus rows it used.
+# Fetches only what the site and the live markets use, one GridStatus request
+# per dataset (three in all), each spanning every day the cache can't answer:
+#   North Hub day-ahead hourly   the Texas power price, which markets settle on
+#                                (fetch_ercot.py: today, the last 3 days, and
+#                                every day missing since the latest complete day)
+#   North Hub real-time 15-min   the 4H, 1D and 1W candles  (build_candles.py)
+#   North Hub 5-min dispatch     the 15m and 1H candles     (build_candles.py)
+# The feed-only metrics (West Hub, basis, load-weighted index, negative
+# intervals, fuel mix) are not fetched; run fetch_ercot.py --feed-metrics or
+# build_candles.py --west-hub by hand if they are ever needed.
+#
+# Then feed data (build_feed_data.py), a commit of the regenerated data files
+# on the current branch, a push, `pnpm build`, and `wrangler deploy` of the
+# built worker. Prints the GridStatus requests and rows it used.
 #
 # Refuses to run on main. Deploys only what is committed and pushed: it stops
 # before fetching if anything under web/ other than web/public/data/ has
@@ -25,7 +34,7 @@ for arg in "$@"; do
   case "$arg" in
     --no-deploy) deploy=0 ;;
     -h | --help)
-      sed -n '2,20p' "$0"
+      sed -n '2,29p' "$0"
       exit 0
       ;;
     *)
@@ -96,7 +105,7 @@ run_log="$(mktemp)"
 trap 'rm -f "$run_log"' EXIT
 
 echo "[1/6] Fetching ERCOT prices"
-"$python_bin" fetch_ercot.py --days "$fetch_days" --fill-gaps --skip-fuelmix | tee "$run_log"
+"$python_bin" fetch_ercot.py --days "$fetch_days" --fill-gaps | tee "$run_log"
 
 echo
 echo "[2/6] Rebuilding candle data"
@@ -106,10 +115,13 @@ echo
 echo "[3/6] Rebuilding feed data"
 "$python_bin" build_feed_data.py
 
-rows_used="$(
-  grep -o 'GridStatus rows fetched this run: [0-9,]*' "$run_log" |
+# Sum a "<label>: N" line across the fetch and candle steps.
+run_total() {
+  grep -o "$1: [0-9,]*" "$run_log" |
     awk -F': ' '{ gsub(",", "", $2); total += $2 } END { print total + 0 }'
-)"
+}
+rows_used="$(run_total 'GridStatus rows fetched this run')"
+requests_used="$(run_total 'GridStatus requests this run')"
 
 echo
 echo "[4/6] Committing and pushing the data on $branch"
@@ -144,4 +156,5 @@ else
 fi
 
 echo
+echo "GridStatus requests used by this refresh: $requests_used"
 echo "GridStatus rows used by this refresh: $rows_used"

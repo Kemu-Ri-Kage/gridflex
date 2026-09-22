@@ -17,6 +17,10 @@ Metrics produced (one value per Central-time day):
   ERCOT_FUELMIX_<FUEL>          share of generation by fuel, percent x 100
                                 (feed display only — not a contract metric)
 
+By default only ERCOT_HBNORTH_DA_AVG is fetched: the site shows only the
+Texas power price and every live market settles on it. The other metrics
+are feed-only and fetched on request (--feed-metrics, --fuel-mix).
+
 Usage
 -----
     python fetch_ercot.py                  # yesterday and today
@@ -24,11 +28,17 @@ Usage
     python fetch_ercot.py --days 365       # last year (watch the row budget)
     python fetch_ercot.py --fill-gaps      # also every day missing since the
                                            # latest complete day in data/metrics
+    python fetch_ercot.py --feed-metrics   # also basis, negative intervals and
+                                           # the load-weighted index
+    python fetch_ercot.py --fuel-mix       # also the fuel mix feed
+
+Requests: one per dataset per run, spanning every day the cache can't
+answer (see fetch). The default run is one request.
 
 Row budget: the GridStatus free plan allows 500,000 rows/month. With the
 location filters below, one year costs roughly 8,800 (day-ahead) + 35,000
-(real-time) + 105,000 (fuel mix) rows. Fuel mix is the expensive one because
-it arrives every 5 minutes, so --skip-fuelmix is available.
+(real-time) + 105,000 (fuel mix) rows per location. Fuel mix is the
+expensive one because it arrives every 5 minutes.
 """
 
 import argparse
@@ -144,14 +154,22 @@ RATE_LIMIT_SLEEP = 1.5          # free plan allows 1 request/second
 
 # Only today and the last RECENT_DAYS market days before it (UTC) are
 # re-fetched on every run: GridStatus can still fill in or correct their
-# intervals. Anything
-# older is settled and read from the cache - including earlier days of the
-# current month, which is why the current month is cached one day per chunk.
+# intervals. Anything older is settled and read from the cache - including
+# earlier days of the current month, which is why the current month is
+# cached one day per chunk.
 RECENT_DAYS = 3
 
-# Rows GridStatus returned to this process - what the free plan meters.
-# Cached chunks cost nothing and are not counted.
+# A dataset's uncached chunks are read in ONE request spanning all of them,
+# then split into their chunk files. Only a backfill longer than this is
+# broken up (at chunk boundaries): a year in one response trips a brotli
+# decode bug in the HTTP stack (see month_chunks).
+MAX_REQUEST_DAYS = 31
+
+# Rows GridStatus returned to this process - what the free plan meters - and
+# the requests that returned them. Cached chunks cost nothing and are not
+# counted.
 rows_fetched = 0
+requests_made = 0
 
 
 # --------------------------------------------------------------------------
@@ -361,18 +379,35 @@ def store_chunk(cache_path, payload):
     cache_path.write_text(payload)
 
 
-def fetch_chunk(client, dataset, start, end, location=None):
-    """Fetch one chunk, cache the raw bytes, return (DataFrame, path)."""
-    global rows_fetched
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    cache_path = chunk_path(dataset, location, start, end)
+def chunks_to_fetch(dataset, location, chunks, today=None):
+    """The planned chunks the cache can't answer: missing, or not yet final."""
+    return [(s, e) for s, e in chunks
+            if not (chunk_path(dataset, location, s, e).exists()
+                    and chunk_is_final(s, e, today))]
 
-    if cache_path.exists() and chunk_is_final(start, end):
-        print(f"    cached   {start} -> {end}")
-        return pd.read_json(cache_path.open(), orient="records"), cache_path
 
-    verb = "refetch " if cache_path.exists() else "fetching"
-    print(f"    {verb} {start} -> {end} ...")
+def request_spans(chunks):
+    """
+    Group chunks (in date order) into request spans: one span from the first
+    to the last, unless that is longer than MAX_REQUEST_DAYS, in which case
+    it breaks at chunk boundaries. Cached final chunks lying inside a span
+    are re-read by the request but never rewritten (see fetch).
+    """
+    spans = []
+    for start, end in chunks:
+        if spans:
+            span_start = date.fromisoformat(spans[-1][0])
+            if (date.fromisoformat(end) - span_start).days <= MAX_REQUEST_DAYS:
+                spans[-1] = (spans[-1][0], end)
+                continue
+        spans.append((start, end))
+    return spans
+
+
+def fetch_span(client, dataset, start, end, location=None):
+    """One GridStatus request for [start, end). Counts rows and requests."""
+    global rows_fetched, requests_made
+    print(f"    fetching {start} -> {end} (one request) ...")
     # timezone=CENTRAL makes start/end mean Central-time midnights, so a "day"
     # of data is a real ERCOT market day rather than a UTC day that straddles
     # two of them.
@@ -384,16 +419,40 @@ def fetch_chunk(client, dataset, start, end, location=None):
     df = client.get_dataset(**kwargs)
     time.sleep(RATE_LIMIT_SLEEP)
     rows_fetched += len(df)
+    requests_made += 1
+    return df
 
-    store_chunk(cache_path, df.to_json(orient="records", date_format="iso"))
-    return df, cache_path
+
+def split_into_chunks(df, chunks):
+    """
+    {chunk: rows of df whose Central market day falls in it}. A chunk's rows
+    serialise to the same bytes a request for just that chunk returns
+    (checked against the cache: a 20-day response split by day matched all
+    18 separately fetched day files byte for byte), so a day file means the
+    same thing however it was fetched.
+    """
+    if df.empty or "interval_start_utc" not in df.columns:
+        return {chunk: df.iloc[0:0] for chunk in chunks}
+    days = to_central_day(df)["market_day"].astype(str)
+    return {(s, e): df[(days >= s) & (days < e)] for s, e in chunks}
 
 
 def fetch(client, dataset, start, end, location=None, tag=""):
     """
-    Pull one dataset for a date range, chunk by chunk (see plan_chunks), and
-    return it as a single DataFrame along with a source hash and the list of
-    cache files.
+    Pull one dataset for a date range and return it as a single DataFrame
+    along with a source hash and the list of cache files.
+
+    plan_chunks() decides which cache files cover the range. The ones the
+    cache can't answer (missing, or inside the recent window) are read in a
+    single request spanning all of them - one request per dataset per run,
+    never one per day - and the response is split back into those chunk
+    files, each written through store_chunk (changed bytes are kept in
+    data/raw/superseded/). A chunk that is already cached and final is never
+    rewritten, even when the request's span covers it. A final chunk the
+    response had no rows for isn't written, so the next run asks again.
+
+    Every chunk is then read back from its file, so the frame and the hash
+    come from exactly the same bytes.
 
     The source hash covers the concatenated raw bytes of every chunk, in date
     order. Anyone can reproduce it:
@@ -403,9 +462,25 @@ def fetch(client, dataset, start, end, location=None, tag=""):
     Caching matters: you will run this many times while debugging, and every
     re-fetch spends rows from the free monthly allowance.
     """
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    chunks = plan_chunks(dataset, location, start, end)
+    wanted = chunks_to_fetch(dataset, location, chunks)
+    print(f"    {len(chunks) - len(wanted)} of {len(chunks)} chunk(s) from cache")
+    for span_start, span_end in request_spans(wanted):
+        in_span = [c for c in wanted if span_start <= c[0] and c[1] <= span_end]
+        response = fetch_span(client, dataset, span_start, span_end, location)
+        for (s, e), rows in split_into_chunks(response, in_span).items():
+            if rows.empty and chunk_is_final(s, e):
+                continue
+            store_chunk(chunk_path(dataset, location, s, e),
+                        rows.to_json(orient="records", date_format="iso"))
+
     frames, paths = [], []
-    for chunk_start, chunk_end in plan_chunks(dataset, location, start, end):
-        df, path = fetch_chunk(client, dataset, chunk_start, chunk_end, location)
+    for chunk_start, chunk_end in chunks:
+        path = chunk_path(dataset, location, chunk_start, chunk_end)
+        if not path.exists():
+            continue
+        df = pd.read_json(path, orient="records")
         if len(df):
             frames.append(df)
         paths.append(path)
@@ -772,11 +847,13 @@ def main():
     parser.add_argument("--fill-gaps", action="store_true",
                         help="also read every day missing since the latest "
                              "complete day in data/metrics")
-    parser.add_argument("--skip-fuelmix", action="store_true",
-                        help="skip the fuel mix feed to save row budget")
-    parser.add_argument("--skip-index", action="store_true",
-                        help="skip the load-weighted statewide index "
-                             "(5 extra queries per month chunk)")
+    parser.add_argument("--feed-metrics", action="store_true",
+                        help="also fetch the feed-only metrics the site no "
+                             "longer shows: West Hub day-ahead (basis), West "
+                             "Hub real-time (negative intervals) and the "
+                             "load-weighted index (4 load zones + load)")
+    parser.add_argument("--fuel-mix", action="store_true",
+                        help="also fetch the fuel mix feed (about 288 rows/day)")
     args = parser.parse_args()
 
     start_date, end_date = fetch_window(args.days, fill_gaps=args.fill_gaps)
@@ -807,42 +884,47 @@ def main():
         print(f"  {day}  ${result['value'] / 100:8.2f}/MWh"
               f"   ({result['hours_used']} hours)")
 
-    # ---- west-north basis spread ------------------------------------------
-    print("\nWest-North day-ahead basis")
-    df_west, hash_w, files_w = fetch(
-        client, BASIS["dataset"], start, end, location=BASIS["location"])
+    # ---- feed-only metrics (--feed-metrics) -------------------------------
+    # The site shows only the Texas power price, and every live market
+    # settles on it, so a refresh reads North Hub day-ahead prices alone.
+    # These four stay computable on request; their files are still written
+    # to web/public/data/ from whatever data/metrics holds.
+    if args.feed_metrics:
+        # ---- west-north basis spread -------------------------------------
+        print("\nWest-North day-ahead basis")
+        df_west, hash_w, files_w = fetch(
+            client, BASIS["dataset"], start, end, location=BASIS["location"])
 
-    # The basis is West MINUS North, so its source hash has to cover both
-    # legs. Hashing only West would let someone verify half the inputs to a
-    # number and believe they had verified all of it — worse than publishing
-    # no hash at all. Same combining rule as the index: hash the leg hashes
-    # in a fixed order.
-    basis_hash = hashlib.sha256((hash_w + hash_da).encode()).hexdigest()
-    basis_files = files_w + files_da
+        # The basis is West MINUS North, so its source hash has to cover both
+        # legs. Hashing only West would let someone verify half the inputs to a
+        # number and believe they had verified all of it — worse than publishing
+        # no hash at all. Same combining rule as the index: hash the leg hashes
+        # in a fixed order.
+        basis_hash = hashlib.sha256((hash_w + hash_da).encode()).hexdigest()
+        basis_files = files_w + files_da
 
-    for day, result in basis_spread(df_west, df_da).items():
-        write(BASIS["metric_id"], day, result["value"],
-                     basis_hash, basis_files,
-                     result["start_utc"], result["end_utc"],
-                     {"westAvg": round(result["west"], 2),
-                      "northAvg": round(result["north"], 2)})
-        print(f"  {day}  {result['value'] / 100:+8.2f}/MWh"
-              f"   (W {result['west']:6.2f}  N {result['north']:6.2f})")
+        for day, result in basis_spread(df_west, df_da).items():
+            write(BASIS["metric_id"], day, result["value"],
+                         basis_hash, basis_files,
+                         result["start_utc"], result["end_utc"],
+                         {"westAvg": round(result["west"], 2),
+                          "northAvg": round(result["north"], 2)})
+            print(f"  {day}  {result['value'] / 100:+8.2f}/MWh"
+                  f"   (W {result['west']:6.2f}  N {result['north']:6.2f})")
 
-    # ---- real-time negative intervals -----------------------------------
-    print("\nReal-time negative intervals, HB_WEST")
-    df_rt, hash_rt, files_rt = fetch(
-        client, REAL_TIME["dataset"], start, end,
-        location=REAL_TIME["location"])
-    for day, result in negative_intervals(df_rt).items():
-        write(REAL_TIME["metric_id"], day, result["value"],
-                     hash_rt, files_rt, result["start_utc"], result["end_utc"],
-                     {"intervalsUsed": result["intervals_used"]})
-        print(f"  {day}  {result['value']:3d} negative"
-              f"   (of {result['intervals_used']} intervals)")
+        # ---- real-time negative intervals --------------------------------
+        print("\nReal-time negative intervals, HB_WEST")
+        df_rt, hash_rt, files_rt = fetch(
+            client, REAL_TIME["dataset"], start, end,
+            location=REAL_TIME["location"])
+        for day, result in negative_intervals(df_rt).items():
+            write(REAL_TIME["metric_id"], day, result["value"],
+                         hash_rt, files_rt, result["start_utc"], result["end_utc"],
+                         {"intervalsUsed": result["intervals_used"]})
+            print(f"  {day}  {result['value']:3d} negative"
+                  f"   (of {result['intervals_used']} intervals)")
 
-    # ---- load-weighted statewide index -----------------------------------
-    if not args.skip_index:
+        # ---- load-weighted statewide index -------------------------------
         print("\nLoad-weighted ERCOT index (4 load zones, hourly weights)")
         price_frames, hashes, files = {}, [], []
         for point in INDEX["zones"]:
@@ -872,7 +954,7 @@ def main():
                   + "  ".join(f"{z[:3].upper()} {s:.0%}" for z, s in sorted(w.items())))
 
     # ---- fuel mix (feed only) -------------------------------------------
-    if not args.skip_fuelmix:
+    if args.fuel_mix:
         print("\nFuel mix")
         df_fm, hash_fm, files_fm = fetch(
             client, FUEL_MIX["dataset"], start, end)
@@ -886,7 +968,8 @@ def main():
             summary = "  ".join(f"{f} {v / 100:.1f}%" for f, v in top)
             print(f"  {day}  {summary}")
 
-    print(f"\nGridStatus rows fetched this run: {rows_fetched:,}")
+    print(f"\nGridStatus requests this run: {requests_made}")
+    print(f"GridStatus rows fetched this run: {rows_fetched:,}")
     print(f"Wrote metric files to {METRICS_DIR}/")
     print(f"Raw responses cached in {RAW_DIR}/ (gitignore this folder)")
 

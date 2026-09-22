@@ -3,7 +3,8 @@ GRIDFLEX -- candlestick data builder
 =====================================
 
 Builds real OHLC candlestick series for the /trade page's chart, at
-HB_NORTH and HB_WEST, from two ERCOT datasets:
+HB_NORTH (the Texas power price's hub, the only one the site shows; HB_WEST
+too with --west-hub), from two ERCOT datasets:
 
   ercot_lmp_by_settlement_point   5-minute SCED dispatch LMPs -- real
                                    intra-bar variation, used to build the
@@ -46,8 +47,12 @@ Every candle file records which dataset built which timeframe (`sources`,
 keyed by timeframe) so the chart can caption itself honestly instead of
 naming one dataset for data that actually came from two.
 
+Requests: one per dataset per location per run (fetch_ercot.fetch reads
+every chunk the cache can't answer in a single request) - two by default.
+
 Usage:
-    python build_candles.py                # ~380 days of 15m data, both hubs
+    python build_candles.py                # ~380 days of 15m data, HB_NORTH
+    python build_candles.py --west-hub      # HB_WEST as well
     python build_candles.py --days 30       # shorter 15m-data range, cheaper
     python build_candles.py --five-min-days 90   # 5-min LMP window (default 90)
 """
@@ -70,7 +75,9 @@ FIVE_MIN_DATASET = "ercot_lmp_by_settlement_point"
 FIVE_MIN_PRICE_COLUMN = "lmp"
 FIVE_MIN_DEFAULT_DAYS = 90
 
-LOCATIONS = ["HB_NORTH", "HB_WEST"]
+# The site's chart shows HB_NORTH only (design-brief.md §9: no hub switcher).
+LOCATIONS = ["HB_NORTH"]
+WEST_HUB = "HB_WEST"
 
 OUT_DIR = Path("web/public/data/candles")
 
@@ -181,20 +188,23 @@ def main():
                         help="override: fetch 15-min settlement data this many days back")
     parser.add_argument("--five-min-days", type=int, default=FIVE_MIN_DEFAULT_DAYS,
                         help="how many days of 5-min dispatch LMPs to fetch, for 15m/1h candles")
+    parser.add_argument("--west-hub", action="store_true",
+                        help=f"also build {WEST_HUB} candles (the site doesn't show them)")
     args = parser.parse_args()
+    locations = LOCATIONS + ([WEST_HUB] if args.west_hub else [])
 
     end_date = datetime.now(timezone.utc).date()
     end = str(end_date)
     start = str(end_date - timedelta(days=args.days)) if args.days else args.start
     five_min_start = five_min_window_start(end_date, args.five_min_days)
 
-    print(f"GRIDFLEX candle builder @ {LOCATIONS}")
+    print(f"GRIDFLEX candle builder @ {locations}")
     print(f"  {FIVE_MIN_DATASET} (15m, 1h): {five_min_start} -> {end}")
     print(f"  {DATASET} (4h, 1d, 1w): {start} -> {end}\n")
     client = get_client()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    for location in LOCATIONS:
+    for location in locations:
         print(f"{location}")
 
         df5, hash5, files5 = fetch(
@@ -267,7 +277,8 @@ def main():
         counts = {tf: len(series) for tf, series in payload["candles"].items()}
         print(f"  wrote {out_path} -- {counts}")
 
-    print(f"\nGridStatus rows fetched this run: {fetch_ercot.rows_fetched:,}")
+    print(f"\nGridStatus requests this run: {fetch_ercot.requests_made}")
+    print(f"GridStatus rows fetched this run: {fetch_ercot.rows_fetched:,}")
     print(
         f"Row cost note: {FIVE_MIN_DATASET} costs ~288 rows/day per location "
         f"(--five-min-days), {DATASET} costs ~96 rows/day per location (--days); "

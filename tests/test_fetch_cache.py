@@ -5,6 +5,7 @@ re-fetched chunk never destroys bytes a published hash was computed from;
 and a reading already onchain is never rewritten by a later run.
 """
 
+import hashlib
 import json
 import tempfile
 import unittest
@@ -123,6 +124,7 @@ class TestFetchChunkCache(unittest.TestCase):
             patch.object(fetch_ercot, "SUPERSEDED_DIR", raw / "superseded"),
             patch.object(fetch_ercot.time, "sleep"),
             patch.object(fetch_ercot, "rows_fetched", 0),
+            patch.object(fetch_ercot, "requests_made", 0),
         ]
         for p in self.patches:
             p.start()
@@ -133,33 +135,122 @@ class TestFetchChunkCache(unittest.TestCase):
             p.stop()
         self.tmp.cleanup()
 
-    def client_returning(self, prices):
+    TODAY = date(2026, 9, 22)
+
+    def rows(self, *days, per_day=2, price=1.0):
+        """A GridStatus-shaped frame: per_day rows on each Central day."""
+        starts = []
+        for day in days:
+            midnight = pd.Timestamp(day).tz_localize("US/Central")
+            starts += [midnight + pd.Timedelta(hours=h) for h in range(per_day)]
+        utc = [t.tz_convert("UTC") for t in starts]
+        return pd.DataFrame({
+            "interval_start_utc": utc,
+            "interval_end_utc": [t + pd.Timedelta(hours=1) for t in utc],
+            "spp": [price] * len(utc),
+        })
+
+    def client_returning(self, df):
         client = MagicMock()
-        client.get_dataset.return_value = pd.DataFrame({"spp": prices})
+        client.get_dataset.return_value = df
         return client
 
-    def test_a_final_cached_chunk_is_read_without_any_request(self):
-        self.raw.mkdir(parents=True)
-        (self.raw / "ds__HB_NORTH__2026-07-01__2026-08-01.json").write_text('[{"spp":1.0}]')
-        client = self.client_returning([9.0])
-        df, _ = fetch_ercot.fetch_chunk(client, "ds", "2026-07-01", "2026-08-01", "HB_NORTH")
+    def fetch(self, client, start, end):
+        with patch.object(fetch_ercot, "utc_today", return_value=self.TODAY):
+            return fetch_ercot.fetch(client, "ds", start, end, location="HB_NORTH")
+
+    def path(self, start, end):
+        return fetch_ercot.chunk_path("ds", "HB_NORTH", start, end)
+
+    def cache(self, start, end, text='[{"spp":1.0}]'):
+        self.raw.mkdir(parents=True, exist_ok=True)
+        self.path(start, end).write_text(text)
+
+    def requested(self, client):
+        return [(c.kwargs["start"], c.kwargs["end"]) for c in client.get_dataset.call_args_list]
+
+    def test_a_final_cached_range_makes_no_request(self):
+        self.cache("2026-07-01", "2026-08-01")
+        client = self.client_returning(self.rows())
+        df, _, files = self.fetch(client, "2026-07-01", "2026-08-01")
         client.get_dataset.assert_not_called()
         self.assertEqual(df["spp"].tolist(), [1.0])
-        self.assertEqual(fetch_ercot.rows_fetched, 0)
+        self.assertEqual(files, ["ds__HB_NORTH__2026-07-01__2026-08-01.json"])
+        self.assertEqual((fetch_ercot.rows_fetched, fetch_ercot.requests_made), (0, 0))
 
-    def test_a_recent_cached_chunk_is_refetched_and_counted(self):
-        self.raw.mkdir(parents=True)
-        path = self.raw / "ds__HB_NORTH__2026-09-21__2026-09-22.json"
-        path.write_text('[{"spp":1.0}]')
-        client = self.client_returning([1.0, 2.0, 3.0])
-        with patch.object(fetch_ercot, "chunk_is_final", return_value=False):
-            df, returned = fetch_ercot.fetch_chunk(
-                client, "ds", "2026-09-21", "2026-09-22", "HB_NORTH"
-            )
-        client.get_dataset.assert_called_once()
-        self.assertEqual(len(df), 3)
-        self.assertEqual(fetch_ercot.rows_fetched, 3)
-        self.assertEqual(json.loads(returned.read_text()), [{"spp": 1.0}, {"spp": 2.0}, {"spp": 3.0}])
+    def test_the_recent_days_and_today_are_one_request_split_into_day_files(self):
+        client = self.client_returning(self.rows("2026-09-19", "2026-09-20", "2026-09-21", "2026-09-22"))
+        df, _, files = self.fetch(client, "2026-09-19", "2026-09-23")
+        self.assertEqual(self.requested(client), [("2026-09-19", "2026-09-23")])
+        self.assertEqual(files, [f"ds__HB_NORTH__2026-09-{d}__2026-09-{d + 1}.json" for d in range(19, 23)])
+        for name in files:
+            self.assertEqual(len(json.loads((self.raw / name).read_text())), 2)
+        self.assertEqual(len(df), 8)
+        self.assertEqual((fetch_ercot.rows_fetched, fetch_ercot.requests_made), (8, 1))
+
+    def test_a_gap_and_the_recent_days_share_one_request(self):
+        # 10-18 Sep never fetched, 19-21 cached but still recent, 22 is today.
+        for day in (19, 20, 21):
+            self.cache(f"2026-09-{day}", f"2026-09-{day + 1}")
+        days = [f"2026-09-{d}" for d in range(10, 23)]
+        client = self.client_returning(self.rows(*days))
+        _, _, files = self.fetch(client, "2026-09-10", "2026-09-23")
+        self.assertEqual(self.requested(client), [("2026-09-10", "2026-09-23")])
+        self.assertEqual(len(files), 13)
+        self.assertEqual(fetch_ercot.requests_made, 1)
+
+    def test_a_cached_final_day_inside_the_span_is_never_rewritten(self):
+        self.cache("2026-09-12", "2026-09-13", '[{"spp":7.0}]')
+        client = self.client_returning(self.rows(*[f"2026-09-{d}" for d in range(10, 15)], price=2.0))
+        df, _, _ = self.fetch(client, "2026-09-10", "2026-09-15")
+        self.assertEqual(self.requested(client), [("2026-09-10", "2026-09-15")])
+        self.assertEqual(self.path("2026-09-12", "2026-09-13").read_text(), '[{"spp":7.0}]')
+        self.assertFalse((self.raw / "superseded").exists())
+        self.assertIn(7.0, df["spp"].tolist())
+
+    def test_a_changed_recent_day_keeps_its_previous_bytes(self):
+        self.cache("2026-09-21", "2026-09-22", '[{"spp":1.0}]')
+        client = self.client_returning(self.rows("2026-09-21", price=5.0))
+        self.fetch(client, "2026-09-21", "2026-09-22")
+        archived = list((self.raw / "superseded").glob("ds__HB_NORTH__2026-09-21__2026-09-22__*.json"))
+        self.assertEqual([p.read_text() for p in archived], ['[{"spp":1.0}]'])
+
+    def test_a_final_day_with_no_rows_is_left_for_the_next_run(self):
+        # A gap-filling window: 11 Sep and 13-18 Sep come back empty.
+        days = ["2026-09-10", "2026-09-12"] + [f"2026-09-{d}" for d in range(19, 23)]
+        client = self.client_returning(self.rows(*days))
+        _, _, files = self.fetch(client, "2026-09-10", "2026-09-23")
+        self.assertFalse(self.path("2026-09-11", "2026-09-12").exists())
+        self.assertEqual(len(files), 6)
+
+    def test_a_recent_day_with_no_rows_yet_is_cached_empty(self):
+        client = self.client_returning(self.rows("2026-09-21"))
+        _, _, files = self.fetch(client, "2026-09-21", "2026-09-23")
+        self.assertEqual(self.path("2026-09-22", "2026-09-23").read_text(), "[]")
+        self.assertEqual(len(files), 2)
+
+    def test_the_hash_is_the_chunk_files_in_date_order(self):
+        client = self.client_returning(self.rows("2026-09-20", "2026-09-21"))
+        _, digest, files = self.fetch(client, "2026-09-20", "2026-09-22")
+        expected = hashlib.sha256(b"".join((self.raw / f).read_bytes() for f in files)).hexdigest()
+        self.assertEqual(digest, expected)
+
+    def test_a_long_backfill_breaks_at_month_boundaries(self):
+        # Nothing cached from 1 Jul: Jul and Aug are whole-month chunks, Sep
+        # is days. Three requests, none longer than MAX_REQUEST_DAYS.
+        client = self.client_returning(self.rows("2026-07-15", "2026-08-15", "2026-09-15"))
+        self.fetch(client, "2026-07-01", "2026-09-23")
+        self.assertEqual(self.requested(client), [
+            ("2026-07-01", "2026-08-01"), ("2026-08-01", "2026-09-01"), ("2026-09-01", "2026-09-23"),
+        ])
+
+    def test_request_spans(self):
+        days = fetch_ercot.day_chunks("2026-09-01", "2026-09-23")
+        self.assertEqual(fetch_ercot.request_spans(days), [("2026-09-01", "2026-09-23")])
+        self.assertEqual(fetch_ercot.request_spans([]), [])
+        month_and_days = [("2026-08-01", "2026-09-01")] + days
+        self.assertEqual(fetch_ercot.request_spans(month_and_days),
+                         [("2026-08-01", "2026-09-01"), ("2026-09-01", "2026-09-23")])
 
     def test_changed_bytes_keep_the_previous_version(self):
         self.raw.mkdir(parents=True)
@@ -344,6 +435,102 @@ class TestFetchWindow(unittest.TestCase):
         # Gap days are older than the recent window: fetched once, then final.
         self.assertTrue(fetch_ercot.chunk_is_final("2026-09-10", "2026-09-11", self.TODAY))
         self.assertFalse(fetch_ercot.chunk_is_final("2026-09-22", "2026-09-23", self.TODAY))
+
+
+class TestWhatARefreshFetches(unittest.TestCase):
+    """Only what the site and the live markets use, unless asked for more."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.calls = []
+        empty = pd.DataFrame({"interval_start_utc": pd.Series(dtype="object"),
+                              "interval_end_utc": pd.Series(dtype="object"),
+                              "spp": pd.Series(dtype="float64")})
+
+        def fake_fetch(client, dataset, start, end, location=None, tag=""):
+            self.calls.append((dataset, location))
+            return empty, "hash", []
+
+        self.patches = [
+            patch.object(fetch_ercot, "get_client", return_value=MagicMock()),
+            patch.object(fetch_ercot, "fetch", side_effect=fake_fetch),
+            patch.object(fetch_ercot, "load_weighted_index", return_value={}),
+            patch.object(fetch_ercot, "fuel_shares", return_value={}),
+            patch.object(fetch_ercot, "METRICS_DIR", Path(self.tmp.name)),
+            patch.object(fetch_ercot, "PUBLISH_LEDGER", Path(self.tmp.name) / "none.json"),
+            patch("builtins.print"),
+        ]
+        for one in self.patches:
+            one.start()
+
+    def tearDown(self):
+        for one in reversed(self.patches):
+            one.stop()
+        self.tmp.cleanup()
+
+    def run_main(self, *argv):
+        with patch("sys.argv", ["fetch_ercot.py", *argv]):
+            fetch_ercot.main()
+        return self.calls
+
+    def test_a_refresh_fetches_north_hub_day_ahead_only(self):
+        self.assertEqual(self.run_main("--days", "3", "--fill-gaps"),
+                         [("ercot_spp_day_ahead_hourly", "HB_NORTH")])
+
+    def test_feed_metrics_are_behind_their_own_flag(self):
+        calls = self.run_main("--feed-metrics")
+        self.assertEqual(calls[0], ("ercot_spp_day_ahead_hourly", "HB_NORTH"))
+        self.assertIn(("ercot_spp_day_ahead_hourly", "HB_WEST"), calls)
+        self.assertIn(("ercot_spp_real_time_15_min", "HB_WEST"), calls)
+        self.assertIn(("ercot_load_by_forecast_zone", None), calls)
+        self.assertEqual(sum(1 for d, loc in calls if loc and loc.startswith("LZ_")), 4)
+        self.assertNotIn(("ercot_fuel_mix", None), calls)
+
+    def test_fuel_mix_is_behind_its_own_flag(self):
+        self.assertIn(("ercot_fuel_mix", None), self.run_main("--fuel-mix"))
+
+
+class TestWhatTheCandleBuilderFetches(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.calls = []
+        ts = pd.date_range("2026-09-20", periods=48, freq="15min", tz="UTC")
+
+        def fake_fetch(client, dataset, start, end, location=None, tag=""):
+            self.calls.append((dataset, location))
+            column = "lmp" if dataset == build_candles.FIVE_MIN_DATASET else "spp"
+            df = pd.DataFrame({"interval_start_utc": ts.astype(str), column: 30.0})
+            return df, "hash", ["file.json"]
+
+        self.patches = [
+            patch.object(build_candles, "get_client", return_value=MagicMock()),
+            patch.object(build_candles, "fetch", side_effect=fake_fetch),
+            patch.object(build_candles, "OUT_DIR", Path(self.tmp.name)),
+            patch("builtins.print"),
+        ]
+        for one in self.patches:
+            one.start()
+
+    def tearDown(self):
+        for one in reversed(self.patches):
+            one.stop()
+        self.tmp.cleanup()
+
+    def run_main(self, *argv):
+        with patch("sys.argv", ["build_candles.py", *argv]):
+            build_candles.main()
+        return self.calls
+
+    def test_a_refresh_builds_north_hub_candles_from_two_datasets(self):
+        self.assertEqual(self.run_main(), [
+            (build_candles.FIVE_MIN_DATASET, "HB_NORTH"),
+            (build_candles.DATASET, "HB_NORTH"),
+        ])
+        self.assertEqual([p.name for p in Path(self.tmp.name).iterdir()], ["HB_NORTH.json"])
+
+    def test_west_hub_is_behind_its_own_flag(self):
+        locations = {loc for _, loc in self.run_main("--west-hub")}
+        self.assertEqual(locations, {"HB_NORTH", "HB_WEST"})
 
 
 if __name__ == "__main__":

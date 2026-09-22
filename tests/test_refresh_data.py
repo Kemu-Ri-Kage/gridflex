@@ -21,8 +21,8 @@ FAKE_PYTHON = """\
 #!/usr/bin/env bash
 echo "python $*" >> "$STUB_LOG"
 case "$1" in
-  fetch_ercot.py) echo "GridStatus rows fetched this run: 1,234" ;;
-  build_candles.py) echo "GridStatus rows fetched this run: 100" ;;
+  fetch_ercot.py) printf 'GridStatus requests this run: 1\nGridStatus rows fetched this run: 1,234\n' ;;
+  build_candles.py) printf 'GridStatus requests this run: 2\nGridStatus rows fetched this run: 100\n' ;;
   build_feed_data.py)
     if [[ -z "${STUB_NO_CHANGE:-}" ]]; then
       echo "{\\"run\\": \\"$RANDOM$RANDOM\\"}" > web/public/data/price.json
@@ -141,6 +141,7 @@ class RefreshScriptTest(unittest.TestCase):
         for call in (build, deploy):
             self.assertIn(f"head={head}", call)
             self.assertIn("dirty=[]", call)
+        self.assertIn("requests used by this refresh: 3", result.stdout)
         self.assertIn("rows used by this refresh: 1334", result.stdout)
 
     def test_fetch_fills_gaps_and_keeps_the_three_day_window(self):
@@ -148,6 +149,15 @@ class RefreshScriptTest(unittest.TestCase):
         fetch = next(c for c in self.calls() if "fetch_ercot.py" in c)
         self.assertIn("--days 3", fetch)
         self.assertIn("--fill-gaps", fetch)
+
+    def test_no_feed_only_data_is_fetched(self):
+        self.refresh()
+        steps = [c for c in self.calls() if c.startswith("python ")]
+        self.assertEqual(steps, [
+            "python fetch_ercot.py --days 3 --fill-gaps",
+            "python build_candles.py",
+            "python build_feed_data.py",
+        ])
 
     def test_uncommitted_web_source_stops_it_before_fetching(self):
         (self.repo / "web/app.tsx").write_text("export const edited = 1;\n")

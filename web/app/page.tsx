@@ -1,3 +1,4 @@
+import { Footer } from '@/components/footer';
 import { FeedProof } from '@/components/landing/feed-proof';
 import { Hero } from '@/components/landing/hero';
 import { HowItWorks } from '@/components/landing/how-it-works';
@@ -16,6 +17,7 @@ export default function Home() {
         <HowItWorks />
         <FeedProof />
         <OpenTerminal />
+        <Footer variant="landing" />
       </main>
     </SmoothScroll>
   );

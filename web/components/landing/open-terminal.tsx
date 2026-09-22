@@ -15,7 +15,7 @@ export function OpenTerminal() {
               shown above. Cash-settled in MockUSDT on X Layer testnet.
             </p>
             <Link
-              className="shrink-0 border border-foreground bg-foreground px-8 py-4 font-mono text-sm uppercase tracking-[0.12em] text-background hover:bg-transparent hover:text-foreground"
+              className="shrink-0 border border-foreground bg-foreground px-8 py-4 font-mono text-sm uppercase tracking-[0.12em] text-background transition-colors duration-200 hover:bg-transparent hover:text-foreground"
               href="/trade"
             >
               Open terminal

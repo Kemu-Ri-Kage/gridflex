@@ -20,8 +20,7 @@ export function MarketPanel() {
         </div>
       </div>
       <p className="px-3 py-3 text-xs leading-5 text-muted-foreground">
-        No additional deployed markets are registered yet. Newly deployed
-        markets appear here after their addresses are published.
+        More contracts appear here as they&rsquo;re listed.
       </p>
     </div>
   );

@@ -116,5 +116,53 @@ class TestWriteAggregates(unittest.TestCase):
             self.assertEqual(empty_written, [])
 
 
+class TestWriteAddresses(unittest.TestCase):
+    def test_publishes_market_addresses_and_create_txs_only(self):
+        source = {
+            "chainId": 1952,
+            "GridOracle": "0xoracle",
+            "MarketFactory": "0xfactory",
+            "MockUSDT": "0xusdt",
+            "transactions": {"GridOracle": "0xdeploy"},
+            "markets": [
+                {
+                    "market": "0xmarket",
+                    "createTxHash": "0xcreate",
+                    "metricId": "ERCOT_HBNORTH_DA_AVG",
+                    "dayKey": 20260908,
+                    "threshold": 3000,
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_path = root / "addresses.json"
+            source_path.write_text(json.dumps(source))
+            original = build_feed_data.ADDRESSES_SOURCE
+            build_feed_data.ADDRESSES_SOURCE = source_path
+            try:
+                build_feed_data.write_addresses(root)
+            finally:
+                build_feed_data.ADDRESSES_SOURCE = original
+            written = json.loads((root / "addresses.json").read_text())
+        # Strike, day and metric are read from the contract, never republished.
+        self.assertEqual(written["markets"], [{"market": "0xmarket", "createTxHash": "0xcreate"}])
+        self.assertEqual(written["GridOracleDeployTx"], "0xdeploy")
+
+    def test_no_markets_key_publishes_an_empty_list(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_path = root / "addresses.json"
+            source_path.write_text(json.dumps({"chainId": 1952}))
+            original = build_feed_data.ADDRESSES_SOURCE
+            build_feed_data.ADDRESSES_SOURCE = source_path
+            try:
+                build_feed_data.write_addresses(root)
+            finally:
+                build_feed_data.ADDRESSES_SOURCE = original
+            written = json.loads((root / "addresses.json").read_text())
+        self.assertEqual(written["markets"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

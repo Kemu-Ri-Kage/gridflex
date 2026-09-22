@@ -3,5 +3,15 @@
   "GridOracleDeployTx": "0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf",
   "MarketFactory": "0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9",
   "MockUSDT": "0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A",
-  "chainId": 1952
+  "chainId": 1952,
+  "markets": [
+    {
+      "createTxHash": "0x74bde77879ccd4bcdd4c7242ce05f4a7bb471da78f7c8a375827df80dd049e3b",
+      "market": "0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07"
+    },
+    {
+      "createTxHash": "0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677",
+      "market": "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1"
+    }
+  ]
 }

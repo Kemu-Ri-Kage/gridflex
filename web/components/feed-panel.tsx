@@ -202,9 +202,6 @@ export function FeedPanel() {
             <CardDescription className="font-mono text-xs uppercase tracking-[0.14em]">
               West–North day-ahead basis
             </CardDescription>
-            <CardTitle className="mt-1 text-lg font-semibold text-foreground">
-              Full local history
-            </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="pt-4">
@@ -218,10 +215,10 @@ export function FeedPanel() {
             <CardTitle className="text-base text-foreground">Verified ERCOT readings</CardTitle>
             <CardDescription>
               <span className="font-mono tabular-nums">
-                {submittedCount} of {totalLocalCandidates}
+                {submittedCount.toLocaleString('en-US')} of{' '}
+                {totalLocalCandidates.toLocaleString('en-US')}
               </span>{' '}
-              metric-days published so far. Every row below is a fresh on-chain read, compared
-              live against the committed source file.
+              metric-days published.
             </CardDescription>
           </div>
         </CardHeader>
@@ -230,7 +227,7 @@ export function FeedPanel() {
             <p className="py-6 text-sm text-muted-foreground">
               {loading
                 ? 'Loading…'
-                : 'Nothing published on-chain yet — check back once a reading has been submitted.'}
+                : 'No readings published yet.'}
             </p>
           ) : (
             <Table>

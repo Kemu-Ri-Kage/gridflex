@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'GRIDFLEX — ERCOT markets on X Layer',
   description:
-    'Cash-settled ERCOT outcome markets backed by verifiable source data on X Layer.',
+    'ERCOT power derivatives that settle against onchain readings you can verify from source.',
 };
 
 export default function RootLayout({

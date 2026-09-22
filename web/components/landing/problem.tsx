@@ -9,30 +9,25 @@ export function Problem() {
           <SectionHeading index="01" title="Problem" />
           <div className="mb-8 border border-border bg-card p-5 sm:mb-12">
             <div className="font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              26 Jan 2026 · HB_NORTH day-ahead average
+              26 Jan 2026 · North Hub day-ahead average
             </div>
             <div className="mt-2 font-mono text-3xl font-semibold tabular-nums text-foreground sm:text-4xl">
               $694.03/MWh
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Power prices are the most volatile in the world. This is a real settlement figure
-              from ERCOT&rsquo;s day-ahead market, not a hypothetical — see{' '}
-              <span className="font-mono">ERCOT_HBNORTH_DA_AVG</span> for 2026-01-26 in{' '}
-              <span className="font-mono">data/metrics/</span>.
+              {/* 25x: the 2026-01-26 ERCOT_HBNORTH_DA_AVG value ($694.03) over the median
+                  of all 363 published North Hub days in data/metrics/ ($28.24) = 24.58. */}
+              On 26 Jan 2026, North Hub averaged $694.03/MWh — about 25× a normal day.
             </p>
           </div>
           <div className="grid gap-8 lg:grid-cols-2">
             <p className="text-lg leading-8 text-muted-foreground">
-              ERCOT&rsquo;s own market data is public, but by the time it reaches a trader it has
-              passed through a vendor, a spreadsheet, or a dashboard with no way to check what the
-              number was actually computed from. A settlement figure and a marketing chart look
-              identical — there is no way to tell which one you are looking at.
+              Most traders see ERCOT prices through a vendor or a dashboard, with no way to check
+              what they were computed from.
             </p>
             <p className="text-lg leading-8 text-muted-foreground">
-              GRIDFLEX publishes the reading and a hash of the exact raw files it was computed
-              from, onchain, before anything settles against it. Anyone can re-derive the hash
-              from the same public data and check it matches. If it does not match, that is shown
-              as a mismatch — not smoothed over as a temporary glitch.
+              GRIDFLEX publishes each reading onchain with a hash of its raw source files. Anyone
+              can recompute the hash from the same public data.
             </p>
           </div>
         </Reveal>

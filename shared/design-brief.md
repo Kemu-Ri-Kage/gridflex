@@ -148,11 +148,12 @@ still present, just demoted to small mono type.
   belong in a details panel, not the primary quote.
 - **Instruments are named in words.** Pattern: `"North Hub above $30 · 8
   Sep"`, with one line underneath stating what it pays and when — e.g.
-  "Pays $1 per contract if ERCOT North Hub's day-ahead average settles
-  above $30/MWh on 8 Sep 2026." The metricId (`ERCOT_HBNORTH_DA_AVG`)
-  appears only as small mono secondary detail near the instrument name —
-  never as the primary label a trader reads first. See
-  `web/lib/market-copy.ts` for the canonical shape.
+  "Pays 1 mUSDT per contract if ERCOT North Hub's day-ahead average
+  settles above $30/MWh on 8 Sep 2026." The metricId
+  (`ERCOT_HBNORTH_DA_AVG`) appears only as small mono secondary detail near
+  the instrument name — never as the primary label a trader reads first.
+  The name, strike, day and pay line are built from the contract's own
+  reads (§6) — see `marketName()`/`payLine()` in `web/lib/markets.tsx`.
 - **Binary markets are called digital options.** A strike, a YES/NO payoff,
   cash settlement — that's an option, and the copy says so. Any dated,
   linear-payoff product is a **dated future**, never called an "option."
@@ -188,7 +189,9 @@ impressive.
   already said it, nothing below repeats it.
 - **The one required disclaimer.** "X Layer testnet" and "MockUSDT" appear
   exactly once per page, together, as one small line. No other disclaimer
-  line, banner, or footnote.
+  line, banner, or footnote. Contract names in the address footer
+  (`GridOracle`, `MarketFactory`, `MockUSDT` beside their addresses) are
+  data, not disclaimers, and don't count toward this rule.
 - **No event branding.** No "OKX Dev Day 2026", no hackathon name, no track
   name, no "built for…" line.
 - **No defensive negations.** State what the product is, never what it
@@ -213,18 +216,26 @@ a worse failure mode here than almost any UI bug elsewhere in the product.
 - **No illustrative or placeholder data, anywhere** — not a skeleton chart
   with fake candles, not a sample order book, not lorem-ipsum copy staged
   as if it were live. If data doesn't exist yet, **show an honest empty
-  state that says so** — e.g. "No trade history yet — this market is in
-  demo mode with no `BinaryMarket` deployed," not a spinner that never
-  resolves or a table quietly populated with invented rows.
-- **A market shows as settled only if a `BinaryMarket` for it is actually
-  deployed on chain and `resolved()`/`yesWon()` say so.** Until then —
-  even for a dayKey whose oracle reading is already published and
-  obviously past — the UI shows the oracle reading directly, stated as a
-  fact about the reading, never as a market outcome. Correct: "North Hub
-  settled at $39.57/MWh, above the $30 strike." Wrong: "SETTLED · YES" —
-  that implies a market resolved a claim that, right now, no deployed
-  contract has actually made. See `web/components/settlement-panel.tsx`
-  for the canonical wording.
+  state that says so** in one short sentence — e.g. "No trades yet." —
+  not a spinner that never resolves or a table quietly populated with
+  invented rows.
+- **Every contract fact is read from the chain, never typed into copy.** A
+  market's name, strike, day, status, outcome, prices and trades come from
+  its `BinaryMarket`'s own reads and events (`web/lib/markets.tsx`); the
+  only non-chain input is the list of market addresses published from
+  `shared/addresses.json`. For each market day, one of three states:
+  - **No `BinaryMarket` exists** — show the oracle reading directly, as a
+    fact about the reading, never as a market outcome: "North Hub settled
+    at $39.57/MWh." No strike is stated — without a contract there isn't
+    one.
+  - **A `BinaryMarket` exists but hasn't resolved** — trading until
+    `resolveAfter`, then **awaiting resolution**. The reading may be shown
+    with the contract's strike ("…, above the $30 strike."), but never as
+    an outcome.
+  - **`resolved()` is true** — show the outcome from `yesWon()`:
+    "Resolved · YES". `cancelled()` shows as cancelled.
+  Wrong in every state: "SETTLED · YES" before `resolved()` says so, or any
+  line asserting that no market is deployed.
 - **Live ERCOT prices are labelled market data, visually and textually
   distinct from on-chain verified readings.** The candlestick chart (real
   `ercot_spp_real_time_15_min` prices, not yet submitted to the oracle) and
@@ -243,13 +254,15 @@ button — no wallet button on this page; connecting a wallet is a terminal
 action, not a marketing-page one.
 
 **Hero.** States the product's category in plain, confident words — not a
-slogan (see §2's banned-headline rule). One supporting line. The testnet is
-stated in the hero itself, not buried in a footnote (see §5, §6).
+slogan (see §2's banned-headline rule). One supporting line. The page's one
+disclaimer line (X Layer testnet · MockUSDT, §5) is the hero eyebrow, not a
+footnote.
 
-**01 / Problem.** Power prices are the most volatile in the world, and the
-data behind settlement is unverifiable. Cite the real spike: **26 January
-2026, $694.03/MWh** at HB_NORTH day-ahead — a real number from
-`data/metrics/`, not a hypothetical. This is the evidence, not an
+**01 / Problem.** Power prices spike, and the data behind settlement is
+unverifiable. Cite the real spike: **26 January 2026, $694.03/MWh** at
+HB_NORTH day-ahead — a real number from `data/metrics/` — as a multiple of
+a normal day: the spike over the median of every published North Hub day
+(`$28.24`, 363 days), rounded (**about 25×**). This is the evidence, not an
 illustration of the evidence.
 
 **02 / How it works — the page's centrepiece, and its most carefully made
@@ -275,7 +288,7 @@ verification state (§4's MISMATCH rule applies here too), plus a link to
 the full feed.
 
 **04 / Open terminal.** The call to action, restated once, not repeated
-elsewhere on the page.
+elsewhere on the page. It names the listed contracts from chain state (§6).
 
 **Spacing, type scale, and rhythm — DAQ's standard, given concrete
 numbers** (derived from studying daqconsulting.com, not copied from it —
@@ -307,14 +320,19 @@ string is either a number, a label, or an honest status.
 - **Top:** instrument bar — plain-English name, current underlying price,
   strike, settlement date, status. See §5 for naming, §6 for the
   settled-state rule.
-- **Left:** market selector. **No compatible `BinaryMarket` is deployed yet.**
-  The trade-safe `MarketFactory` is deployed, but until a
-  market actually exists on chain, the selector shows an honest empty
-  state (§6) explaining that, never a dropdown padded with placeholders or
-  a list implying markets exist that don't.
-- **Centre:** the chart (§9).
-- **Right:** order ticket (`trade-panel.tsx` — see §12).
-- **Bottom:** tabs — positions, history, settlement.
+- **Left:** market selector — every listed `BinaryMarket`, named and
+  labelled from its own contract state (§6). With none listed, an honest
+  empty state; never a list padded with placeholders.
+- **Centre:** the chart (§9), on the selected market's hub, with its strike
+  line when the strike is a hub price.
+- **Right:** a compact settlement summary (labels and numbers the
+  instrument bar doesn't already show), plus the order ticket
+  (`trade-panel.tsx` — see §12) when the ticket is configured for the
+  selected market.
+- **Bottom:** tabs — positions (the connected wallet's mUSDT, YES and NO
+  balances for the selected market), history (the market's real `Swapped`
+  events, or "No trades yet."), settlement (the full on-chain evidence).
+  The summary and the evidence are never the same panel shown twice.
 
 Dense, per Interactive Brokers / Trading 212 (§3): compact rows, numbers
 aligned, no element sized for visual effect rather than legibility.
@@ -332,7 +350,8 @@ data (§6).
   body, wick, and border all use the same up/down pair, no separate chart
   palette for candles.
 - **Timeframe row:** `15m`, `1H`, `4H`, `1D`, `1W`, in that order.
-- **Hub switcher:** `HB_NORTH`, `HB_WEST`.
+- **Hub switcher:** North Hub, West Hub — in words; the `HB_NORTH` /
+  `HB_WEST` codes appear only in the data-source caption.
 - **OHLC legend, top-left**, updating live as the crosshair moves: open,
   high, low, close for the hovered bar, in tabular mono type, coloured by
   that bar's up/down state.
@@ -421,14 +440,15 @@ only when every item is a pass.
     and MockUSDT by name, exactly once, as one small line (§5 copy budget).
 16. No empty/loading state is silently blank or spinner-forever — every
     such state has honest copy explaining why there's nothing to show.
-17. A market is shown as "settled" only if a deployed `BinaryMarket`'s
-    on-chain `resolved()` says so; otherwise the oracle reading is shown
-    as a reading, not a market outcome.
+17. Every contract fact is read from chain, in one of §6's three states:
+    no `BinaryMarket` → the oracle reading only; unresolved → trading or
+    awaiting resolution; `resolved()` → the outcome from `yesWon()`. No
+    line claims that no market is deployed.
 18. Live ERCOT market-data (the chart) is visually/textually distinguished
     from on-chain verified readings (the feed table) — they are never
     presented as the same trust level.
 19. The chart shows Japanese candlesticks in `--up`/`--down`, a `15m 1H 4H
-    1D 1W` timeframe row, an `HB_NORTH`/`HB_WEST` hub switcher, a top-left
+    1D 1W` timeframe row, a North Hub / West Hub switcher, a top-left
     OHLC legend that updates with the crosshair, the price scale on the
     right, a crosshair, and — where zero is meaningful — an emphasised
     zero line.
@@ -466,7 +486,8 @@ only when every item is a pass.
     budget).
 34. No fact is stated twice on the page.
 35. "X Layer testnet" and "MockUSDT" each appear exactly once, in the same
-    single small line; no other disclaimer exists on the page.
+    single small line; no other disclaimer exists on the page. The address
+    footer's contract names are data and don't count (§5).
 36. No event branding — "OKX Dev Day 2026" or any hackathon, track, or
     "built for" line — appears anywhere.
 37. No defensive negation — no sentence says what GRIDFLEX isn't or doesn't

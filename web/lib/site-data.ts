@@ -50,6 +50,8 @@ export interface PublicAddresses {
   MarketFactory: string;
   MockUSDT: string;
   GridOracleDeployTx: string;
+  /** Listed BinaryMarkets; everything else about them is read from chain (lib/markets.tsx). */
+  markets?: { market: string; createTxHash: string }[];
 }
 
 /** shared/metrics.md-shaped evidence for one real, already-settled day, published by write_evidence(). */

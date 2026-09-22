@@ -122,3 +122,11 @@ body {
   background: color-mix(in oklch, var(--foreground) 24%, transparent);
   color: var(--foreground);
 }
+
+/* Recharts measures axis-label widths with an off-screen span appended to
+   <body>; left visible, its last measured label ("200") leaks into the
+   page's text and copy-paste. visibility keeps it measurable (layout still
+   runs) while taking it out of the rendered text. */
+#recharts_measurement_span {
+  visibility: hidden;
+}

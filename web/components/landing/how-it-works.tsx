@@ -9,8 +9,7 @@ export function HowItWorks() {
         <Reveal>
           <SectionHeading index="02" title="How it works" />
           <p className="mb-10 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Four steps, one path from raw ERCOT data to a settled contract. Hover or tap a stage —
-            each one shows the real evidence behind it, not a mockup.
+            Hover or tap a stage to see its evidence.
           </p>
           <DataPathDiagram />
         </Reveal>

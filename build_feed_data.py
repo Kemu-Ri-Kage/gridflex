@@ -104,6 +104,13 @@ def write_addresses(output_dir: Path) -> None:
         "MarketFactory": source.get("MarketFactory"),
         "MockUSDT": source.get("MockUSDT"),
         "GridOracleDeployTx": source.get("transactions", {}).get("GridOracle"),
+        # Only what the browser can't get from the chain itself: which
+        # BinaryMarkets exist and where their history starts. Strike, day,
+        # metric and state are read from each contract live, never from here.
+        "markets": [
+            {"market": entry["market"], "createTxHash": entry["createTxHash"]}
+            for entry in source.get("markets", [])
+        ],
     }
     path = output_dir / "addresses.json"
     path.write_text(json.dumps(public, indent=2, sort_keys=True) + "\n", encoding="utf-8")

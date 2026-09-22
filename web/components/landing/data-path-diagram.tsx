@@ -7,6 +7,7 @@ import { ExternalLink } from 'lucide-react';
 import { explorerAddressUrl, explorerTxUrl } from '@/lib/explorer';
 import { useCommittedRecord, useAddresses, useEvidence } from '@/lib/site-data';
 import { formatPrice } from '@/lib/format';
+import { dayLabel, metricShortName, strikeLabel, useMarkets, type Market } from '@/lib/markets';
 
 type StageId = 'source' | 'compute' | 'publish' | 'settle';
 
@@ -57,9 +58,7 @@ function EvidencePanel({ stage }: { stage: StageId }) {
     return (
       <div className="space-y-3">
         <p className="text-sm leading-6 text-muted-foreground">
-          Day-ahead hourly settlement prices at ERCOT hub <Mono>HB_NORTH</Mono>, dataset{' '}
-          <Mono>ercot_spp_day_ahead_hourly</Mono>, fetched from GridStatus.io — which
-          redistributes public ERCOT data.
+          <Mono>HB_NORTH</Mono> day-ahead hourly prices · GridStatus.io (public ERCOT data)
         </p>
         {evidence ? (
           <div className="border border-border bg-background/60 p-3 font-mono text-xs leading-5 text-muted-foreground">
@@ -70,12 +69,13 @@ function EvidencePanel({ stage }: { stage: StageId }) {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">Loading real source files…</p>
+          <p className="text-xs text-muted-foreground">Loading…</p>
         )}
-        <p className="text-xs text-muted-foreground">
-          {evidence?.sourceFiles.length ?? 4} monthly chunks feed the {evidence?.marketDay ?? '2026-09-08'}{' '}
-          reading — cached raw, never re-fetched once present.
-        </p>
+        {evidence && (
+          <p className="font-mono text-xs text-muted-foreground">
+            {evidence.sourceFiles.length} source files · {dayLabel(evidence.dayKey, true)} reading
+          </p>
+        )}
       </div>
     );
   }
@@ -84,8 +84,7 @@ function EvidencePanel({ stage }: { stage: StageId }) {
     return (
       <div className="space-y-3">
         <p className="text-sm leading-6 text-muted-foreground">
-          SHA-256 over the raw bytes of every source chunk above, concatenated in order — anyone
-          can reproduce it from the same files.
+          SHA-256 of the files above, in order.
         </p>
         <div className="border border-border bg-background/60 p-3">
           <div className="text-xs text-muted-foreground">sourceHash</div>
@@ -103,10 +102,6 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   if (stage === 'publish') {
     return (
       <div className="space-y-3">
-        <p className="text-sm leading-6 text-muted-foreground">
-          The reading — value, sourceHash, and the market day — is written on-chain to{' '}
-          <Mono>GridOracle</Mono> on X Layer testnet by the authorized reporter.
-        </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="border border-border bg-background/60 p-3">
             <div className="text-xs text-muted-foreground">GridOracle</div>
@@ -140,23 +135,51 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   return (
     <div className="space-y-3">
       <p className="text-sm leading-6 text-muted-foreground">
-        Digital options and dated futures resolve strictly against the finalized reading — cash-settled
-        on X Layer testnet, never against a live price feed a counterparty could dispute.
+        Contracts settle against this reading.
       </p>
       <div className="border border-border bg-background/60 p-4">
         <div className="text-xs text-muted-foreground">
-          North Hub day-ahead average · {record?.marketDay ?? evidence?.marketDay ?? '2026-09-08'}
+          North Hub day-ahead average · {record?.marketDay ?? evidence?.marketDay ?? '…'}
         </div>
         <div className="mt-1 font-mono text-xl font-semibold text-foreground">
           {record ? formatPrice(record.value, 'MWh') : 'loading…'}
         </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          North Hub settled at {record ? formatPrice(record.value, 'MWh') : '…'}, above the $30
-          strike used by the market listed on this day (dayKey {record?.dayKey ?? evidence?.dayKey}).
-        </div>
+        {record && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            <SettleStatus dayKey={record.dayKey} value={record.value} />
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+/**
+ * design-brief.md §6, driven by chain state: with no BinaryMarket for the
+ * day, only the reading is stated; with one, its strike and status come
+ * from the contract.
+ */
+function SettleStatus({ dayKey, value }: { dayKey: number; value: number }) {
+  const { markets, now } = useMarkets();
+  if (!markets) return <>…</>;
+
+  const reading = `${metricShortName('ERCOT_HBNORTH_DA_AVG')} settled at ${formatPrice(value, 'MWh')}`;
+  const market = markets.find((m) => m.metricId === 'ERCOT_HBNORTH_DA_AVG' && m.dayKey === dayKey);
+  if (!market) return <>{reading}.</>;
+
+  const side = value > market.threshold ? 'above' : 'at or below';
+  return (
+    <>
+      {reading}, {side} the {strikeLabel(market)} strike. {marketSentence(market, now)}
+    </>
+  );
+}
+
+function marketSentence(market: Market, now: number): string {
+  if (!market.live) return '';
+  if (market.live.resolved) return `Market resolved ${market.live.yesWon ? 'YES' : 'NO'}.`;
+  if (market.live.cancelled) return 'Market cancelled.';
+  return now < market.resolveAfter * 1000 ? 'Market trading.' : 'Market awaiting resolution.';
 }
 
 export function DataPathDiagram() {

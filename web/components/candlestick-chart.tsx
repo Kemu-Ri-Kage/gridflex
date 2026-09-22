@@ -12,7 +12,7 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts';
 
-type Hub = 'HB_NORTH' | 'HB_WEST';
+export type Hub = 'HB_NORTH' | 'HB_WEST';
 type Timeframe = '15m' | '1h' | '4h' | '1d' | '1w';
 
 const HUBS: { id: Hub; label: string }[] = [
@@ -20,7 +20,13 @@ const HUBS: { id: Hub; label: string }[] = [
   { id: 'HB_WEST', label: 'West Hub' },
 ];
 
-const TIMEFRAMES: Timeframe[] = ['15m', '1h', '4h', '1d', '1w'];
+const TIMEFRAMES: { id: Timeframe; label: string }[] = [
+  { id: '15m', label: '15m' },
+  { id: '1h', label: '1H' },
+  { id: '4h', label: '4H' },
+  { id: '1d', label: '1D' },
+  { id: '1w', label: '1W' },
+];
 
 interface Candle {
   time: number;
@@ -56,11 +62,17 @@ function loadCandles(hub: Hub): Promise<CandleFile> {
   return cached;
 }
 
-export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) {
+export function CandlestickChart({
+  defaultHub = 'HB_NORTH',
+  strikeDollars,
+}: {
+  defaultHub?: Hub;
+  strikeDollars?: number;
+}) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const chartRef = React.useRef<IChartApi | null>(null);
   const seriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const [hub, setHub] = React.useState<Hub>('HB_NORTH');
+  const [hub, setHub] = React.useState<Hub>(defaultHub);
   const [timeframe, setTimeframe] = React.useState<Timeframe>('1d');
   const [source, setSource] = React.useState<SourceMeta | null>(null);
   // lightweight-charts draws on canvas, so it can't resolve a `var(...)`
@@ -161,9 +173,11 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
 
     return () => {
       chart.unsubscribeCrosshairMove(onCrosshairMove);
-      chart.remove();
+      // Nulled before remove() so the strike-line cleanup below can tell the
+      // series is gone and skip it.
       chartRef.current = null;
       seriesRef.current = null;
+      chart.remove();
     };
   }, [renderLegend]);
 
@@ -199,8 +213,17 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
 
   // Owns the strike price line's full lifecycle: created once per
   // strikeDollars value, removed by this effect's own cleanup before the
-  // next run (or on unmount) - never left dangling for a later effect run
-  // to pile another line on top of.
+  // next run - never left dangling for a later effect run to pile another
+  // line on top of.
+  //
+  // React runs unmount cleanups in declaration order, and this effect has
+  // to be declared after the mount effect so the series exists when it
+  // runs. So on unmount (MarketChart re-keys this component per market) the
+  // mount effect's chart.remove() has already disposed the series by the
+  // time this cleanup runs, and removePriceLine() would throw "Object is
+  // disposed". The mount cleanup nulls seriesRef before disposing, so a
+  // series that is no longer current is left alone - the line went with
+  // the chart.
   React.useEffect(() => {
     const series = seriesRef.current;
     if (!series || strikeDollars === undefined) return;
@@ -215,7 +238,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
     });
 
     return () => {
-      series.removePriceLine(line);
+      if (seriesRef.current === series) series.removePriceLine(line);
     };
   }, [strikeDollars]);
 
@@ -226,7 +249,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
           {HUBS.map((h) => (
             <button
               className={
-                'border px-2.5 py-1 font-mono text-xs uppercase tracking-[0.08em] ' +
+                'border px-2.5 py-1 font-mono text-xs ' +
                 (hub === h.id
                   ? 'border-foreground text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground')
@@ -244,15 +267,15 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
             <button
               className={
                 'border px-2.5 py-1 font-mono text-xs ' +
-                (timeframe === tf
+                (timeframe === tf.id
                   ? 'border-foreground text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground')
               }
-              key={tf}
-              onClick={() => setTimeframe(tf)}
+              key={tf.id}
+              onClick={() => setTimeframe(tf.id)}
               type="button"
             >
-              {tf}
+              {tf.label}
             </button>
           ))}
         </div>
@@ -265,7 +288,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
         />
       </div>
       <div className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
-        {hub} · {source ? source.dataset : 'loading…'}
+        Market data · {hub} · {source ? source.dataset : 'loading…'}
         {source ? ` · sha256 ${source.sourceHash.slice(0, 8)}…` : ''}
       </div>
     </div>

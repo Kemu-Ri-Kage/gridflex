@@ -75,10 +75,16 @@ export function TerminalHeader() {
             <span className="px-3 py-2 text-sm text-foreground">Trade</span>
           </nav>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge className="hidden gap-1.5 sm:inline-flex" variant="outline">
+        {/* The page's one disclaimer line (design-brief.md §5) wraps rather
+            than shortens on narrow screens - both names must stay, and a
+            nowrap badge beside the wallet button overflows at 390px. */}
+        <div className="flex min-w-0 items-center gap-3">
+          <Badge
+            className="h-auto min-w-0 shrink gap-1.5 rounded-[2px] whitespace-normal leading-tight sm:h-5 sm:whitespace-nowrap"
+            variant="outline"
+          >
             <span className="size-1.5 rounded-full bg-up" />
-            X Layer testnet
+            X Layer testnet · MockUSDT
           </Badge>
           <WalletButton />
         </div>

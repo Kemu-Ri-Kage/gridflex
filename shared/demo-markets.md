@@ -42,6 +42,11 @@ published reading once `resolveAfter + disputeWindow` has passed.
   gap. Seven days leaves room for a missed run while still letting a market
   whose data never arrives be cancelled in the end.
 
+The dispute window only delays `cancel()`. `resolve()` never reads it: it
+works as soon as `resolveAfter` has passed and the oracle reports the
+reading final (`isFinal`). The oracle's own wait between publish and
+finalize is separate, set in `GridOracle`.
+
 ---
 
 ## Replay market
@@ -82,19 +87,19 @@ from one to the next is the market day.
 - **`dayKey 20260930`**
 - Trading close: **2026-09-29 12:30 CDT (Texas) / 18:30 BST (London)**
 
-### 4. Texas power, 6 October 2026 (finale day)
+### 4. Texas power, 2 October 2026
 
-> **"Will Texas power cost more than $45 on October 6, 2026?"**
+> **"Will Texas power cost more than $45 on October 2, 2026?"**
 
-- **`dayKey 20261006`**
-- Trading close: **2026-10-05 12:30 CDT (Texas) / 18:30 BST (London)**,
-  which is 01:30 SGT on 6 October, hours before the finale starts.
-- **This market can't resolve during the finale.** It will be closed to
-  trading and waiting for its result. `fetch_ercot.py` stops at "yesterday
-  in UTC", so day 6 October can't be fetched until UTC reaches
-  2026-10-07 (08:00 SGT on 7 October, the day after the finale; see the
-  note at the end). On stage it can be shown as a closed market waiting
-  for its reading, not as one that resolves live.
+- **`dayKey 20261002`**
+- Trading close: **2026-10-01 12:30 CDT (Texas) / 18:30 BST (London)**.
+  It stays open for trading through the judges' review period, which runs
+  until 30 September.
+- Resolution: `fetch_ercot.py` stops at "yesterday in UTC", so 2 October
+  can be fetched once UTC reaches 2026-10-03 (08:00 SGT on 3 October; see
+  the note at the end). After that come publish and finalize, and then
+  `resolve()` works. That leaves time for it to settle before the
+  6 October finale.
 
 ---
 
@@ -105,7 +110,7 @@ from one to the next is the market day.
 | 1 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20250911` | 2025-09-11 (past, $26.38 — YES) | replay | 45 min after creation |
 | 2 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260926` | 2026-09-26 | live | 2026-09-25 12:30 CDT (Texas) / 18:30 BST (London) |
 | 3 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260930` | 2026-09-30 | live | 2026-09-29 12:30 CDT (Texas) / 18:30 BST (London) |
-| 4 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261006` | 2026-10-06 | live | 2026-10-05 12:30 CDT (Texas) / 18:30 BST (London) |
+| 4 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261002` | 2026-10-02 | live | 2026-10-01 12:30 CDT (Texas) / 18:30 BST (London) |
 
 `create_markets.py` and `finalize.py --verify` both parse this table, so
 keep its seven-column shape. Metric is column 2, dayKey column 4 and Kind
@@ -127,7 +132,7 @@ The data runs from 2025-09-10 to 2026-09-09 and covers 363 published days.
 - **17 September to 6 October 2025**, the calendar match for the demo
   window: **0 of 20** days. Every day in that window fell between $22.48
   and $36.01. The same days last year were 26 Sep $28.54, 30 Sep $33.30 and
-  6 Oct $36.01, all NO.
+  2 Oct $30.07, all NO.
 - **Latest days in the dataset:** $39.57 on 8 Sep and $45.18 on 9 Sep 2026.
   Prices have been running higher than they did a year earlier, and 9 Sep
   crossed $45.

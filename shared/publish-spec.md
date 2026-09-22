@@ -559,7 +559,7 @@ machine (a laptop in Singapore with nothing configured on it at all).
 
 It reads the demo `dayKey`s from `shared/demo-markets.md`'s Summary table
 (one per demo market: today `ERCOT_HBNORTH_DA_AVG` at `20250911`, the
-replay market, and `20260926`/`20260930`/`20261006`, the live ones) and,
+replay market, and `20260926`/`20260930`/`20261002`, the live ones) and,
 for each, reports:
 
 ```

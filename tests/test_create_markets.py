@@ -709,7 +709,7 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (1, "replay", "ERCOT_HBNORTH_DA_AVG", 20250911, 2500),
                 (2, "live", "ERCOT_HBNORTH_DA_AVG", 20260926, 4500),
                 (3, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 4500),
-                (4, "live", "ERCOT_HBNORTH_DA_AVG", 20261006, 4500),
+                (4, "live", "ERCOT_HBNORTH_DA_AVG", 20261002, 4500),
             ],
         )
 

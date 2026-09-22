@@ -1,0 +1,108 @@
+# GRIDFLEX demo evidence
+
+This file lists the onchain transactions that the README and the demo video
+point to. Every value here was read back from X Layer testnet (chain
+`1952`, RPC `https://testrpc.xlayer.tech/terigon`) on 2026-09-22 with
+`cast`. Amounts are in token units (all three tokens have 6 decimals), and
+raw onchain integers are shown in brackets. Contract addresses come from
+`shared/addresses.json`.
+
+Explorer links use the site's explorer base,
+`https://www.okx.com/web3/explorer/xlayer-test`, which redirects to
+`web3.okx.com/explorer/x-layer-testnet`. OKLink's X Layer Testnet explorer
+was checked on the same day and reports "transaction not found" for all of
+these hashes (including the oracle deployment), so it isn't used.
+
+---
+
+## First trade
+
+Wallet `0xD95Bd9f3E641974515B53adE252AD43e7cB28059` on live market 4,
+**"Will Texas power cost more than $45 on October 2, 2026?"**
+(`ERCOT_HBNORTH_DA_AVG`, `dayKey 20261002`, threshold `4500`, trading closes
+2026-10-01 17:30 UTC).
+
+| | Address |
+|---|---|
+| Market | [`0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604`](https://www.okx.com/web3/explorer/xlayer-test/address/0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604) |
+| YES token | `0x7Ab974d156E5C0bA65C90C5385F8Bc64Ca5AcB2A` |
+| NO token | `0xDd4ADa603d2aAC5945AEDd76519cbC7E8CdEdfa4` |
+| mUSDT | `0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A` |
+
+### 1. Mint a set: 10 mUSDT for 10 YES + 10 NO
+
+- Tx: [`0x32aa67ca132bf362d910a1cdaea334b36bd4d7e9238b450a3692fe87e7a7255d`](https://www.okx.com/web3/explorer/xlayer-test/tx/0x32aa67ca132bf362d910a1cdaea334b36bd4d7e9238b450a3692fe87e7a7255d)
+- Block `41657429`, **2026-09-22 22:31:06 UTC**, status success
+- `mintSet(10000000)`: 10 mUSDT went from the wallet to the market, and 10
+  YES and 10 NO were minted to the wallet (`SetMinted`, `[10000000]`).
+
+### 2. Swap: 10 NO for 9.990009 YES
+
+- Tx: [`0x9bed4e23049c7ce5262a913b4b1152f90bfa3db10811d4531f38b193b1808a2a`](https://www.okx.com/web3/explorer/xlayer-test/tx/0x9bed4e23049c7ce5262a913b4b1152f90bfa3db10811d4531f38b193b1808a2a)
+- Block `41657438`, **2026-09-22 22:31:15 UTC** (9 seconds after the mint),
+  status success
+- `swap(yesForNo=false, amountIn=10000000, minimumAmountOut=9940058,
+  deadline=2026-09-22 22:36:08 UTC)`
+- `Swapped`: **10 NO in `[10000000]`, 9.990009 YES out `[9990009]`**.
+  The minimum output the wallet would accept was 9.940058 YES.
+
+### Wallet balances on this market after the trade
+
+Read at the latest block (`41658789`). They are the same as at block
+`41657438`, and the wallet held none of these tokens before the mint
+(block `41657428`: 1,000 mUSDT, 0 YES, 0 NO).
+
+| Token | Balance | Raw |
+|---|---|---|
+| mUSDT | 990 | `990000000` |
+| YES | 19.990009 | `19990009` |
+| NO | 0 | `0` |
+
+The balances reconcile: 1,000 − 10 = 990 mUSDT, 10 + 9.990009 = 19.990009
+YES, and 10 − 10 = 0 NO. The position is a YES position: it pays out if
+the 2 October 2026 HB_NORTH day-ahead average closes above $45.00/MWh.
+
+---
+
+## Resolved markets
+
+These are the two markets created under the earlier plan (see
+`shared/demo-markets.md`). Both are resolved onchain and `resolved()` reads
+`true`. Wallet `0xD95Bd9f3E641974515B53adE252AD43e7cB28059` sent both
+`resolve()` calls. Resolution is permissionless: any account can send it
+once trading has closed and the reading is final.
+
+### Texas power, 8 September 2026, above $30 → YES
+
+- Market: [`0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1`](https://www.okx.com/web3/explorer/xlayer-test/address/0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1)
+  (`ERCOT_HBNORTH_DA_AVG`, `dayKey 20260908`, threshold `3000`)
+- Created: [`0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677`](https://www.okx.com/web3/explorer/xlayer-test/tx/0x17b554e029718fcdd1aaf79a60a7db2de0523f5038717e3abdb1ef2ed13de677)
+- Resolved: [`0x004e9ae0e4fa95f5519d3f9ad274b695bedefd21af2bdcafeff3cc47dc97b216`](https://www.okx.com/web3/explorer/xlayer-test/tx/0x004e9ae0e4fa95f5519d3f9ad274b695bedefd21af2bdcafeff3cc47dc97b216)
+  at block `41622133`, **2026-09-22 12:42:50 UTC**
+- `Resolved(yesWon=true, oracleValue=3957)`: **$39.57/MWh, which is above
+  $30, so YES wins**
+
+### West–North basis, 12 August 2026, above $0 → NO
+
+- Market: [`0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07`](https://www.okx.com/web3/explorer/xlayer-test/address/0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07)
+  (`ERCOT_WEST_NORTH_DA_BASIS`, `dayKey 20260812`, threshold `0`)
+- Created: [`0x74bde77879ccd4bcdd4c7242ce05f4a7bb471da78f7c8a375827df80dd049e3b`](https://www.okx.com/web3/explorer/xlayer-test/tx/0x74bde77879ccd4bcdd4c7242ce05f4a7bb471da78f7c8a375827df80dd049e3b)
+- Resolved: [`0xd83a6e14b88f5d6ad57d4b48af6da93464b27ebe04695f3b20b67ac6d3a82104`](https://www.okx.com/web3/explorer/xlayer-test/tx/0xd83a6e14b88f5d6ad57d4b48af6da93464b27ebe04695f3b20b67ac6d3a82104)
+  at block `41626418`, **2026-09-22 13:54:15 UTC**
+- `Resolved(yesWon=false, oracleValue=-1032)`: **−$10.32/MWh, which is not
+  above $0, so NO wins**
+
+---
+
+## How to re-check
+
+```sh
+RPC=https://testrpc.xlayer.tech/terigon
+cast receipt 0x9bed4e23049c7ce5262a913b4b1152f90bfa3db10811d4531f38b193b1808a2a --rpc-url $RPC
+cast call 0x7Ab974d156E5C0bA65C90C5385F8Bc64Ca5AcB2A 'balanceOf(address)(uint256)' \
+  0xD95Bd9f3E641974515B53adE252AD43e7cB28059 --rpc-url $RPC
+cast call 0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1 'yesWon()(bool)' --rpc-url $RPC
+```
+
+Balances change if the wallet trades again, so the balance table is only
+valid as of the block it names.

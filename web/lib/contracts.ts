@@ -1,10 +1,29 @@
-import { defineChain, getAddress, type Abi, type Address } from 'viem';
+import {
+  defineChain,
+  fallback,
+  getAddress,
+  http,
+  type Abi,
+  type Address,
+} from 'viem';
 
+import { EXPLORER_BASE_URL } from '@/lib/explorer';
 import binaryMarketAbiJson from '@/lib/abi/BinaryMarket.json';
 import gridOracleAbiJson from '@/lib/abi/GridOracle.json';
 import marketFactoryAbiJson from '@/lib/abi/MarketFactory.json';
 import mockUsdtAbiJson from '@/lib/abi/MockUSDT.json';
 import outcomeTokenAbiJson from '@/lib/abi/OutcomeToken.json';
+
+/**
+ * X Layer testnet RPC endpoints, in the order they are tried. Both reject
+ * eth_getLogs spans over 100 blocks. The wallet keeps its own saved RPC for
+ * this chain; these only reach it through wallet_addEthereumChain, which a
+ * wallet honours when it doesn't have chain 1952 yet.
+ */
+export const XLAYER_TESTNET_RPC_URLS = [
+  'https://testrpc.xlayer.tech/terigon',
+  'https://xlayertestrpc.okx.com/terigon',
+] as const;
 
 export const xLayerTestnet = defineChain({
   id: 1952,
@@ -12,26 +31,36 @@ export const xLayerTestnet = defineChain({
   nativeCurrency: { name: 'OKB', symbol: 'OKB', decimals: 18 },
   rpcUrls: {
     default: {
-      http: [
-        process.env.NEXT_PUBLIC_XLAYER_RPC_URL ??
-          'https://testrpc.xlayer.tech/terigon',
-      ],
+      http: XLAYER_TESTNET_RPC_URLS,
     },
   },
   blockExplorers: {
     default: {
-      name: 'OKX Explorer',
-      url: 'https://www.okx.com/web3/explorer/xlayer-test',
+      name: 'OKLink',
+      url: EXPLORER_BASE_URL,
     },
   },
   // Canonical Multicall3, verified deployed on chain 1952. blockCreated is
-  // omitted: the public RPC isn't an archive node, and it only matters for
-  // reads pinned to past blocks, which the app doesn't make.
+  // omitted, so multicall is only used at the latest block; the one read
+  // pinned to past blocks (position history in lib/markets.tsx) uses plain
+  // eth_call.
   contracts: {
     multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
   },
   testnet: true,
 });
+
+/**
+ * The transport for the app's own reads: the endpoints above in order, the
+ * second used only when the first fails. rank: false keeps that order
+ * fixed instead of re-sorting by measured latency.
+ */
+export function xLayerTransport() {
+  return fallback(
+    XLAYER_TESTNET_RPC_URLS.map((url) => http(url)),
+    { rank: false },
+  );
+}
 
 function optionalAddress(value: string | undefined): Address | undefined {
   if (!value || !/^0x[0-9a-fA-F]{40}$/.test(value) || /^0x0{40}$/.test(value)) {

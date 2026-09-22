@@ -50,3 +50,20 @@ export function swapDeadline(
   if (deadline > MAX_UINT64) throw new Error('Swap deadline exceeds uint64.');
   return deadline;
 }
+
+export const SWITCH_PERCENTAGES = [25, 50, 75, 100] as const;
+export type SwitchPercentage = (typeof SWITCH_PERCENTAGES)[number];
+
+/**
+ * `percent` of a held balance in base units. 100% is the exact balance, so
+ * nothing is left behind; the others round down, never asking to send more
+ * than is held.
+ */
+export function percentOfBalance(
+  balance: bigint,
+  percent: SwitchPercentage,
+): bigint {
+  if (balance < 0n) throw new Error('Balance cannot be negative.');
+  if (percent === 100) return balance;
+  return (balance * BigInt(percent)) / 100n;
+}

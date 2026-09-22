@@ -294,8 +294,10 @@ run: contract addresses and the list of markets come from
 `build_feed_data.py`. The order ticket trades whichever listed market is
 selected. With a wallet on X Layer testnet it can get demo collateral, buy YES
 or NO (a complete set is minted and the other side swapped in, in one action),
-resolve or cancel after trading closes, and redeem. `web/.env.example` lists
-the optional overrides.
+resolve or cancel after trading closes, and redeem. Switch position swaps
+YES for NO or NO for YES with the same slippage protection and deadline; it
+changes side and is not a sale, because the markets have no exit into mUSDT
+before settlement. `web/.env.example` lists the optional overrides.
 
 ```bash
 cd web
@@ -337,7 +339,11 @@ design and the reasoning behind each of these decisions.
 ## X Layer testnet
 
 - Chain ID: `1952` (mainnet `196` is rejected by the deployment scripts)
-- RPC: `https://testrpc.xlayer.tech/terigon`
+- RPC: `https://testrpc.xlayer.tech/terigon`, with
+  `https://xlayertestrpc.okx.com/terigon` as the backup. The web app tries
+  them in that order (`XLAYER_TESTNET_RPC_URLS` in `web/lib/contracts.ts`).
+- Explorer: OKLink, `https://www.oklink.com/x-layer-testnet` (`/tx/<hash>`,
+  `/address/<address>`)
 - Faucet: `https://web3.okx.com/xlayer/faucet`
 - Deployment instructions: [`shared/deployment.md`](shared/deployment.md)
 
@@ -345,9 +351,9 @@ Core deployment from `0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902`:
 
 | Contract | Address | Deployment transaction |
 |---|---|---|
-| `GridOracle` | `0x970cefFC0e75bCa245F3337715992ad520A4D561` | `0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf` |
-| `MockUSDT` | `0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A` | `0xcacbb52fcf1e37d5582b16e78a954d985b1ba4b1ceb453301ad4962f5f1df891` |
-| `MarketFactory` | `0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9` | `0x4cbea7ff136d99d17c21055af295d2c78f9ba0b55df789184e8a11ccad04e37c` |
+| `GridOracle` | [`0x970cefFC0e75bCa245F3337715992ad520A4D561`](https://www.oklink.com/x-layer-testnet/address/0x970cefFC0e75bCa245F3337715992ad520A4D561) | [`0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf`](https://www.oklink.com/x-layer-testnet/tx/0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf) |
+| `MockUSDT` | [`0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A`](https://www.oklink.com/x-layer-testnet/address/0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A) | [`0xcacbb52fcf1e37d5582b16e78a954d985b1ba4b1ceb453301ad4962f5f1df891`](https://www.oklink.com/x-layer-testnet/tx/0xcacbb52fcf1e37d5582b16e78a954d985b1ba4b1ceb453301ad4962f5f1df891) |
+| `MarketFactory` | [`0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9`](https://www.oklink.com/x-layer-testnet/address/0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9) | [`0x4cbea7ff136d99d17c21055af295d2c78f9ba0b55df789184e8a11ccad04e37c`](https://www.oklink.com/x-layer-testnet/tx/0x4cbea7ff136d99d17c21055af295d2c78f9ba0b55df789184e8a11ccad04e37c) |
 
 The onchain checks confirm that all three addresses contain bytecode, the oracle reporter is the
 deployer above, the oracle dispute window is `3600`, collateral decimals are `6`, and the
@@ -402,3 +408,12 @@ as a pre-demo gate, not just a report. A bare run (no `--live`) is always a dry 
 would finalize. `--live` finalizes everything currently eligible, checked fresh against the chain
 every time (never against the ledger's cached state) and isolates each reading independently — one
 revert never blocks the rest of the batch. See `shared/finalize-spec.md` for the full design.
+
+## What's next
+
+- **Cash out before settlement.** Today's markets can't return mUSDT before
+  settlement: `swap()` only trades YES for NO, and `redeem()` needs a
+  resolved or cancelled market. A `mergeSet()` that burns equal YES and NO
+  to release the collateral they lock would add a genuine exit. It changes
+  the contract, so it ships only after review, on newly created markets.
+  Existing markets can't gain it.

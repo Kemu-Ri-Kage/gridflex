@@ -7,7 +7,6 @@ import {
   createWalletClient,
   custom,
   getAddress,
-  http,
   type Address,
   type EIP1193Provider,
   type Hash,
@@ -19,6 +18,7 @@ import {
   mockUsdtAbi,
   outcomeTokenAbi,
   xLayerTestnet,
+  xLayerTransport,
 } from '@/lib/contracts';
 import {
   clearPendingOrder,
@@ -35,6 +35,7 @@ import {
   parsePositiveTokenAmount,
   swapDeadline,
 } from '@/lib/trade';
+import { isWalletRpcFailure } from '@/lib/wallet-errors';
 
 declare global {
   interface Window {
@@ -84,6 +85,19 @@ export type BuyQuote = {
   slippageBps: bigint;
 };
 
+/**
+ * A Switch position quote: send `amountIn` of one side, receive the other.
+ * No mUSDT moves; this changes side, it is not a sale.
+ */
+export type SwitchQuote = {
+  from: TradeSide;
+  to: TradeSide;
+  amountIn: bigint;
+  amountOut: bigint;
+  minimumOut: bigint;
+  slippageBps: bigint;
+};
+
 type Web3ContextValue = {
   account?: Address;
   /** undefined until mounted; false when no EIP-1193 wallet is injected. */
@@ -99,6 +113,12 @@ type Web3ContextValue = {
   error?: string;
   /** Wallet connection errors only, shown under the Connect button. */
   connectError?: string;
+  /**
+   * The last wallet request failed in a way that points at the wallet's own
+   * saved RPC for X Layer (lib/wallet-errors.ts). Cleared by the next
+   * request the wallet completes.
+   */
+  walletRpcFailed: boolean;
   lastTransaction?: Hash;
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -111,6 +131,21 @@ type Web3ContextValue = {
    * the connected wallet. While it exists no new order may start.
    */
   pendingOrder?: PendingOrder;
+  /** Quote switching `amount` (in tokens) of `from` into the other side. */
+  quoteSwitch: (
+    from: TradeSide,
+    amount: string,
+  ) => Promise<SwitchQuote | undefined>;
+  /**
+   * Swap `amount` of `from` into the other side, refused if the output
+   * falls below `minimumOut` (the quote shown before confirming) or the
+   * 5-minute deadline passes.
+   */
+  switchPosition: (
+    from: TradeSide,
+    amount: string,
+    minimumOut: bigint,
+  ) => Promise<void>;
   /** Retry the swap for pendingOrder; clears it once the swap confirms. */
   finishPendingOrder: () => Promise<void>;
   /** Forget pendingOrder and keep the YES + NO pair as it is. */
@@ -135,13 +170,20 @@ const emptySnapshot: MarketSnapshot = {
   disputeWindow: 0,
 };
 
+/**
+ * Shown in place of viem's text when the wallet's own RPC failed: for a
+ * contract write viem words that as a revert, which it isn't.
+ */
+const WALLET_RPC_MESSAGE =
+  "Your wallet couldn't reach X Layer through the RPC address it has saved for this network.";
+
 export const NO_WALLET_MESSAGE =
   'No wallet found in this browser. Install OKX Wallet or MetaMask, then reload.';
 
 const Web3Context = React.createContext<Web3ContextValue | null>(null);
 const publicClient = createPublicClient({
   chain: xLayerTestnet,
-  transport: http(),
+  transport: xLayerTransport(),
 });
 
 function errorMessage(error: unknown): string {
@@ -216,6 +258,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [pendingAction, setPendingAction] = React.useState<string>();
   const [error, setError] = React.useState<string>();
   const [connectError, setConnectError] = React.useState<string>();
+  const [walletRpcFailed, setWalletRpcFailed] = React.useState(false);
   const [lastTransaction, setLastTransaction] = React.useState<Hash>();
   // Held in state as well as localStorage, so an unfinished order still
   // blocks new ones for this session when the browser refuses storage.
@@ -281,8 +324,14 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       }
 
       setAccount(getAddress(accounts[0]));
+      setWalletRpcFailed(false);
     } catch (walletError) {
-      setConnectError(errorMessage(walletError));
+      if (isWalletRpcFailure(walletError)) {
+        setWalletRpcFailed(true);
+        setConnectError(WALLET_RPC_MESSAGE);
+      } else {
+        setConnectError(errorMessage(walletError));
+      }
     }
   }, []);
 
@@ -449,12 +498,22 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           chain: xLayerTestnet,
           transport: custom(ethereum),
         });
-        const hash = await walletClient.writeContract({
-          address: request.address,
-          abi: request.abi,
-          functionName: request.functionName,
-          args: request.args,
-        });
+        // Only this request goes through the wallet's saved RPC; the
+        // receipt and refresh below use the app's own endpoints.
+        let hash: Hash;
+        try {
+          hash = await walletClient.writeContract({
+            address: request.address,
+            abi: request.abi,
+            functionName: request.functionName,
+            args: request.args,
+          });
+        } catch (walletError) {
+          if (!isWalletRpcFailure(walletError)) throw walletError;
+          setWalletRpcFailed(true);
+          throw new Error(WALLET_RPC_MESSAGE, { cause: walletError });
+        }
+        setWalletRpcFailed(false);
         setLastTransaction(hash);
         await publicClient.waitForTransactionReceipt({ hash });
         await refresh();
@@ -520,11 +579,13 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   );
 
   /**
-   * The second step of a buy: approve the minted unwanted side if needed,
-   * re-quote, and swap it into `side`. With `protectedMinimum` (a fresh buy)
-   * the swap is refused if the price moved past the tolerance quoted before
-   * the mint; without it (finishing an unfinished order) the minimum comes
-   * from the quote taken just before the swap. Returns whether it confirmed.
+   * Swap `units` of the other side into `side`: the second step of a buy,
+   * and the whole of a switch. Approves the input side if needed,
+   * re-quotes, and swaps. With `protectedMinimum` (a fresh buy, or the
+   * switch quote shown before confirming) the swap is refused if the price
+   * moved past it; without it (finishing an unfinished order) the minimum
+   * comes from the quote taken just before the swap. Returns whether it
+   * confirmed.
    */
   const swapInto = React.useCallback(
     async (
@@ -532,6 +593,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       side: TradeSide,
       units: bigint,
       protectedMinimum?: bigint,
+      label = `Buying ${side}`,
     ): Promise<boolean> => {
       const yesForNo = side === 'NO';
       let inputToken: Address;
@@ -566,7 +628,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           minimumSwapOut = latestQuote.minimumSwapOut;
         } else if (latestQuote.swapOut < protectedMinimum) {
           throw new Error(
-            'The price moved beyond the 0.50% tolerance while the order was being prepared. Review the new quote and try again.',
+            'The price moved beyond the 0.50% tolerance since the quote was shown. Review the new quote and try again.',
           );
         } else {
           minimumSwapOut = protectedMinimum;
@@ -578,7 +640,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      return write(`Buying ${side}`, {
+      return write(label, {
         address: target,
         abi: binaryMarketAbi,
         functionName: 'swap',
@@ -691,6 +753,71 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     [account, collateral, pendingOrder, placeOrder],
   );
 
+  const quoteSwitch = React.useCallback(
+    async (
+      from: TradeSide,
+      amount: string,
+    ): Promise<SwitchQuote | undefined> => {
+      const target = marketRef.current;
+      if (!target) return undefined;
+      const to: TradeSide = from === 'YES' ? 'NO' : 'YES';
+      // quoteOn(target, to, units) quotes sending `units` of `from` for `to`.
+      const quote = await quoteOn(target, to, parsePositiveTokenAmount(amount));
+      return {
+        from,
+        to,
+        amountIn: quote.amountIn,
+        amountOut: quote.swapOut,
+        minimumOut: quote.minimumSwapOut,
+        slippageBps: quote.slippageBps,
+      };
+    },
+    [],
+  );
+
+  /**
+   * Switch position: one swap from `from` into the other side. Nothing is
+   * sold and no mUSDT is returned; the contract has no exit into mUSDT
+   * before settlement. Held to the same one-action-at-a-time rule as buys.
+   */
+  const switchPosition = React.useCallback(
+    async (from: TradeSide, amount: string, minimumOut: bigint) => {
+      const target = marketRef.current;
+      if (!target) {
+        setError('Contracts not configured.');
+        return;
+      }
+      if (orderInFlight.current) return;
+      if (
+        pendingOrder ||
+        (account &&
+          loadPendingOrder(browserStorage(), xLayerTestnet.id, account))
+      ) {
+        setError('Finish the unfinished order first.');
+        return;
+      }
+      let units: bigint;
+      try {
+        units = parsePositiveTokenAmount(amount);
+      } catch (amountError) {
+        setError(errorMessage(amountError));
+        return;
+      }
+      const to: TradeSide = from === 'YES' ? 'NO' : 'YES';
+      orderInFlight.current = true;
+      await swapInto(
+        target,
+        to,
+        units,
+        minimumOut,
+        `Switching to ${to}`,
+      ).finally(() => {
+        orderInFlight.current = false;
+      });
+    },
+    [account, pendingOrder, swapInto],
+  );
+
   const finishPendingOrder = React.useCallback(async () => {
     const order = pendingOrder;
     if (!order) return;
@@ -748,6 +875,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       pendingAction,
       error,
       connectError,
+      walletRpcFailed,
       lastTransaction,
       connect,
       disconnect,
@@ -755,6 +883,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       mintCollateral,
       quoteBuy,
       buy,
+      quoteSwitch,
+      switchPosition,
       pendingOrder,
       finishPendingOrder,
       keepBothSides,
@@ -772,6 +902,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       pendingAction,
       error,
       connectError,
+      walletRpcFailed,
       lastTransaction,
       connect,
       disconnect,
@@ -779,6 +910,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       mintCollateral,
       quoteBuy,
       buy,
+      quoteSwitch,
+      switchPosition,
       pendingOrder,
       finishPendingOrder,
       keepBothSides,

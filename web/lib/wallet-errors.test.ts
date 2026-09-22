@@ -1,0 +1,134 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { isWalletRpcFailure } from './wallet-errors.ts';
+
+function wrapped(cause: object) {
+  return Object.assign(new Error('Transaction failed.'), { cause });
+}
+
+void test('a wallet whose saved RPC fails is an RPC failure', () => {
+  assert.equal(
+    isWalletRpcFailure(
+      wrapped({ code: -32603, message: 'Internal JSON-RPC error.' }),
+    ),
+    true,
+  );
+  assert.equal(
+    isWalletRpcFailure(
+      wrapped({
+        code: -32603,
+        message: 'Internal JSON-RPC error.',
+        data: { message: 'Failed to fetch' },
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    isWalletRpcFailure(
+      wrapped({
+        code: -32002,
+        message: 'RPC endpoint returned too many errors',
+      }),
+    ),
+    true,
+  );
+  assert.equal(isWalletRpcFailure(new Error('Request timed out')), true);
+});
+
+void test('the user declining is never an RPC failure', () => {
+  assert.equal(
+    isWalletRpcFailure(
+      wrapped({ code: 4001, message: 'User rejected the request.' }),
+    ),
+    false,
+  );
+});
+
+void test('a contract revert reported through -32603 is not an RPC failure', () => {
+  assert.equal(
+    isWalletRpcFailure(
+      wrapped({
+        code: -32603,
+        message: 'Internal JSON-RPC error.',
+        data: { message: 'execution reverted: TradingClosed()' },
+      }),
+    ),
+    false,
+  );
+});
+
+void test('ordinary errors are not RPC failures', () => {
+  assert.equal(
+    isWalletRpcFailure(new Error('Amount must be positive.')),
+    false,
+  );
+  assert.equal(isWalletRpcFailure(undefined), false);
+  assert.equal(isWalletRpcFailure('boom'), false);
+});
+
+// The real error chains viem builds when a wallet's request fails, from a
+// wallet stub (no network): what the provider's write() actually catches.
+async function viemWriteError(walletError: object): Promise<unknown> {
+  const { createWalletClient, custom, parseAbi } = await import('viem');
+  const client = createWalletClient({
+    account: '0xD95Bd9f3E641974515B53adE252AD43e7cB28059',
+    chain: {
+      id: 1952,
+      name: 'X Layer Testnet',
+      nativeCurrency: { name: 'OKB', symbol: 'OKB', decimals: 18 },
+      rpcUrls: { default: { http: ['http://127.0.0.1:1'] } },
+    },
+    transport: custom({
+      async request({ method }: { method: string }) {
+        if (method === 'eth_chainId') return '0x7a0';
+        throw Object.assign(
+          new Error(String((walletError as { message?: string }).message)),
+          walletError,
+        );
+      },
+    }),
+  });
+  try {
+    await client.writeContract({
+      address: '0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604',
+      abi: parseAbi(['function approve(address,uint256) returns (bool)']),
+      functionName: 'approve',
+      args: ['0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604', 1n],
+    });
+  } catch (error) {
+    return error;
+  }
+  throw new Error('expected the write to fail');
+}
+
+void test('viem rewrapping a dead wallet RPC as a "revert" is still an RPC failure', async () => {
+  const error = await viemWriteError({
+    code: -32603,
+    message: 'Internal JSON-RPC error.',
+    data: { message: 'Failed to fetch' },
+  });
+  assert.match(String((error as Error).message), /reverted/);
+  assert.equal(isWalletRpcFailure(error), true);
+});
+
+void test('a real revert through the wallet is not an RPC failure', async () => {
+  const error = await viemWriteError({
+    code: -32603,
+    message: 'Internal JSON-RPC error.',
+    data: {
+      code: 3,
+      message: 'execution reverted',
+      data: '0xe2c865df', // TradingClosed()
+    },
+  });
+  assert.equal(isWalletRpcFailure(error), false);
+});
+
+void test('the user rejecting in the wallet is not an RPC failure', async () => {
+  const error = await viemWriteError({
+    code: 4001,
+    message: 'User rejected the request.',
+  });
+  assert.equal(isWalletRpcFailure(error), false);
+});

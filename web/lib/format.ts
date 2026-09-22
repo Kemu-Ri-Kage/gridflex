@@ -92,3 +92,31 @@ export function formatUpdated(iso: string | null | undefined): string | null {
   const utcText = utc.date === texas.date ? `${utc.time} UTC` : `${utc.date}, ${utc.time} UTC`;
   return `${texas.date}, ${texas.time} ${texas.zone} (Texas) · ${utcText}`;
 }
+
+/** A 1e18-scaled mUSDT price per token in cents, e.g. 0.50025e18 -> "50.0¢". */
+export function formatCentsE18(priceE18: bigint): string {
+  return `${(Number(priceE18) / 1e16).toFixed(1)}¢`;
+}
+
+/** A signed mUSDT amount with an explicit sign, e.g. "+1.99", "−0.42", "0.00". */
+export function formatSignedToken(value: bigint): string {
+  const magnitude = formatToken(value < 0n ? -value : value);
+  // Below the 0.01 display step a sign would claim a gain or loss that the
+  // shown digits can't.
+  if (magnitude === '0') return '0.00';
+  return `${value < 0n ? '−' : '+'}${magnitude}`;
+}
+
+/** A signed fraction as a percentage, e.g. 0.1994 -> "+19.9%"; "0.0%" when it rounds to zero. */
+export function formatSignedPercent(fraction: number): string {
+  const magnitude = Math.abs(fraction * 100).toFixed(1);
+  if (magnitude === '0.0') return '0.0%';
+  return `${fraction < 0 ? '−' : '+'}${magnitude}%`;
+}
+
+/** A 6-decimal token amount at full precision, e.g. 9995004n -> "9.995004". */
+export function formatTokenExact(value: bigint): string {
+  return Number(formatUnits(value, 6)).toLocaleString('en-US', {
+    maximumFractionDigits: 6,
+  });
+}

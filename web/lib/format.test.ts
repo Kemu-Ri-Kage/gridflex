@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatUpdated } from './format.ts';
+import {
+  formatCentsE18,
+  formatSignedPercent,
+  formatSignedToken,
+  formatTokenExact,
+  formatUpdated,
+} from './format.ts';
 
 void test('formatUpdated: Texas summer time and UTC', () => {
   assert.equal(
@@ -36,4 +42,30 @@ void test('formatUpdated: missing or unparseable input gives null', () => {
   assert.equal(formatUpdated(undefined), null);
   assert.equal(formatUpdated(''), null);
   assert.equal(formatUpdated('not a date'), null);
+});
+
+void test('formatCentsE18 shows a token price in cents', () => {
+  assert.equal(formatCentsE18(500_250_000_000_000_000n), '50.0¢');
+  assert.equal(formatCentsE18(10n ** 18n), '100.0¢');
+  assert.equal(formatCentsE18(0n), '0.0¢');
+});
+
+void test('formatSignedToken always shows the sign of a P&L', () => {
+  assert.equal(formatSignedToken(1_994_005n), '+1.99');
+  assert.equal(formatSignedToken(-420_000n), '−0.42');
+  assert.equal(formatSignedToken(0n), '0.00');
+  assert.equal(formatSignedToken(1_994n), '0.00');
+  assert.equal(formatSignedToken(-1_994n), '0.00');
+});
+
+void test('formatSignedPercent signs the P&L percentage', () => {
+  assert.equal(formatSignedPercent(0.1994005), '+19.9%');
+  assert.equal(formatSignedPercent(-0.042), '−4.2%');
+  assert.equal(formatSignedPercent(0.0002), '0.0%');
+});
+
+void test('formatTokenExact keeps all six decimals', () => {
+  assert.equal(formatTokenExact(9_995_004n), '9.995004');
+  assert.equal(formatTokenExact(19_990_009n), '19.990009');
+  assert.equal(formatTokenExact(1_000_000_000n), '1,000');
 });

@@ -1,9 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { createPublicClient, http, keccak256, toBytes, type Address } from 'viem';
+import { createPublicClient, keccak256, toBytes, type Address } from 'viem';
 
-import { addresses, gridOracleAbi, xLayerTestnet } from '@/lib/contracts';
+import {
+  addresses,
+  gridOracleAbi,
+  xLayerTestnet,
+  xLayerTransport,
+} from '@/lib/contracts';
 import {
   applyCheckOutcome,
   initialVerificationState,
@@ -41,7 +46,10 @@ export const PUBLIC_FEED_METRIC: FeedMetricId = 'ERCOT_HBNORTH_DA_AVG';
 // A separate, wallet-free public client - deliberately not reusing
 // web3-provider.tsx's internal one, since that file is integration-owned and out of
 // scope for this page (see shared/feed-spec.md).
-const publicClient = createPublicClient({ chain: xLayerTestnet, transport: http() });
+const publicClient = createPublicClient({
+  chain: xLayerTestnet,
+  transport: xLayerTransport(),
+});
 
 /** build_feed_data.py's feed-meta.json: when the price data was last refreshed. */
 async function fetchUpdatedAt(): Promise<string | null> {

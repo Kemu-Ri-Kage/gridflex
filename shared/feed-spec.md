@@ -134,9 +134,10 @@ Extends the "Verified ERCOT readings" card already stubbed in
   `oracle-interface.md`'s stated scaling — never display the raw integer).
 - The truncated `sourceHash` (`sha256 75999d01…`), full hash on
   hover/click, sourced from the committed metric file.
-- A link to the transaction on the OKX X Layer explorer
-  (`https://www.okx.com/web3/explorer/xlayer-test`, already the base URL
-  in `lib/contracts.ts`'s `xLayerTestnet.blockExplorers.default`), using
+- A link to the transaction on OKLink's X Layer Testnet explorer
+  (`https://www.oklink.com/x-layer-testnet/tx/<hash>`, built by
+  `web/lib/explorer.ts`, which is also `xLayerTestnet.blockExplorers.default`
+  in `lib/contracts.ts`), using
   the `txHash` from `data/publish-ledger.json` for that
   `metricId:dayKey` — **not** from the on-chain struct, which has no
   `txHash` field at all (checked directly against `oracle-interface.md`).

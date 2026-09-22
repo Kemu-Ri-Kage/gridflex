@@ -5,6 +5,7 @@ import {
   DEFAULT_SLIPPAGE_BPS,
   minimumOutputForQuote,
   parsePositiveTokenAmount,
+  percentOfBalance,
   swapDeadline,
 } from './trade.ts';
 
@@ -36,4 +37,13 @@ void test('swapDeadline adds five minutes and enforces uint64 bounds', () => {
   assert.throws(() => swapDeadline(-1n));
   assert.throws(() => swapDeadline(1n, 0n));
   assert.throws(() => swapDeadline((1n << 64n) - 1n));
+});
+
+void test('percentOfBalance rounds down and returns the exact balance at 100%', () => {
+  assert.equal(percentOfBalance(19_990_009n, 25), 4_997_502n);
+  assert.equal(percentOfBalance(19_990_009n, 50), 9_995_004n);
+  assert.equal(percentOfBalance(19_990_009n, 75), 14_992_506n);
+  assert.equal(percentOfBalance(19_990_009n, 100), 19_990_009n);
+  assert.equal(percentOfBalance(3n, 25), 0n);
+  assert.equal(percentOfBalance(0n, 100), 0n);
 });

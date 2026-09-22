@@ -4,7 +4,6 @@ import * as React from 'react';
 import {
   createPublicClient,
   getAddress,
-  http,
   keccak256,
   parseAbiItem,
   toBytes,
@@ -19,8 +18,17 @@ import {
   mockUsdtAbi,
   outcomeTokenAbi,
   xLayerTestnet,
+  xLayerTransport,
 } from '@/lib/contracts';
 import { formatPrice } from '@/lib/format';
+import {
+  buildLedger,
+  findChangeBlocks,
+  swapIsBuyLeg,
+  type Ledger,
+  type PositionEvent,
+  type UndeterminedReason,
+} from '@/lib/position';
 import {
   keepSettled,
   readMarketsLive,
@@ -39,7 +47,10 @@ export type { MarketLive } from '@/lib/market-live';
  * shared/addresses.json by build_feed_data.py's write_addresses().
  */
 
-const client = createPublicClient({ chain: xLayerTestnet, transport: http() });
+const client = createPublicClient({
+  chain: xLayerTestnet,
+  transport: xLayerTransport(),
+});
 
 /** The X Layer testnet RPC rejects eth_getLogs spans over 100 blocks. */
 const LOG_WINDOW_BLOCKS = 100n;
@@ -394,6 +405,12 @@ export interface Trade {
   yesForNo: boolean;
   amountIn: bigint;
   amountOut: bigint;
+  /**
+   * True when the swap is the second leg of a Buy YES / Buy NO (it swaps
+   * exactly an amount the same wallet just minted); false for a switch
+   * between sides. See lib/position.ts.
+   */
+  buyLeg: boolean;
 }
 
 export type TradeHistory =
@@ -405,9 +422,46 @@ export type TradeHistory =
 const swappedEvent = parseAbiItem(
   'event Swapped(address indexed account, bool indexed yesForNo, uint256 amountIn, uint256 amountOut)',
 );
+const setMintedEvent = parseAbiItem(
+  'event SetMinted(address indexed account, uint256 amount)',
+);
+const redeemedEvent = parseAbiItem(
+  'event Redeemed(address indexed account, uint256 yesBurned, uint256 noBurned, uint256 payout)',
+);
+
+/** One wallet's market event, as History reads it. */
+type MarketEvent = {
+  account: Address;
+  txHash: Hash;
+  blockNumber: bigint;
+} & PositionEvent;
+
+/** Mark each swap as a buy leg or a switch, per wallet, in event order. */
+function labelSwaps(
+  events: readonly ({ account: Address } & PositionEvent)[],
+): boolean[] {
+  const byAccount = new Map<string, number[]>();
+  events.forEach((event, index) => {
+    const key = event.account.toLowerCase();
+    byAccount.set(key, [...(byAccount.get(key) ?? []), index]);
+  });
+  const labels = new Map<number, boolean>();
+  for (const indexes of byAccount.values()) {
+    const own = indexes.map((i) => events[i]);
+    const legs = swapIsBuyLeg(own);
+    let swap = 0;
+    own.forEach((event, j) => {
+      if (event.kind === 'swap') labels.set(indexes[j], legs[swap++]);
+    });
+  }
+  return events.flatMap((event, index) =>
+    event.kind === 'swap' ? [labels.get(index) ?? false] : [],
+  );
+}
 
 /**
- * Every Swapped event the market has emitted. Swaps revert once
+ * Every Swapped event the market has emitted, labelled buy or switch from
+ * the SetMinted events read in the same calls. Swaps revert once
  * block.timestamp >= resolveAfter, so the scan runs from the creation block
  * to the first block at or past resolveAfter (or the chain head while
  * trading is open) - a bounded range, not the whole chain.
@@ -419,7 +473,7 @@ async function scanTrades(
     hash: market.createTxHash,
   });
   const head = await client.getBlockNumber();
-  const trades: Trade[] = [];
+  const events: MarketEvent[] = [];
   let from = receipt.blockNumber;
   for (let window = 0; from <= head; window += 1) {
     if (window >= MAX_LOG_WINDOWS) return { state: 'too-long' };
@@ -430,25 +484,45 @@ async function scanTrades(
     const [logs, endBlock] = await Promise.all([
       client.getLogs({
         address: market.address,
-        event: swappedEvent,
+        events: [swappedEvent, setMintedEvent],
         fromBlock: from,
         toBlock: to,
       }),
       client.getBlock({ blockNumber: to }),
     ]);
     for (const log of logs) {
-      trades.push({
+      const base = {
+        account: log.args.account as Address,
         txHash: log.transactionHash,
         blockNumber: log.blockNumber,
-        account: log.args.account as Address,
-        yesForNo: log.args.yesForNo as boolean,
-        amountIn: log.args.amountIn as bigint,
-        amountOut: log.args.amountOut as bigint,
-      });
+      };
+      events.push(
+        log.eventName === 'SetMinted'
+          ? { ...base, kind: 'mint', amount: log.args.amount as bigint }
+          : {
+              ...base,
+              kind: 'swap',
+              yesForNo: log.args.yesForNo as boolean,
+              amountIn: log.args.amountIn as bigint,
+              amountOut: log.args.amountOut as bigint,
+            },
+      );
     }
     if (Number(endBlock.timestamp) >= market.resolveAfter) break;
     from = to + 1n;
   }
+  const buyLegs = labelSwaps(events);
+  const trades = events
+    .filter((event) => event.kind === 'swap')
+    .map((event, i) => ({
+      txHash: event.txHash,
+      blockNumber: event.blockNumber,
+      account: event.account,
+      yesForNo: event.yesForNo,
+      amountIn: event.amountIn,
+      amountOut: event.amountOut,
+      buyLeg: buyLegs[i],
+    }));
   return { state: 'ready', trades: trades.reverse() };
 }
 
@@ -542,4 +616,157 @@ export function useBalances(
   }, [account, collateral, yesToken, noToken, price]);
 
   return balances.key === key ? balances.value : undefined;
+}
+
+export type PositionHistory =
+  | { state: 'loading' }
+  | { state: 'ready'; ledger: Ledger }
+  | { state: 'error'; undetermined: UndeterminedReason };
+
+/** What has been read for one wallet on one market, extended as the chain grows. */
+interface PositionScan {
+  head: bigint;
+  headValue: string;
+  events: PositionEvent[];
+}
+
+const positionScans = new Map<string, PositionScan>();
+
+/**
+ * One wallet's own market events, oldest first, from the market's creation
+ * block to the chain head. A log scan over the whole range would take one
+ * request per 100 blocks (thousands for a market that has traded for days),
+ * so instead the wallet's YES and NO balances are bisected to find the few
+ * blocks where they changed, and only those blocks' logs are read. A block
+ * whose balance changed without one of this wallet's market events is a
+ * transfer. Results are kept per wallet and market and extended from the
+ * last block read.
+ */
+async function scanPosition(
+  account: Address,
+  market: Pick<MarketFacts, 'address' | 'createTxHash' | 'yesToken' | 'noToken'>,
+): Promise<PositionEvent[]> {
+  const key = `${account}:${market.address}`.toLowerCase();
+  const previous = positionScans.get(key);
+  const from =
+    previous?.head ??
+    (await client.getTransactionReceipt({ hash: market.createTxHash }))
+      .blockNumber;
+  const head = await client.getBlockNumber();
+
+  const balanceAt = (token: Address, blockNumber: bigint) =>
+    client.readContract({
+      address: token,
+      abi: outcomeTokenAbi,
+      functionName: 'balanceOf',
+      args: [account],
+      blockNumber,
+    }) as Promise<bigint>;
+  const probe = async (blockNumber: bigint) => {
+    const [yes, no] = await Promise.all([
+      balanceAt(market.yesToken, blockNumber),
+      balanceAt(market.noToken, blockNumber),
+    ]);
+    return `${yes}:${no}`;
+  };
+
+  const headValue = await probe(head);
+  const changes = await findChangeBlocks(
+    probe,
+    from,
+    head,
+    previous?.headValue,
+  );
+  const events = [...(previous?.events ?? [])];
+  for (const blockNumber of changes) {
+    const logs = await client.getLogs({
+      address: market.address,
+      // The account filter is applied below: getLogs can't filter an
+      // indexed argument across several event types at once.
+      events: [setMintedEvent, swappedEvent, redeemedEvent],
+      fromBlock: blockNumber,
+      toBlock: blockNumber,
+    });
+    const own = logs.filter(
+      (log) =>
+        (log.args.account as Address | undefined)?.toLowerCase() ===
+        account.toLowerCase(),
+    );
+    if (own.length === 0) events.push({ kind: 'transfer' });
+    for (const log of own) {
+      if (log.eventName === 'SetMinted') {
+        events.push({ kind: 'mint', amount: log.args.amount as bigint });
+      } else if (log.eventName === 'Swapped') {
+        events.push({
+          kind: 'swap',
+          yesForNo: log.args.yesForNo as boolean,
+          amountIn: log.args.amountIn as bigint,
+          amountOut: log.args.amountOut as bigint,
+        });
+      } else {
+        events.push({
+          kind: 'redeem',
+          yesBurned: log.args.yesBurned as bigint,
+          noBurned: log.args.noBurned as bigint,
+        });
+      }
+    }
+  }
+  positionScans.set(key, { head, headValue, events });
+  return events;
+}
+
+/**
+ * The ledger behind the Positions tab: cost basis from this wallet's own
+ * trades on the selected market. Rescans (incrementally) when the price or
+ * the wallet's balances move.
+ */
+export function usePosition(
+  account?: Address,
+  market?: Market,
+  balances?: Balances,
+): PositionHistory {
+  const [position, setPosition] = React.useState<{
+    key?: string;
+    value: PositionHistory;
+  }>({ value: { state: 'loading' } });
+  const address = market?.address;
+  const createTxHash = market?.createTxHash;
+  const yesToken = market?.yesToken;
+  const noToken = market?.noToken;
+  const price = market?.live?.priceE18.toString();
+  const held = balances ? `${balances.yes}:${balances.no}` : undefined;
+  const key =
+    account && address && held
+      ? `${account}:${address}:${price}:${held}`
+      : undefined;
+
+  React.useEffect(() => {
+    if (!account || !address || !createTxHash || !yesToken || !noToken) return;
+    if (held === undefined) return;
+    let cancelled = false;
+    const done = `${account}:${address}:${price}:${held}`;
+    void scanPosition(account, { address, createTxHash, yesToken, noToken })
+      .then((events) => {
+        if (!cancelled) {
+          setPosition({
+            key: done,
+            value: { state: 'ready', ledger: buildLedger(events) },
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPosition({
+            key: done,
+            value: { state: 'error', undetermined: 'history' },
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [account, address, createTxHash, yesToken, noToken, price, held]);
+
+  return position.key === key ? position.value : { state: 'loading' };
 }

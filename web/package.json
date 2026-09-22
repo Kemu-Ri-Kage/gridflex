@@ -10,7 +10,7 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "test": "node --test lib/*.test.ts",
-    "lint": "oxlint app lib components/landing components/web3-provider.tsx components/wallet-button.tsx components/market-live-data.tsx components/trade-panel.tsx components/feed-panel.tsx components/site-header.tsx components/candlestick-chart.tsx components/instrument-bar.tsx components/market-panel.tsx components/settlement-panel.tsx components/bottom-panel.tsx components/footer.tsx components/market-chart.tsx components/order-column.tsx",
+    "lint": "oxlint app lib components/landing components/web3-provider.tsx components/wallet-button.tsx components/market-live-data.tsx components/trade-panel.tsx components/feed-panel.tsx components/site-header.tsx components/candlestick-chart.tsx components/instrument-bar.tsx components/market-panel.tsx components/settlement-panel.tsx components/bottom-panel.tsx components/footer.tsx components/market-chart.tsx components/order-column.tsx components/switch-position.tsx components/connection-help.tsx",
     "format": "oxfmt"
   },
   "dependencies": {

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { xLayerTestnet } from '@/lib/contracts';
+import { explorerTxUrl } from '@/lib/explorer';
 import { formatElapsed } from '@/lib/feed-verification';
 import { formatPrice, formatUpdated } from '@/lib/format';
 import { useFeedData, type VerifiedRow } from '@/lib/feed-data';
@@ -67,10 +67,6 @@ function VerificationBadge({ row, now }: { row: VerifiedRow; now: number }) {
         </span>
       );
   }
-}
-
-function explorerTxUrl(txHash: string): string {
-  return `${xLayerTestnet.blockExplorers.default.url}/tx/${txHash}`;
 }
 
 /**

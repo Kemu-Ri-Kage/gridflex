@@ -3,15 +3,18 @@
 import * as React from 'react';
 import { ArrowUpRight, ExternalLink, Loader2 } from 'lucide-react';
 
+import { ConnectionHelp } from '@/components/connection-help';
+import { SwitchPosition } from '@/components/switch-position';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   useWeb3,
   type BuyQuote,
   type TradeSide,
 } from '@/components/web3-provider';
-import { xLayerTestnet } from '@/lib/contracts';
+import { explorerTxUrl } from '@/lib/explorer';
 import { formatToken } from '@/lib/format';
 import { marketName, useMarkets } from '@/lib/markets';
 import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
@@ -31,7 +34,9 @@ function validTokenAmount(value: string): boolean {
  * The order ticket for the selected market (design-brief.md §5: one
  * product, bought as YES or NO; labels and numbers only). Every number is
  * read from that market's contract through the Web3Provider, which the
- * order column points at the selection.
+ * order column points at the selection. Buy opens a position; Switch
+ * position moves it between YES and NO. There is no sell: the contract has
+ * no exit into mUSDT before settlement.
  */
 export function TradePanel() {
   const {
@@ -42,6 +47,7 @@ export function TradePanel() {
     pendingAction,
     error,
     connectError,
+    walletRpcFailed,
     lastTransaction,
     connect,
     mintCollateral,
@@ -63,11 +69,8 @@ export function TradePanel() {
     unavailable: boolean;
   }>({ key: '', unavailable: false });
 
-  const { ready, settled, closed, cancellable, tradingOpen } = ticketState(
-    snapshot,
-    market,
-    Math.floor(now / 1000),
-  );
+  const ticket = ticketState(snapshot, market, Math.floor(now / 1000));
+  const { ready, settled, closed, cancellable, tradingOpen } = ticket;
   const quoteKey = `${market ?? ''}:${side}:${amount}`;
 
   React.useEffect(() => {
@@ -185,81 +188,119 @@ export function TradePanel() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            aria-pressed={side === 'YES'}
-            className="h-10 rounded-[2px] border-border bg-background font-mono text-up shadow-none hover:bg-muted aria-pressed:border-up aria-pressed:bg-up/10 aria-pressed:ring-0"
-            onClick={() => setSide('YES')}
-            variant="outline"
+        <Tabs defaultValue="buy">
+          <TabsList
+            className="w-full justify-start rounded-none border-b border-border bg-transparent px-0"
+            variant="line"
           >
-            YES
-            <span className="ml-auto font-mono text-xs">
-              {ready
-                ? `${yesPrice.toFixed(1)}¢ · ${Math.round(yesPrice)}% implied`
-                : '—'}
-            </span>
-          </Button>
-          <Button
-            aria-pressed={side === 'NO'}
-            className="h-10 rounded-[2px] border-border bg-background font-mono text-down shadow-none hover:bg-muted aria-pressed:border-down aria-pressed:bg-down/10 aria-pressed:ring-0"
-            onClick={() => setSide('NO')}
-            variant="outline"
-          >
-            NO
-            <span className="ml-auto font-mono text-xs">
-              {ready
-                ? `${noPrice.toFixed(1)}¢ · ${Math.round(noPrice)}% implied`
-                : '—'}
-            </span>
-          </Button>
-        </div>
-
-        <div>
-          <label
-            className="mb-2 block text-xs text-muted-foreground"
-            htmlFor="order-amount"
-          >
-            Amount
-          </label>
-          <div className="relative">
-            <Input
-              aria-invalid={!validAmount}
-              className="h-10 rounded-[2px] border-border bg-background pr-20 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
-              disabled={!tradingOpen}
-              id="order-amount"
-              inputMode="decimal"
-              min="0"
-              onChange={(event) => setAmount(event.target.value)}
-              step="0.01"
-              type="number"
-              value={amount}
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
-              mUSDT
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
-          <div>
-            <div className="text-muted-foreground">Estimated output</div>
-            <div className="mt-1 font-mono text-foreground">
-              {quote ? `${formatToken(quote.totalOut)} ${side}` : '—'}
+            <TabsTrigger value="buy">Buy</TabsTrigger>
+            <TabsTrigger value="switch">Switch position</TabsTrigger>
+          </TabsList>
+          <TabsContent className="space-y-4 pt-2" value="buy">
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                aria-pressed={side === 'YES'}
+                className="h-10 rounded-[2px] border-border bg-background font-mono text-up shadow-none hover:bg-muted aria-pressed:border-up aria-pressed:bg-up/10 aria-pressed:ring-0"
+                onClick={() => setSide('YES')}
+                variant="outline"
+              >
+                YES
+                <span className="ml-auto font-mono text-xs">
+                  {ready
+                    ? `${yesPrice.toFixed(1)}¢ · ${Math.round(yesPrice)}% implied`
+                    : '—'}
+                </span>
+              </Button>
+              <Button
+                aria-pressed={side === 'NO'}
+                className="h-10 rounded-[2px] border-border bg-background font-mono text-down shadow-none hover:bg-muted aria-pressed:border-down aria-pressed:bg-down/10 aria-pressed:ring-0"
+                onClick={() => setSide('NO')}
+                variant="outline"
+              >
+                NO
+                <span className="ml-auto font-mono text-xs">
+                  {ready
+                    ? `${noPrice.toFixed(1)}¢ · ${Math.round(noPrice)}% implied`
+                    : '—'}
+                </span>
+              </Button>
             </div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Minimum received</div>
-            <div className="mt-1 font-mono text-foreground">
-              {quote ? `${formatToken(quote.minimumTotalOut)} ${side}` : '—'}
+
+            <div>
+              <label
+                className="mb-2 block text-xs text-muted-foreground"
+                htmlFor="order-amount"
+              >
+                Amount
+              </label>
+              <div className="relative">
+                <Input
+                  aria-invalid={!validAmount}
+                  className="h-10 rounded-[2px] border-border bg-background pr-20 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
+                  disabled={!tradingOpen}
+                  id="order-amount"
+                  inputMode="decimal"
+                  min="0"
+                  onChange={(event) => setAmount(event.target.value)}
+                  step="0.01"
+                  type="number"
+                  value={amount}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
+                  mUSDT
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="col-span-2 text-muted-foreground">
-            0.50% slippage protection · 5-minute deadline
-            {quoteUnavailable && (
-              <span className="ml-2 text-warning">Live quote unavailable.</span>
+
+            <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
+              <div>
+                <div className="text-muted-foreground">Estimated output</div>
+                <div className="mt-1 font-mono text-foreground">
+                  {quote ? `${formatToken(quote.totalOut)} ${side}` : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Minimum received</div>
+                <div className="mt-1 font-mono text-foreground">
+                  {quote
+                    ? `${formatToken(quote.minimumTotalOut)} ${side}`
+                    : '—'}
+                </div>
+              </div>
+              <div className="col-span-2 text-muted-foreground">
+                0.50% slippage protection · 5-minute deadline
+                {quoteUnavailable && (
+                  <span className="ml-2 text-warning">
+                    Live quote unavailable.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {account && (
+              <Button
+                className={
+                  'h-10 w-full rounded-[2px] shadow-none ' +
+                  (side === 'YES'
+                    ? 'bg-up text-background hover:bg-up/85'
+                    : 'bg-down text-background hover:bg-down/85')
+                }
+                disabled={!canBuy}
+                onClick={() => void buy(side, amount)}
+              >
+                {ready && !tradingOpen ? 'Trading closed' : `Buy ${side}`}
+              </Button>
             )}
-          </div>
-        </div>
+          </TabsContent>
+          <TabsContent className="pt-2" value="switch">
+            {/* Keyed by market so a half-typed switch never carries over. */}
+            <SwitchPosition
+              blocked={gate.blocked}
+              key={market}
+              state={ticket}
+            />
+          </TabsContent>
+        </Tabs>
 
         {!account ? (
           <Button
@@ -270,18 +311,6 @@ export function TradePanel() {
           </Button>
         ) : (
           <div className="grid gap-2">
-            <Button
-              className={
-                'h-10 rounded-[2px] shadow-none ' +
-                (side === 'YES'
-                  ? 'bg-up text-background hover:bg-up/85'
-                  : 'bg-down text-background hover:bg-down/85')
-              }
-              disabled={!canBuy}
-              onClick={() => void buy(side, amount)}
-            >
-              {ready && !tradingOpen ? 'Trading closed' : `Buy ${side}`}
-            </Button>
             <Button
               className="rounded-[2px] shadow-none"
               disabled={!configured || busy}
@@ -335,7 +364,7 @@ export function TradePanel() {
           {!pendingAction && !error && lastTransaction && (
             <a
               className="inline-flex items-center gap-1.5 text-foreground underline-offset-4 hover:underline"
-              href={`${xLayerTestnet.blockExplorers.default.url}/tx/${lastTransaction}`}
+              href={explorerTxUrl(lastTransaction)}
               rel="noreferrer"
               target="_blank"
             >
@@ -344,9 +373,18 @@ export function TradePanel() {
           )}
         </div>
 
-        <div className="border-t border-border pt-3 font-mono text-xs text-muted-foreground">
-          Cancelled: 0.5 mUSDT per YES or NO
-        </div>
+        {walletRpcFailed && <ConnectionHelp />}
+
+        {/* The cancellation payout is stated as fact only once cancel() has
+            run; before settlement it is conditional, and after resolution
+            it no longer applies. */}
+        {ready && !snapshot.resolved && (
+          <div className="border-t border-border pt-3 font-mono text-xs text-muted-foreground">
+            {snapshot.cancelled
+              ? 'Cancelled · 0.5 mUSDT per YES or NO'
+              : 'If cancelled: 0.5 mUSDT per YES or NO'}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

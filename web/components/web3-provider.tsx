@@ -20,6 +20,14 @@ import {
   outcomeTokenAbi,
   xLayerTestnet,
 } from '@/lib/contracts';
+import {
+  clearPendingOrder,
+  loadPendingOrder,
+  pendingOrderUnits,
+  savePendingOrder,
+  type PendingOrder,
+  type PendingOrderStorage,
+} from '@/lib/pending-order';
 import { useAddresses } from '@/lib/site-data';
 import {
   DEFAULT_SLIPPAGE_BPS,
@@ -35,6 +43,7 @@ declare global {
 }
 
 export type TradeSide = 'YES' | 'NO';
+export type { PendingOrder } from '@/lib/pending-order';
 
 /**
  * One market's state as the order ticket needs it. `address` names the
@@ -97,6 +106,15 @@ type Web3ContextValue = {
   mintCollateral: () => Promise<void>;
   quoteBuy: (side: TradeSide, amount: string) => Promise<BuyQuote | undefined>;
   buy: (side: TradeSide, amount: string) => Promise<void>;
+  /**
+   * A buy whose mint confirmed but whose swap did not, on any market, for
+   * the connected wallet. While it exists no new order may start.
+   */
+  pendingOrder?: PendingOrder;
+  /** Retry the swap for pendingOrder; clears it once the swap confirms. */
+  finishPendingOrder: () => Promise<void>;
+  /** Forget pendingOrder and keep the YES + NO pair as it is. */
+  keepBothSides: () => void;
   resolve: () => Promise<void>;
   cancel: () => Promise<void>;
   redeem: () => Promise<void>;
@@ -132,6 +150,15 @@ function errorMessage(error: unknown): string {
   return 'The wallet rejected or could not complete the request.';
 }
 
+/** localStorage, or undefined where the browser blocks it. */
+function browserStorage(): PendingOrderStorage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 function subscribeToNothing() {
   return () => {};
 }
@@ -140,6 +167,31 @@ function validAddress(value: string | undefined): Address | undefined {
   return value && /^0x[0-9a-fA-F]{40}$/.test(value)
     ? getAddress(value)
     : undefined;
+}
+
+/** Quote buying `side` with `units` minted on `target`. */
+async function quoteOn(
+  target: Address,
+  side: TradeSide,
+  units: bigint,
+): Promise<BuyQuote> {
+  // Buying YES sends the minted NO into the pool (yesForNo = false).
+  const yesForNo = side === 'NO';
+  const swapOut = (await publicClient.readContract({
+    address: target,
+    abi: binaryMarketAbi,
+    functionName: 'quoteSwap',
+    args: [yesForNo, units],
+  })) as bigint;
+  const minimumSwapOut = minimumOutputForQuote(swapOut);
+  return {
+    amountIn: units,
+    swapOut,
+    minimumSwapOut,
+    totalOut: units + swapOut,
+    minimumTotalOut: units + minimumSwapOut,
+    slippageBps: DEFAULT_SLIPPAGE_BPS,
+  };
 }
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
@@ -165,6 +217,12 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [error, setError] = React.useState<string>();
   const [connectError, setConnectError] = React.useState<string>();
   const [lastTransaction, setLastTransaction] = React.useState<Hash>();
+  // Held in state as well as localStorage, so an unfinished order still
+  // blocks new ones for this session when the browser refuses storage.
+  const [pendingOrder, setPendingOrder] = React.useState<PendingOrder>();
+  // True from the moment a buy starts until it ends, so a second click
+  // cannot start another order before the first one's mint is recorded.
+  const orderInFlight = React.useRef(false);
   // The market the latest read was started for; a read that finishes after
   // the selection moved on is dropped rather than shown for the new market.
   const marketRef = React.useRef<Address | undefined>(undefined);
@@ -353,6 +411,20 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     };
   }, [refresh]);
 
+  // Restore the connected wallet's unfinished order (after a reload, or on
+  // switching wallets), and follow changes made in other tabs.
+  React.useEffect(() => {
+    const load = () =>
+      setPendingOrder(
+        account
+          ? loadPendingOrder(browserStorage(), xLayerTestnet.id, account)
+          : undefined,
+      );
+    load();
+    window.addEventListener('storage', load);
+    return () => window.removeEventListener('storage', load);
+  }, [account]);
+
   const write = React.useCallback(
     async (
       label: string,
@@ -442,41 +514,95 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     async (side: TradeSide, amount: string): Promise<BuyQuote | undefined> => {
       const target = marketRef.current;
       if (!target) return undefined;
-      const units = parsePositiveTokenAmount(amount);
-      // Buying YES sends the minted NO into the pool (yesForNo = false).
-      const yesForNo = side === 'NO';
-      const swapOut = (await publicClient.readContract({
-        address: target,
-        abi: binaryMarketAbi,
-        functionName: 'quoteSwap',
-        args: [yesForNo, units],
-      })) as bigint;
-      const minimumSwapOut = minimumOutputForQuote(swapOut);
-      return {
-        amountIn: units,
-        swapOut,
-        minimumSwapOut,
-        totalOut: units + swapOut,
-        minimumTotalOut: units + minimumSwapOut,
-        slippageBps: DEFAULT_SLIPPAGE_BPS,
-      };
+      return quoteOn(target, side, parsePositiveTokenAmount(amount));
     },
     [],
   );
 
   /**
-   * Buy YES or Buy NO in one action: lock `amount` mUSDT for a complete set,
-   * then swap the unwanted side into the wanted one with the same slippage
-   * guard and deadline the contract enforces. Approvals are sent only when
-   * the current allowance does not already cover the step.
+   * The second step of a buy: approve the minted unwanted side if needed,
+   * re-quote, and swap it into `side`. With `protectedMinimum` (a fresh buy)
+   * the swap is refused if the price moved past the tolerance quoted before
+   * the mint; without it (finishing an unfinished order) the minimum comes
+   * from the quote taken just before the swap. Returns whether it confirmed.
    */
-  const buy = React.useCallback(
-    async (side: TradeSide, amount: string) => {
-      const target = marketRef.current;
-      if (!collateral || !target) {
-        setError('Contracts not configured.');
-        return;
+  const swapInto = React.useCallback(
+    async (
+      target: Address,
+      side: TradeSide,
+      units: bigint,
+      protectedMinimum?: bigint,
+    ): Promise<boolean> => {
+      const yesForNo = side === 'NO';
+      let inputToken: Address;
+      try {
+        const tokens = (await publicClient.multicall({
+          allowFailure: false,
+          contracts: [
+            { address: target, abi: binaryMarketAbi, functionName: 'yesToken' },
+            { address: target, abi: binaryMarketAbi, functionName: 'noToken' },
+          ],
+        })) as [Address, Address];
+        inputToken = yesForNo ? tokens[0] : tokens[1];
+      } catch (readError) {
+        setError(`Could not read X Layer: ${errorMessage(readError)}`);
+        return false;
       }
+
+      const inputApproved = await ensureAllowance(
+        `Approving ${yesForNo ? 'YES' : 'NO'}`,
+        inputToken,
+        outcomeTokenAbi,
+        target,
+        units,
+      );
+      if (!inputApproved) return false;
+
+      let minimumSwapOut: bigint;
+      let deadline: bigint;
+      try {
+        const latestQuote = await quoteOn(target, side, units);
+        if (protectedMinimum === undefined) {
+          minimumSwapOut = latestQuote.minimumSwapOut;
+        } else if (latestQuote.swapOut < protectedMinimum) {
+          throw new Error(
+            'The price moved beyond the 0.50% tolerance while the order was being prepared. Review the new quote and try again.',
+          );
+        } else {
+          minimumSwapOut = protectedMinimum;
+        }
+        const latestBlock = await publicClient.getBlock({ blockTag: 'latest' });
+        deadline = swapDeadline(latestBlock.timestamp);
+      } catch (quoteError) {
+        setError(`Could not prepare the order: ${errorMessage(quoteError)}`);
+        return false;
+      }
+
+      return write(`Buying ${side}`, {
+        address: target,
+        abi: binaryMarketAbi,
+        functionName: 'swap',
+        args: [yesForNo, units, minimumSwapOut, deadline],
+      });
+    },
+    [ensureAllowance, write],
+  );
+
+  const forgetPendingOrder = React.useCallback(() => {
+    if (account) {
+      clearPendingOrder(browserStorage(), xLayerTestnet.id, account);
+    }
+    setPendingOrder(undefined);
+  }, [account]);
+
+  /** The steps of buy(), run once its one-order-at-a-time checks pass. */
+  const placeOrder = React.useCallback(
+    async (
+      target: Address,
+      token: Address,
+      side: TradeSide,
+      amount: string,
+    ) => {
       let units: bigint;
       try {
         units = parsePositiveTokenAmount(amount);
@@ -497,7 +623,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
 
       const approved = await ensureAllowance(
         'Approving mUSDT',
-        collateral,
+        token,
         mockUsdtAbi,
         target,
         units,
@@ -509,52 +635,77 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         functionName: 'mintSet',
         args: [units],
       });
-      if (!minted) return;
+      if (!minted || !account) return;
 
-      const yesForNo = side === 'NO';
-      const tokens = (await publicClient.multicall({
-        allowFailure: false,
-        contracts: [
-          { address: target, abi: binaryMarketAbi, functionName: 'yesToken' },
-          { address: target, abi: binaryMarketAbi, functionName: 'noToken' },
-        ],
-      })) as [Address, Address];
-      const inputToken = yesForNo ? tokens[0] : tokens[1];
+      // The pair exists now. Record it before the swap, so a failed swap,
+      // a market switch or a reload cannot lose track of it.
+      const recorded: PendingOrder = {
+        market: target,
+        side,
+        amount: units.toString(),
+        createdAt: Date.now(),
+      };
+      savePendingOrder(browserStorage(), xLayerTestnet.id, account, recorded);
+      setPendingOrder(recorded);
 
-      const inputApproved = await ensureAllowance(
-        `Approving ${yesForNo ? 'YES' : 'NO'}`,
-        inputToken,
-        outcomeTokenAbi,
+      const swapped = await swapInto(
         target,
+        side,
         units,
+        protectedQuote.minimumSwapOut,
       );
-      if (!inputApproved) return;
+      if (swapped) forgetPendingOrder();
+    },
+    [account, ensureAllowance, forgetPendingOrder, quoteBuy, swapInto, write],
+  );
 
-      let deadline: bigint;
-      try {
-        const latestQuote = await quoteBuy(side, amount);
-        if (!latestQuote) throw new Error('The market quote is unavailable.');
-        if (latestQuote.swapOut < protectedQuote.minimumSwapOut) {
-          throw new Error(
-            'The price moved beyond the 0.50% tolerance while the order was being prepared. Review the new quote and try again.',
-          );
-        }
-        const latestBlock = await publicClient.getBlock({ blockTag: 'latest' });
-        deadline = swapDeadline(latestBlock.timestamp);
-      } catch (quoteError) {
-        setError(`Could not prepare the order: ${errorMessage(quoteError)}`);
+  /**
+   * Buy YES or Buy NO in one action: lock `amount` mUSDT for a complete set,
+   * then swap the unwanted side into the wanted one with the same slippage
+   * guard and deadline the contract enforces. Approvals are sent only when
+   * the current allowance does not already cover the step.
+   */
+  const buy = React.useCallback(
+    async (side: TradeSide, amount: string) => {
+      const target = marketRef.current;
+      if (!collateral || !target) {
+        setError('Contracts not configured.');
         return;
       }
-
-      await write(`Buying ${side}`, {
-        address: target,
-        abi: binaryMarketAbi,
-        functionName: 'swap',
-        args: [yesForNo, units, protectedQuote.minimumSwapOut, deadline],
+      // One unfinished order at a time, whichever market it is on. Storage
+      // is re-read so an order left unfinished in another tab counts too.
+      if (orderInFlight.current) return;
+      if (
+        pendingOrder ||
+        (account &&
+          loadPendingOrder(browserStorage(), xLayerTestnet.id, account))
+      ) {
+        setError('Finish the unfinished order first.');
+        return;
+      }
+      orderInFlight.current = true;
+      await placeOrder(target, collateral, side, amount).finally(() => {
+        orderInFlight.current = false;
       });
     },
-    [collateral, ensureAllowance, quoteBuy, write],
+    [account, collateral, pendingOrder, placeOrder],
   );
+
+  const finishPendingOrder = React.useCallback(async () => {
+    const order = pendingOrder;
+    if (!order) return;
+    const swapped = await swapInto(
+      getAddress(order.market),
+      order.side,
+      pendingOrderUnits(order),
+    );
+    if (swapped) forgetPendingOrder();
+  }, [forgetPendingOrder, pendingOrder, swapInto]);
+
+  const keepBothSides = React.useCallback(() => {
+    forgetPendingOrder();
+    setError(undefined);
+  }, [forgetPendingOrder]);
 
   const resolve = React.useCallback(async () => {
     const target = marketRef.current;
@@ -604,6 +755,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       mintCollateral,
       quoteBuy,
       buy,
+      pendingOrder,
+      finishPendingOrder,
+      keepBothSides,
       resolve,
       cancel,
       redeem,
@@ -625,6 +779,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       mintCollateral,
       quoteBuy,
       buy,
+      pendingOrder,
+      finishPendingOrder,
+      keepBothSides,
       resolve,
       cancel,
       redeem,

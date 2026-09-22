@@ -7,7 +7,7 @@ the design brief's §5: the display dictionary (the public site sells one
 product, "Will Texas power cost more than $X on [date]?") and the copy
 budget (on `/trade`, every string is a label or a number; only empty states
 and errors may be sentences, one short sentence each). Line numbers are for
-the files as they stand on `feat/terminal-integration`.
+the files as they stood when this was written.
 
 Display words only — `mintSet`, `swap`, `BinaryMarket` and the metric IDs
 stay exactly as they are in code and on chain.
@@ -84,3 +84,30 @@ price markets (§5), so the configured market must be one of those for the
 ticket to appear. Above it, a compact settlement summary shows the
 selected market's chain state. Nothing in `trade-panel.tsx` needed to
 change for that.
+
+## Unfinished orders
+
+A buy is two transactions, `mintSet` then `swap`. When the swap does not go
+through, the wallet holds both YES and NO and the order is unfinished.
+`web3-provider.tsx` records it in localStorage (per chain ID and wallet:
+market address, side, amount, timestamp; `web/lib/pending-order.ts`), and
+while that record exists no new order can start on any market. The record
+is cleared only when the swap confirms or the user chooses Keep both sides.
+
+| Where | Copy |
+|---|---|
+| Notice title | `Unfinished order` |
+| Notice detail | `Buy YES · 100 mUSDT · YES + NO held` (the order's side and amount) |
+| Order on another market | That market's name and `Go to market` |
+| Finish button | `Finish order`, sub-label `All into YES` (or `NO`) |
+| Keep button | `Keep both sides`, sub-label `1 mUSDT per pair after resolve, either outcome` |
+| Blocked Buy error | `Finish the unfinished order first.` |
+
+**Known gap: a tab closed mid-mint.** The record is written once the
+`mintSet` receipt confirms, not when the transaction is sent. If the tab is
+closed or reloaded after the mint is sent but before its receipt arrives,
+the mint can still land on chain with nothing recorded: the wallet holds
+YES + NO, the ticket shows no notice, and new orders are not blocked.
+Writing the record at send time would close the gap but would also record
+orders whose mint reverts or never mines, so it was left as is. The pair
+is not lost; it stays in the wallet and redeems as usual.

@@ -67,9 +67,30 @@ forge build
 python3 scripts/export_abi.py
 ```
 
-For the first complete demonstration, use the market specified in
-`shared/demo-markets.md`: `ERCOT_HBNORTH_DA_AVG`, `MARKET_DAY_KEY=20260908`, and
-`MARKET_THRESHOLD=3000`. The matching real metric is $39.57/MWh, so it resolves YES.
+## The replay lifecycle (20250911)
+
+The complete demonstration runs on the replay market in
+`shared/demo-markets.md` (row 1 of its Summary table):
+`ERCOT_HBNORTH_DA_AVG`, `dayKey 20250911`, strike $25.00/MWh (threshold `2500`), dispute
+window `0`. The published reading is $26.38/MWh (`2638`), so it resolves YES. The reading
+must already be published **and finalized** on-chain before the market is created.
+
+Create it with `create_markets.py`, which reads those parameters from `shared/demo-markets.md`
+and sets trading to close 45 minutes after creation, computing `resolveAfter` just before
+`createMarket` is sent:
+
+```bash
+python3 create_markets.py --market 1          # dry run: parameters and both clocks
+python3 create_markets.py --market 1 --live   # asks for an interactive yes
+```
+
+Then run the whole cycle inside those 45 minutes: Buy YES and Buy NO from the terminal
+(`mintSet` then `swap`), wait for the close, resolve with `python3 resolve_markets.py`
+(`--live` to send), and redeem from the order ticket. Record every transaction hash.
+
+If you use `CreateDemoMarket.s.sol` instead, set `MARKET_DAY_KEY=20250911`,
+`MARKET_THRESHOLD=2500`, `MARKET_DISPUTE_WINDOW=0`, and `MARKET_RESOLVE_AFTER` to the
+current Unix time plus 2,700 seconds.
 
 After deployment, save every public transaction hash (deploy, submit, finalize, create,
 swap, resolve, redeem) in the README. Public addresses and hashes are safe to share; private

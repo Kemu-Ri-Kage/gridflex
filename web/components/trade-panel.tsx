@@ -13,7 +13,8 @@ import {
 } from '@/components/web3-provider';
 import { xLayerTestnet } from '@/lib/contracts';
 import { formatToken } from '@/lib/format';
-import { useMarkets } from '@/lib/markets';
+import { marketName, useMarkets } from '@/lib/markets';
+import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
 import { ticketState } from '@/lib/ticket-state';
 import { parsePositiveTokenAmount } from '@/lib/trade';
 
@@ -46,11 +47,14 @@ export function TradePanel() {
     mintCollateral,
     quoteBuy,
     buy,
+    pendingOrder,
+    finishPendingOrder,
+    keepBothSides,
     resolve,
     cancel,
     redeem,
   } = useWeb3();
-  const { now } = useMarkets();
+  const { markets, select, now } = useMarkets();
   const [side, setSide] = React.useState<TradeSide>('YES');
   const [amount, setAmount] = React.useState('100');
   const [quoteState, setQuoteState] = React.useState<{
@@ -97,8 +101,15 @@ export function TradePanel() {
   const quoteUnavailable =
     quoteState.key === quoteKey && quoteState.unavailable;
   const busy = Boolean(pendingAction);
+  // An unfinished order anywhere blocks every new one (lib/pending-order.ts).
+  const gate = orderGate(pendingOrder, market);
+  const pendingMarket = pendingOrder
+    ? markets?.find(
+        (m) => m.address.toLowerCase() === pendingOrder.market.toLowerCase(),
+      )
+    : undefined;
   const canBuy = Boolean(
-    account && tradingOpen && validAmount && quote && !busy,
+    account && tradingOpen && validAmount && quote && !busy && !gate.blocked,
   );
   const yesPrice = Number(snapshot.priceE18) / 1e16;
   const noPrice = 100 - yesPrice;
@@ -114,6 +125,63 @@ export function TradePanel() {
         {!configured && (
           <div className="rounded-[2px] border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">
             Contracts not configured.
+          </div>
+        )}
+
+        {pendingOrder && (
+          <div className="space-y-3 rounded-[2px] border border-warning/40 bg-warning/10 p-3 text-xs">
+            <div>
+              <div className="font-semibold text-warning">Unfinished order</div>
+              {gate.elsewhere && (
+                <div className="mt-1 text-foreground">
+                  {pendingMarket
+                    ? marketName(pendingMarket)
+                    : `${pendingOrder.market.slice(0, 6)}…${pendingOrder.market.slice(-4)}`}
+                </div>
+              )}
+              <div className="mt-1 font-mono text-muted-foreground">
+                Buy {pendingOrder.side} ·{' '}
+                {formatToken(pendingOrderUnits(pendingOrder))} mUSDT · YES + NO
+                held
+              </div>
+            </div>
+            <div className="grid gap-2">
+              {gate.elsewhere && pendingMarket && (
+                <Button
+                  className="h-10 rounded-[2px] shadow-none"
+                  onClick={() => select(pendingMarket.address)}
+                  variant="outline"
+                >
+                  Go to market
+                </Button>
+              )}
+              {!gate.elsewhere && (
+                <Button
+                  className="h-auto w-full min-w-0 flex-col items-start gap-0.5 whitespace-normal rounded-[2px] py-2 text-left shadow-none"
+                  disabled={busy}
+                  onClick={() => void finishPendingOrder()}
+                  variant="outline"
+                >
+                  <span>Finish order</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    All into {pendingOrder.side}
+                  </span>
+                </Button>
+              )}
+              {(!gate.elsewhere || !pendingMarket) && (
+                <Button
+                  className="h-auto w-full min-w-0 flex-col items-start gap-0.5 whitespace-normal rounded-[2px] py-2 text-left shadow-none"
+                  disabled={busy}
+                  onClick={keepBothSides}
+                  variant="outline"
+                >
+                  <span>Keep both sides</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    1 mUSDT per pair after resolve, either outcome
+                  </span>
+                </Button>
+              )}
+            </div>
           </div>
         )}
 

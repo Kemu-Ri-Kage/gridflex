@@ -8,8 +8,8 @@ don't invent it in the component.
 
 Read alongside this file: `web/app/globals.css` (the tokens — never invent
 new ones), `shared/metrics.md` (unit definitions), `CLAUDE.md` (ownership and
-hard rules, including: never push to `main`, and David's four files are
-never edited without his sign-off — see §12).
+hard rules, including: never push to `main`, and the four files in §12
+are never edited without sign-off on a presented plan).
 
 ---
 
@@ -283,13 +283,13 @@ string is either a number, a label, or an honest status.
 - **Top:** instrument bar — plain-English name, current underlying price,
   strike, settlement date, status. See §5 for naming, §6 for the
   settled-state rule.
-- **Left:** market selector. **No `BinaryMarket` is deployed yet** — David
+- **Left:** market selector. **No `BinaryMarket` is deployed yet** — the contracts side
   is redeploying `MarketFactory` with the trade-safety swap first. Until a
   market actually exists on chain, the selector shows an honest empty
   state (§6) explaining that, never a dropdown padded with placeholders or
   a list implying markets exist that don't.
 - **Centre:** the chart (§9).
-- **Right:** order ticket (David's `trade-panel.tsx` — see §12).
+- **Right:** order ticket (`trade-panel.tsx` — see §12).
 - **Bottom:** tabs — positions, history, settlement.
 
 Dense, per Interactive Brokers / Trading 212 (§3): compact rows, numbers
@@ -351,7 +351,7 @@ breakpoint:**
    dropdown/expandable row directly under the instrument bar — it does not
    sit beside the chart on a narrow screen.
 3. The chart takes full width next, at a reduced but still legible height.
-4. The order ticket (David's `trade-panel.tsx`) moves below the chart,
+4. The order ticket (`trade-panel.tsx`) moves below the chart,
    full width — never squeezed into a narrow side column on mobile.
 5. The bottom tabs (positions/history/settlement) remain a single
    horizontally-scrollable tab strip, full width.
@@ -417,7 +417,7 @@ only when every item is a pass.
 23. The terminal page (`/trade`) contains no marketing copy — every string
     is a number, a label, or an honest status.
 24. Nothing in `web/components/{trade-panel,wallet-button,web3-provider,
-    market-live-data}.tsx` has been edited without David's explicit
+    market-live-data}.tsx` has been edited without explicit
     sign-off on a presented plan (§12).
 25. Landing-page scroll-triggered reveals and the diagram's stage-to-stage
     animation animate only `transform` and `opacity`; landing-page hover/
@@ -443,14 +443,14 @@ only when every item is a pass.
 
 ## 12. Ownership
 
-David owns `web/components/trade-panel.tsx`, `web/components/wallet-button.tsx`,
-`web/components/web3-provider.tsx`, and `web/components/market-live-data.tsx`,
-and is currently reworking `/trade`. **Design changes to those four files
-are specified here, for him, and never made directly** — this brief tells
-him what the order ticket, wallet button, and live-data glue should look
-like and say, but implementing that change in his files is his call, made
-after he's seen the plan. Everything else in `web/` is fair game to build
-directly against this brief.
+`web/components/trade-panel.tsx`, `web/components/wallet-button.tsx`,
+`web/components/web3-provider.tsx`, and `web/components/market-live-data.tsx`
+are outside this brief's scope, and `/trade` is being reworked around them.
+**Design changes to those four files are specified here as proposals and
+never made directly** — this brief says what the order ticket, wallet
+button, and live-data glue should look like and say; the change itself is
+made only after a plan for it has been presented and approved. Everything
+else in `web/` is fair game to build directly against this brief.
 
 ---
 

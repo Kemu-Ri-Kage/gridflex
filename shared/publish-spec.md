@@ -20,8 +20,8 @@ $ cast call 0x970cefFC0e75bCa245F3337715992ad520A4D561 "reporter()(address)" --r
 0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902
 ```
 
-`disputeWindow` is 3600 seconds (1 hour). `reporter` is David's deployer
-address, matching `shared/addresses.json`. `chainId` via `eth_chainId`
+`disputeWindow` is 3600 seconds (1 hour). `reporter` is the contract
+deployer's address, matching `shared/addresses.json`. `chainId` via `eth_chainId`
 returns `0x7a0` = 1952. The oracle address holds real contract bytecode
 (confirmed via `eth_getCode`), with the reporter address baked in as an
 immutable constant.
@@ -36,8 +36,8 @@ using two different keys, and neither script ever needs both.**
 
 | | Who | Key | Needs |
 |---|---|---|---|
-| `publish.py --live` | **David** | The oracle's `reporter` key (immutable, already deployed as `0x27Aad0...`) | Reporter permission (`onlyReporter` on `submitReading`) |
-| `finalize.py --live` | **The pipeline owner** (Platon) | A separate wallet, held only by them | Testnet OKB for gas only — `finalize()` has no access control |
+| `publish.py --live` | **The reporter-key holder** | The oracle's `reporter` key (immutable, already deployed as `0x27Aad0...`) | Reporter permission (`onlyReporter` on `submitReading`) |
+| `finalize.py --live` | **The pipeline owner** | A separate wallet, held only by them | Testnet OKB for gas only — `finalize()` has no access control |
 | `finalize.py --verify` | Anyone, from any machine | None | Nothing — pure read-only view calls |
 
 Consequences that follow directly from this split, each enforced elsewhere
@@ -48,7 +48,7 @@ in this spec:
   might be. `publish.py` is written and owned by the pipeline owner but is
   never executed by them with `--live`.
 - The **ledger file** (`data/publish-ledger.json`, §4) is the hand-off
-  artifact between the two people. David runs `publish.py --live`, commits
+  artifact between the two roles. The reporter-key holder runs `publish.py --live`, commits
   and pushes the resulting ledger; the pipeline owner pulls it before
   running `finalize.py`. The ledger is **git-committed, not gitignored** —
   it contains only public testnet data (tx hashes, values, addresses), and
@@ -222,7 +222,7 @@ own documented chunking behavior; only a `value` change is a real
 correction.
 
 **`--reconcile` exists because the ledger can drift from truth** — it's a
-local cache, and the reporter key holder (David) can call `submitReading`
+local cache, and the reporter-key holder can call `submitReading`
 directly, outside `publish.py`, for any reason (testing, a manual fix). Storing
 `value`/`sourceHash` in the ledger (not just a boolean "published" flag) is
 what makes `--reconcile` able to detect a **divergence**, not just a missing
@@ -340,8 +340,8 @@ successful send. On a "nonce too low" error, re-sync from chain and retry
 once. This is a single-writer script against a key only one person holds at
 a time — re-querying a fresh nonce before every one of ~1,448 sends was
 rejected as unnecessary cost for a race condition that a coordination
-message ("I'm about to run publish.py") already prevents. If David and the
-reporter key are ever used concurrently by two processes, that's a
+message ("I'm about to run publish.py") already prevents. If the
+reporter key is ever used concurrently by two processes, that's a
 human-coordination problem, not something this script defends against.
 
 **Stuck pending transaction** (sent, not mining — e.g. an underpriced spike):
@@ -377,7 +377,7 @@ the skip logic (§2.4) means the rerun only resubmits what's actually
 missing.
 
 **RPC endpoint:** `https://testrpc.xlayer.tech/terigon` — the same endpoint
-David's Foundry deployment tooling uses (`contracts/foundry.toml`,
+the contracts' Foundry deployment tooling uses (`contracts/foundry.toml`,
 `[rpc_endpoints] xlayer_testnet`). Read from a new env var,
 `XLAYER_RPC_URL`, defaulting to that value — never hardcoded anywhere else
 in the script, so it can be pointed elsewhere without a code change.
@@ -421,7 +421,7 @@ market that can't resolve.
 Three artifacts, each serving a different need:
 
 1. **`data/publish-ledger.json`** (§2.4) — the machine-readable source of
-   truth for skip logic and the David→pipeline-owner hand-off. Committed to
+   truth for skip logic and the reporter→pipeline-owner hand-off. Committed to
    git.
 2. **`logs/publish-<timestamp>.log`** (new `logs/` directory, gitignored,
    local/human-facing) — one line per reading attempted: `metricId, dayKey,
@@ -445,7 +445,7 @@ Three artifacts, each serving a different need:
 
 ### 3.1 Key storage — pluggable, not hardcoded to one mechanism
 
-David is the sole holder of the reporter key and offered two ways to supply
+The reporter key has a single holder, and there are two ways to supply
 it to `publish.py`. The script must support **either**, auto-detecting which
 is configured, and must never assume one:
 
@@ -485,8 +485,8 @@ standalone via `publish.py --check` (exits after checking, sends nothing):
    catches a wrong key immediately, as a clear preflight message, instead of
    as 1,448 identical `UnauthorizedReporter` reverts.
 
-`--check` also reports current wallet OKB balance. This is what David runs
-first, before any `--live` job, to confirm his key/keystore is correctly
+`--check` also reports current wallet OKB balance. This is what the reporter-key
+holder runs first, before any `--live` job, to confirm their key/keystore is correctly
 wired — and it's free and read-only, so there's no reason not to run it
 every time before a long job.
 
@@ -513,7 +513,7 @@ submission is safe to re-run (governed by the ledger's skip logic);
 finalization is a one-way door per reading (`ReadingAlreadyFinalized`
 reverts any later attempt to touch it again). Keeping them as separate
 scripts means a bug in one can't block or corrupt the other, and it's what
-makes the David/pipeline-owner key split in §1 possible at all — the
+makes the reporter/pipeline-owner key split in §1 possible at all — the
 finalizer never needs reporter permission.
 
 ### 4.2 What it does
@@ -535,7 +535,7 @@ principle as `publish.py`). With `--live`:
    immutable contract parameter subject to redeployment), compare against
    current time. **Never trust the ledger's cached `publishedAt`** for this
    decision — only use the ledger to know *which* readings to check at all.
-   This means hand-off lag between David committing the ledger and the
+   This means hand-off lag between the reporter-key holder committing the ledger and the
    pipeline owner pulling it doesn't matter for correctness, only for
    timing.
 3. For everything currently eligible, call `finalize(metricId, dayKey)`
@@ -582,7 +582,7 @@ X Layer faucet.
 
 ---
 
-## 5. Operator section (for David)
+## 5. Operator section (for the reporter-key holder)
 
 This section is written to be read on its own, without the rest of this
 document, by someone who didn't sit through the interview that produced it.
@@ -641,7 +641,7 @@ end reaches them.
 The full path from "metric files exist" to "a demo market can resolve,"
 naming who does each step:
 
-1. **David**: `publish.py --check`, then `publish.py --live` (his reporter
+1. **Reporter-key holder**: `publish.py --check`, then `publish.py --live` (the reporter
    key/keystore). Submits readings. Commits and pushes the ledger.
 2. **Wait out `disputeWindow`** — confirmed live on-chain: **3600 seconds,
    1 hour.**
@@ -670,9 +670,9 @@ constraint:**
   overnight. Both runs are identical — `--verify` needs no key or wallet, so
   either can run from any machine, including one that never touched steps
   1–3 at all.
-- **David holds the reporter key, and step 1 depends on him specifically.**
-  If he is not physically in Singapore, step 1 has to be scheduled around
-  *his* timezone, not the demo's — that scheduling is part of this plan, to
+- **One person holds the reporter key, and step 1 depends on them specifically.**
+  If they are not physically in Singapore, step 1 has to be scheduled around
+  *their* timezone, not the demo's — that scheduling is part of this plan, to
   be settled in advance, not something worked out reactively on the day
   step 1 turns out to be late.
 
@@ -685,8 +685,8 @@ alongside the existing `GRIDSTATUS_API_KEY`/deployment variables:
 
 | Variable | Used by | Holder | Notes |
 |---|---|---|---|
-| `REPORTER_PRIVATE_KEY` | `publish.py` | David only | Alternative to keystore; never on the pipeline owner's machine |
-| `REPORTER_KEYSTORE_PATH` | `publish.py` | David only | Alternative to env var; password prompted interactively |
+| `REPORTER_PRIVATE_KEY` | `publish.py` | Reporter-key holder only | Alternative to keystore; never on the pipeline owner's machine |
+| `REPORTER_KEYSTORE_PATH` | `publish.py` | Reporter-key holder only | Alternative to env var; password prompted interactively |
 | `FINALIZER_PRIVATE_KEY` | `finalize.py` | Pipeline owner | Separate wallet, no contract permission needed |
 | `FINALIZER_KEYSTORE_PATH` | `finalize.py` | Pipeline owner | Alternative to env var |
 | `XLAYER_RPC_URL` | Both | — | Default `https://testrpc.xlayer.tech/terigon` |
@@ -695,7 +695,7 @@ Path/gitignore decisions:
 
 | Path | Tracked? | Why |
 |---|---|---|
-| `data/publish-ledger.json` | **Committed** | David→pipeline-owner hand-off artifact; contains only public testnet data |
+| `data/publish-ledger.json` | **Committed** | Reporter→pipeline-owner hand-off artifact; contains only public testnet data |
 | `logs/*.log` | Gitignored | Local, human-facing run logs; not needed cross-machine |
 
 ---

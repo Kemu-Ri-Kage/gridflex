@@ -8,7 +8,7 @@ Read-only page. No wallet, no transactions, no MetaMask connection required
 also the point: this is the page that proves "everything visible is
 verifiably onchain," and it must never depend on a signer to prove it.
 
-Owned by the pipeline owner (Platon), same as the rest of this repo. David's
+Owned by the pipeline owner, same as the rest of this repo. The
 `web/` markets/positions pages and wallet flow (`web3-provider.tsx`,
 `trade-panel.tsx`, `wallet-button.tsx`) and everything under `contracts/`
 are untouched by this spec — this page reuses `lib/contracts.ts`'s existing
@@ -33,7 +33,7 @@ deployed page:
   pipeline's own computed values: `value`, `sourceHash`, `sourceFiles`,
   `marketDay`, `marketDayStartUtc`/`marketDayEndUtc`. Already git-committed;
   already exactly what was (or will be) submitted on-chain.
-- **`data/publish-ledger.json`** — the David-hand-off ledger, keyed
+- **`data/publish-ledger.json`** — the reporter-to-pipeline-owner hand-off ledger, keyed
   `metricId:dayKey`, carrying `txHash`, `status`, and (once `finalize.py`
   has run) `status: "finalized"`. Also already git-committed
   (`publish-spec.md` §2.11).
@@ -244,14 +244,14 @@ or connecting anything.
 
 Below the fold: the secondary HBNORTH chart (§5). No wallet button or
 connect prompt originates from this page itself — if the shared site header
-carries one (it does, for David's pages), that's outside this spec's
+carries one (it does, for the wallet-enabled pages), that's outside this spec's
 concern.
 
 ## 8. Non-goals — explicitly out of scope for this spec
 
 - Fuel mix, in any form (chart or table) — see §5.
 - Any interaction that requires a wallet or signs anything — that's
-  David's pages.
+  the wallet-enabled pages.
 - A "verify it yourself, click to re-check live" affordance — considered
   and not chosen; the passive per-row indicator (§4) was judged to convey
   "verified" clearly enough without adding another live-RPC-dependent
@@ -317,8 +317,8 @@ build itself does nothing new.**
   under `web/public/data/`, the only thing this adds under `web/` (a new
   path; nothing existing is edited), refreshed by re-running the script by
   hand whenever new data is published/finalized. This is the exact same
-  hand-off shape `data/publish-ledger.json` already uses (David/the
-  pipeline owner commit a derived artifact; the other side reads it as
+  hand-off shape `data/publish-ledger.json` already uses (one side
+  commits a derived artifact; the other side reads it as
   committed truth, no live cross-repo dependency at build or deploy time).
 - **Why not a JS/Node prebuild step inside `web/`'s own build script
   instead** (e.g. reading `../data/...` at each Cloudflare deploy):

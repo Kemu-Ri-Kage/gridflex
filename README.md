@@ -47,22 +47,22 @@ On Windows PowerShell, set the key with:
 
     $env:GRIDSTATUS_API_KEY = "your_key_here"
 
-A cached chunk in `data/raw/` is re-fetched, never trusted, while it reaches
-into the current month or ends within the last two days. If its bytes
-changed upstream, the old version moves to `data/raw/superseded/`, because
-published hashes cite those files. A reading already published onchain is
-never rewritten.
+Only the last 3 days (before today, UTC) are re-fetched each run.
+Everything older comes from the `data/raw/` cache, because settled prices
+don't change. The current month is cached one file per day, so its earlier
+days are never re-read. Past months keep their whole-month files. If a
+re-fetched chunk's bytes changed upstream, the old version moves to
+`data/raw/superseded/`, because published hashes cite those files. A reading
+already published onchain is never rewritten.
 
 To refresh everything the site shows and redeploy it in one go:
 
     ./refresh_data.sh              # fetch, rebuild feed + candles, build, deploy
     ./refresh_data.sh --no-deploy  # same, without the deploy
 
-It prints the GridStatus rows it used. Most of the cost is candles, which
-re-fetch the month so far: about 790 rows for prices plus about 770 rows
-per day elapsed this month. That is about 17,000 rows on 22 September, and
-up to about 25,000 on the first three days of a month, when the previous
-month is re-read too.
+It prints the GridStatus rows it used: about 3,100 per refresh (3 days of
+prices, about 790, plus 3 days of candle data, about 2,300), the same on
+any day of the month.
 
 ## What it produces
 
@@ -120,8 +120,8 @@ contract metrics. See `shared/metrics.md` for the full writeup.
 
 ## Verification
 
-Fetches are chunked by calendar month, so a long range produces several files
-in `data/raw/`. Every metric record lists the exact files it depends on, in
+Fetches are chunked by calendar month, and by day while a month is still in
+progress, so a long range produces several files in `data/raw/`. Every metric record lists the exact files it depends on, in
 hash order, under `sourceFiles`. `sourceHash` is the SHA-256 of those files
 concatenated in that order:
 
@@ -160,7 +160,8 @@ Datasets used:
 - `ercot_fuel_mix` — 5-minute
 
 Free plan allows 500,000 rows/month and 1 request per second. Always filter
-by location. The cache in `data/raw/` means re-runs cost nothing.
+by location. The cache in `data/raw/` means re-runs only re-read the last 3
+days.
 
 ## Adding another zone
 

@@ -164,8 +164,8 @@ def five_min_window_start(end_date: date, days: int) -> str:
     first-of-month so every chunk before the current month is a whole
     calendar month. A start that slid forward one day at a time would make
     a new, uncached first chunk every day and spend its rows again; aligned,
-    those months come from the cache and only the months that are not yet
-    final (fetch_ercot.chunk_is_final) are fetched. The window therefore
+    those months come from the cache and only days that are not yet final
+    (fetch_ercot.chunk_is_final) are fetched. The window therefore
     covers between days-31 and `days` days."""
     start = end_date - timedelta(days=days)
     if start.day != 1:

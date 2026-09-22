@@ -140,11 +140,11 @@ PUBLISH_LEDGER = Path("data/publish-ledger.json")
 
 RATE_LIMIT_SLEEP = 1.5          # free plan allows 1 request/second
 
-# A cached chunk is only trusted as final once its data can no longer change:
-# not in the current month, and ending more than this many days ago. Anything
-# newer is re-fetched every run, because GridStatus fills in and corrects
-# recent intervals after the fact.
-FRESH_CHUNK_DAYS = 2
+# Only the last RECENT_DAYS market days (before today, UTC) are re-fetched on
+# every run: GridStatus can still fill in or correct their intervals. Anything
+# older is settled and read from the cache - including earlier days of the
+# current month, which is why the current month is cached one day per chunk.
+RECENT_DAYS = 3
 
 # Rows GridStatus returned to this process - what the free plan meters.
 # Cached chunks cost nothing and are not counted.
@@ -194,7 +194,8 @@ def month_chunks(start, end):
     reproduces). Smaller responses stay well clear of it. A failure halfway
     through costs one month rather than the whole pull. And each chunk caches
     separately, so re-running only fetches what is missing or not yet final
-    (see chunk_is_final).
+    (see chunk_is_final). plan_chunks() splits these further into days
+    where a month is still in progress.
     """
     s = pd.Timestamp(start)
     e = pd.Timestamp(end)
@@ -208,20 +209,66 @@ def month_chunks(start, end):
     return out
 
 
+def utc_today():
+    return datetime.now(timezone.utc).date()
+
+
 def chunk_is_final(start, end, today=None):
     """
-    True when a cached chunk [start, end) can be trusted without re-fetching.
-
-    A chunk that reaches into the current month, or ends within the last
-    FRESH_CHUNK_DAYS days, is never final: its newest intervals may still be
-    filled in or corrected upstream. "Today" is the UTC date, the same clock
-    main() uses to pick the fetch window.
+    True when a cached chunk [start, end) can be trusted without re-fetching:
+    it ends before the last RECENT_DAYS days, so every day in it is settled.
+    "Today" is the UTC date, the same clock main() uses to pick the fetch
+    window.
     """
-    today = today or datetime.now(timezone.utc).date()
+    today = today or utc_today()
     end_day = date.fromisoformat(str(end)[:10])
-    covers_current_month = end_day > today.replace(day=1)
-    ends_recently = end_day >= today - timedelta(days=FRESH_CHUNK_DAYS)
-    return not (covers_current_month or ends_recently)
+    return end_day <= today - timedelta(days=RECENT_DAYS)
+
+
+def chunk_path(dataset, location, start, end):
+    return RAW_DIR / f"{dataset}__{location or 'all'}__{start}__{end}.json"
+
+
+def day_chunks(start, end):
+    """[start, end) as one-day pieces."""
+    first = date.fromisoformat(str(start)[:10])
+    last = date.fromisoformat(str(end)[:10])
+    return [(str(first + timedelta(days=i)), str(first + timedelta(days=i + 1)))
+            for i in range((last - first).days)]
+
+
+def plan_chunks(dataset, location, start, end, today=None):
+    """
+    The chunks to read for [start, end), chosen so settled data is never
+    fetched twice.
+
+    A month that is still in progress (any of it within the last RECENT_DAYS
+    days) is read one day per chunk. Each day's filename never changes, so
+    once a day has aged out of the recent window its cached file is final
+    and stays - no re-read of the month so far, and no sliding "last N days"
+    chunk that would need its oldest day fetched again under a new name.
+
+    A settled month uses its whole-month file when that is cached. If it
+    isn't but some of its days are (it was read day by day while it was in
+    progress), the days are used and only missing days are fetched. With
+    neither, it is one whole-month request, which keeps a first large pull
+    to one request per month.
+    """
+    today = today or utc_today()
+    out = []
+    for piece_start, piece_end in month_chunks(start, end):
+        if not chunk_is_final(piece_start, piece_end, today):
+            out.extend(day_chunks(piece_start, piece_end))
+            continue
+        if chunk_path(dataset, location, piece_start, piece_end).exists():
+            out.append((piece_start, piece_end))
+            continue
+        days = day_chunks(piece_start, piece_end)
+        if any(chunk_path(dataset, location, s, e).exists() for s, e in days):
+            out.extend(days)
+        else:
+            out.append((piece_start, piece_end))
+    return out
 
 
 def store_chunk(cache_path, payload):
@@ -250,8 +297,7 @@ def fetch_chunk(client, dataset, start, end, location=None):
     """Fetch one chunk, cache the raw bytes, return (DataFrame, path)."""
     global rows_fetched
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    slug = f"{dataset}__{location or 'all'}__{start}__{end}"
-    cache_path = RAW_DIR / f"{slug}.json"
+    cache_path = chunk_path(dataset, location, start, end)
 
     if cache_path.exists() and chunk_is_final(start, end):
         print(f"    cached   {start} -> {end}")
@@ -277,8 +323,9 @@ def fetch_chunk(client, dataset, start, end, location=None):
 
 def fetch(client, dataset, start, end, location=None, tag=""):
     """
-    Pull one dataset for a date range, month by month, and return it as a
-    single DataFrame along with a source hash and the list of cache files.
+    Pull one dataset for a date range, chunk by chunk (see plan_chunks), and
+    return it as a single DataFrame along with a source hash and the list of
+    cache files.
 
     The source hash covers the concatenated raw bytes of every chunk, in date
     order. Anyone can reproduce it:
@@ -289,7 +336,7 @@ def fetch(client, dataset, start, end, location=None, tag=""):
     re-fetch spends rows from the free monthly allowance.
     """
     frames, paths = [], []
-    for chunk_start, chunk_end in month_chunks(start, end):
+    for chunk_start, chunk_end in plan_chunks(dataset, location, start, end):
         df, path = fetch_chunk(client, dataset, chunk_start, chunk_end, location)
         if len(df):
             frames.append(df)

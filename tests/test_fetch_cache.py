@@ -26,21 +26,92 @@ class TestChunkIsFinal(unittest.TestCase):
         return fetch_ercot.chunk_is_final(start, end, today)
 
     def test_a_whole_past_month_is_final(self):
-        self.assertTrue(self.final("2026-07-01", "2026-08-01"))
         self.assertTrue(self.final("2026-08-01", "2026-09-01"))
 
-    def test_a_chunk_reaching_into_the_current_month_is_never_final(self):
-        self.assertFalse(self.final("2026-09-01", "2026-09-10"))
-        self.assertFalse(self.final("2026-09-01", "2026-09-21"))
+    def test_earlier_days_of_the_current_month_are_final(self):
+        self.assertTrue(self.final("2026-09-01", "2026-09-02"))
+        self.assertTrue(self.final("2026-09-18", "2026-09-19"))
 
-    def test_a_chunk_ending_within_the_last_two_days_is_never_final(self):
-        # Previous month's chunk, read on the 1st and 2nd of the new month.
-        self.assertFalse(self.final("2026-08-01", "2026-09-01", today=date(2026, 9, 1)))
+    def test_the_last_three_days_are_never_final(self):
+        # Today is 22 Sep: 19, 20 and 21 Sep are the recent days.
+        self.assertFalse(self.final("2026-09-19", "2026-09-20"))
+        self.assertFalse(self.final("2026-09-21", "2026-09-22"))
+
+    def test_a_past_month_is_final_once_its_last_day_leaves_the_window(self):
         self.assertFalse(self.final("2026-08-01", "2026-09-01", today=date(2026, 9, 3)))
         self.assertTrue(self.final("2026-08-01", "2026-09-01", today=date(2026, 9, 4)))
 
     def test_a_chunk_ending_in_the_future_is_never_final(self):
         self.assertFalse(self.final("2026-10-01", "2026-10-05"))
+
+
+class TestPlanChunks(unittest.TestCase):
+    TODAY = date(2026, 9, 22)
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.raw = Path(self.tmp.name)
+        self.patch = patch.object(fetch_ercot, "RAW_DIR", self.raw)
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        self.tmp.cleanup()
+
+    def cache(self, start, end):
+        fetch_ercot.chunk_path("ds", "HB_NORTH", start, end).write_text("[]")
+
+    def plan(self, start, end, today=TODAY):
+        return fetch_ercot.plan_chunks("ds", "HB_NORTH", start, end, today)
+
+    def test_the_current_month_is_one_chunk_per_day(self):
+        plan = self.plan("2026-09-01", "2026-09-22")
+        self.assertEqual(len(plan), 21)
+        self.assertEqual(plan[0], ("2026-09-01", "2026-09-02"))
+        self.assertEqual(plan[-1], ("2026-09-21", "2026-09-22"))
+
+    def test_day_chunk_names_do_not_change_from_one_day_to_the_next(self):
+        # Tomorrow's plan reuses every one of today's day files, so a day that
+        # leaves the recent window is read from cache, never fetched again.
+        today = set(self.plan("2026-09-01", "2026-09-22"))
+        tomorrow = set(self.plan("2026-09-01", "2026-09-23", today=date(2026, 9, 23)))
+        self.assertTrue(today <= tomorrow)
+        self.assertEqual(tomorrow - today, {("2026-09-22", "2026-09-23")})
+
+    def test_a_settled_month_uses_its_cached_whole_month_file(self):
+        self.cache("2026-08-01", "2026-09-01")
+        self.assertEqual(
+            self.plan("2026-08-01", "2026-09-01"), [("2026-08-01", "2026-09-01")]
+        )
+
+    def test_a_settled_month_read_day_by_day_keeps_its_day_files(self):
+        # September, after it has settled: its days were cached while it ran.
+        for start, end in fetch_ercot.day_chunks("2026-09-01", "2026-10-01"):
+            if start != "2026-09-15":
+                self.cache(start, end)
+        plan = self.plan("2026-09-01", "2026-10-01", today=date(2026, 10, 10))
+        self.assertEqual(len(plan), 30)
+        self.assertIn(("2026-09-15", "2026-09-16"), plan)
+
+    def test_an_uncached_settled_month_is_one_request(self):
+        self.assertEqual(
+            self.plan("2026-07-01", "2026-08-01"), [("2026-07-01", "2026-08-01")]
+        )
+
+    def test_a_long_range_mixes_months_and_days(self):
+        self.cache("2026-07-01", "2026-08-01")
+        plan = self.plan("2026-07-01", "2026-09-22")
+        self.assertEqual(plan[:2], [("2026-07-01", "2026-08-01"), ("2026-08-01", "2026-09-01")])
+        self.assertEqual(len(plan), 2 + 21)
+
+    def test_refresh_window_is_exactly_the_recent_days(self):
+        plan = self.plan("2026-09-19", "2026-09-22")
+        self.assertEqual(
+            plan,
+            [("2026-09-19", "2026-09-20"), ("2026-09-20", "2026-09-21"),
+             ("2026-09-21", "2026-09-22")],
+        )
+        self.assertFalse(any(fetch_ercot.chunk_is_final(s, e, self.TODAY) for s, e in plan))
 
 
 class TestFetchChunkCache(unittest.TestCase):
@@ -76,14 +147,14 @@ class TestFetchChunkCache(unittest.TestCase):
         self.assertEqual(df["spp"].tolist(), [1.0])
         self.assertEqual(fetch_ercot.rows_fetched, 0)
 
-    def test_a_current_month_cached_chunk_is_refetched_and_counted(self):
+    def test_a_recent_cached_chunk_is_refetched_and_counted(self):
         self.raw.mkdir(parents=True)
-        path = self.raw / "ds__HB_NORTH__2026-09-01__2026-09-22.json"
+        path = self.raw / "ds__HB_NORTH__2026-09-21__2026-09-22.json"
         path.write_text('[{"spp":1.0}]')
         client = self.client_returning([1.0, 2.0, 3.0])
         with patch.object(fetch_ercot, "chunk_is_final", return_value=False):
             df, returned = fetch_ercot.fetch_chunk(
-                client, "ds", "2026-09-01", "2026-09-22", "HB_NORTH"
+                client, "ds", "2026-09-21", "2026-09-22", "HB_NORTH"
             )
         client.get_dataset.assert_called_once()
         self.assertEqual(len(df), 3)

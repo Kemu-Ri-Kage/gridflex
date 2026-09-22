@@ -70,7 +70,7 @@ export function Hero() {
         </p>
         <div className="mt-10 flex flex-wrap items-center gap-4">
           <Link
-            className="border border-foreground bg-foreground px-6 py-3 font-mono text-xs uppercase tracking-[0.12em] text-background transition-colors duration-200 hover:bg-transparent hover:text-foreground"
+            className="border border-foreground bg-foreground px-6 py-3 font-mono text-xs uppercase tracking-[0.12em] text-background transition-opacity duration-200 hover:opacity-80 active:opacity-60"
             href="/trade"
           >
             Open terminal

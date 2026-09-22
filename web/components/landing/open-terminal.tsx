@@ -4,10 +4,10 @@ import Link from 'next/link';
 
 import { Reveal } from '@/components/landing/scroll-motion';
 import { SectionHeading } from '@/components/landing/section-heading';
-import { marketName, useMarkets } from '@/lib/markets';
+import { marketName, statusLabel, useMarkets } from '@/lib/markets';
 
 export function OpenTerminal() {
-  const { markets } = useMarkets();
+  const { markets, now } = useMarkets();
 
   return (
     <section className="py-20 sm:py-28">
@@ -15,15 +15,34 @@ export function OpenTerminal() {
         <Reveal>
           <SectionHeading index="04" title="Open terminal" />
           <div className="flex flex-col items-start justify-between gap-8 border border-border bg-card p-8 sm:flex-row sm:items-center sm:p-12">
-            <p className="max-w-xl text-lg leading-8 text-muted-foreground">
-              {markets === null
-                ? 'Loading…'
-                : markets.length === 0
-                  ? 'No contracts listed yet.'
-                  : `Listed: ${markets.map(marketName).join(' ')}`}
-            </p>
+            {markets && markets.length > 0 ? (
+              // One question per row, each with its own contract status
+              // (design-brief.md §6) - a list, not a run-on sentence.
+              <div className="w-full max-w-xl">
+                <div className="mb-3 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  Listed
+                </div>
+                <ul className="divide-y divide-border border-y border-border">
+                  {markets.map((market) => (
+                    <li
+                      className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3"
+                      key={market.address}
+                    >
+                      <span className="text-base text-foreground">{marketName(market)}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {statusLabel(market, now) ?? '…'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="max-w-xl text-lg leading-8 text-muted-foreground">
+                {markets === null ? 'Loading…' : 'No contracts listed yet.'}
+              </p>
+            )}
             <Link
-              className="shrink-0 border border-foreground bg-foreground px-8 py-4 font-mono text-sm uppercase tracking-[0.12em] text-background transition-colors duration-200 hover:bg-transparent hover:text-foreground"
+              className="shrink-0 border border-foreground bg-foreground px-8 py-4 font-mono text-sm uppercase tracking-[0.12em] text-background transition-opacity duration-200 hover:opacity-80 active:opacity-60"
               href="/trade"
             >
               Open terminal

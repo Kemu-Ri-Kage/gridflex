@@ -3,14 +3,6 @@
 import * as React from 'react';
 import { AlertTriangle, Clock3, ExternalLink, History, ShieldCheck } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -34,8 +26,12 @@ import { dayLabel } from '@/lib/markets';
  *
  * MISMATCH is deliberately not a Badge: it renders as a solid filled block,
  * never as inline text/border colour, so it can never be mistaken for a
- * transient check failure or a passing verification pill.
+ * transient check failure or a passing verification pill. The other three
+ * share PILL: a 1px outline on no fill, 2px radius (design-brief.md §4).
  */
+const PILL =
+  'inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-[2px] border px-2 text-xs font-medium';
+
 function VerificationBadge({ row, now }: { row: VerifiedRow; now: number }) {
   const { status, lastVerifiedAt } = row.verification;
   const ago = lastVerifiedAt !== null ? formatElapsed(now - lastVerifiedAt) : null;
@@ -43,17 +39,17 @@ function VerificationBadge({ row, now }: { row: VerifiedRow; now: number }) {
   switch (status) {
     case 'VERIFIED':
       return (
-        <Badge variant="outline" className="rounded-[2px] border-up/30 text-up">
+        <span className={`${PILL} border-up/30 text-up`}>
           <ShieldCheck className="size-3" />
           Verified {ago} ago
-        </Badge>
+        </span>
       );
     case 'LAST_VERIFIED':
       return (
-        <Badge variant="secondary" className="rounded-[2px] text-muted-foreground">
+        <span className={`${PILL} border-border text-muted-foreground`}>
           <History className="size-3" />
           Last verified {ago} ago
-        </Badge>
+        </span>
       );
     case 'MISMATCH':
       return (
@@ -65,10 +61,10 @@ function VerificationBadge({ row, now }: { row: VerifiedRow; now: number }) {
     case 'UNVERIFIED':
     default:
       return (
-        <Badge variant="secondary" className="rounded-[2px] text-muted-foreground/70">
+        <span className={`${PILL} border-border text-muted-foreground/70`}>
           <Clock3 className="size-3" />
           Not yet verified
-        </Badge>
+        </span>
       );
   }
 }
@@ -94,70 +90,80 @@ export function FeedPanel() {
   }, []);
 
   return (
-    <Card>
-      <CardHeader className="border-b border-border pb-4">
-        <div>
-          <CardTitle className="text-base text-foreground">Verified prices</CardTitle>
-          <CardDescription>
-            <span className="font-mono tabular-nums">
-              {submittedCount.toLocaleString('en-US')} of{' '}
-              {totalLocalCandidates.toLocaleString('en-US')}
-            </span>{' '}
-            days published onchain.
-          </CardDescription>
-          {updated && (
-            <p className="mt-1 font-mono text-[11px] tabular-nums text-muted-foreground">
-              Updated {updated}
-            </p>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="pt-1">
+    <div className="rounded-[2px] border border-border bg-card text-sm">
+      <div className="border-b border-border p-4">
+        <h3 className="text-base font-medium text-foreground">Verified prices</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          <span className="font-mono tabular-nums">
+            {submittedCount.toLocaleString('en-US')} of{' '}
+            {totalLocalCandidates.toLocaleString('en-US')}
+          </span>{' '}
+          days published onchain.
+        </p>
+        {updated && (
+          <p className="mt-1 font-mono text-[11px] tabular-nums text-muted-foreground">
+            Updated {updated}
+          </p>
+        )}
+      </div>
+      <div className="px-4 pt-1 pb-4">
         {rows.length === 0 ? (
           <p className="py-6 text-sm text-muted-foreground">
             {loading ? 'Loading…' : 'No prices published yet.'}
           </p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Texas power price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Oracle tx</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.record.dayKey}>
-                  <TableCell className="font-mono tabular-nums text-muted-foreground">
-                    {dayLabel(row.record.dayKey, true)}
-                  </TableCell>
-                  <TableCell className="font-mono tabular-nums text-foreground">
-                    {formatPrice(row.record.value, 'MWh')}
-                  </TableCell>
-                  <TableCell title={`sha256 ${row.record.sourceHash}`}>
-                    <VerificationBadge row={row} now={now} />
-                  </TableCell>
-                  <TableCell>
-                    {row.record.txHash && (
-                      <a
-                        className="inline-flex items-center gap-1 font-mono text-xs text-chart-1 transition-colors duration-200 hover:text-foreground hover:underline"
-                        href={explorerTxUrl(row.record.txHash)}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {row.record.txHash.slice(0, 10)}…
-                        <ExternalLink className="size-3" />
-                      </a>
-                    )}
-                  </TableCell>
+          <>
+            {/* Below sm the four columns are wider than the screen; the
+                table scrolls in its own container (design-brief.md §10). */}
+            <p className="pt-3 font-mono text-[11px] text-muted-foreground sm:hidden">
+              Table scrolls sideways →
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">Date</TableHead>
+                  <TableHead className="text-muted-foreground">Texas power price</TableHead>
+                  <TableHead className="text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-muted-foreground">Oracle tx</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  // Hover moves text colour only, never the background
+                  // (design-brief.md §13 micro-interactions).
+                  <TableRow
+                    className="group transition-[color,border-color] duration-200 hover:bg-transparent"
+                    key={row.record.dayKey}
+                  >
+                    <TableCell className="font-mono tabular-nums text-muted-foreground transition-colors duration-200 group-hover:text-foreground">
+                      {dayLabel(row.record.dayKey, true)}
+                    </TableCell>
+                    <TableCell className="font-mono tabular-nums text-foreground">
+                      {formatPrice(row.record.value, 'MWh')}
+                    </TableCell>
+                    <TableCell title={`sha256 ${row.record.sourceHash}`}>
+                      <VerificationBadge row={row} now={now} />
+                    </TableCell>
+                    <TableCell>
+                      {row.record.txHash && (
+                        <a
+                          className="inline-flex items-center gap-1 font-mono text-xs text-chart-1 transition-colors duration-200 hover:text-foreground hover:underline"
+                          href={explorerTxUrl(row.record.txHash)}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {row.record.txHash.slice(0, 10)}…
+                          <ExternalLink className="size-3" />
+                        </a>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

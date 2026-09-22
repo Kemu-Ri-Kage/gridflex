@@ -118,6 +118,25 @@ body {
   }
 }
 
+/* design-brief.md §13: prefers-reduced-motion disables all animation, on
+   both pages, with no exception. Set here rather than per component so
+   every element - the ui/ primitives' transitions and tw-animate-css
+   keyframes included - inherits it. 0.01ms rather than 0 so transitionend
+   and animationend still fire for anything waiting on them. GSAP and Lenis
+   are skipped in JS (components/landing/scroll-motion.tsx). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-delay: 0s !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 ::selection {
   background: color-mix(in oklch, var(--foreground) 24%, transparent);
   color: var(--foreground);

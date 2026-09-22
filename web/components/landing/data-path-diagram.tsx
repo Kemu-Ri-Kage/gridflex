@@ -213,12 +213,18 @@ export function DataPathDiagram() {
           className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4"
           role="tablist"
         >
+          {/* The active stage is marked by a foreground bottom border and
+              brighter text, never a background change; hover lifts it
+              (the translate property) and moves only text/border colour (§13). The lift
+              is motion-safe only - under prefers-reduced-motion the tile
+              stays put. Keyboard focus draws an inset outline, since the
+              grid's 1px gaps would clip an outer one. */}
           {STAGES.map((stage, i) => (
             <button
               aria-selected={active === stage.id}
               className={
-                'flex flex-col gap-2 bg-card px-4 py-5 text-left transition-[transform,background-color] duration-200 hover:-translate-y-0.5 focus:outline-none ' +
-                (active === stage.id ? 'bg-accent' : 'hover:bg-accent/60')
+                'group flex flex-col gap-2 border-b-2 bg-card px-4 py-5 text-left transition-[translate,color,border-color] duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground motion-safe:hover:-translate-y-0.5 ' +
+                (active === stage.id ? 'border-foreground' : 'border-transparent')
               }
               key={stage.id}
               onClick={() => setPinned(stage.id === pinned ? null : stage.id)}
@@ -230,7 +236,14 @@ export function DataPathDiagram() {
               <span className="font-mono text-xs text-muted-foreground">
                 0{i + 1}
               </span>
-              <span className="text-base font-semibold text-foreground">{stage.label}</span>
+              <span
+                className={
+                  'text-base font-semibold transition-colors duration-200 group-hover:text-foreground ' +
+                  (active === stage.id ? 'text-foreground' : 'text-muted-foreground')
+                }
+              >
+                {stage.label}
+              </span>
               <span className="text-xs leading-5 text-muted-foreground">{stage.dek}</span>
             </button>
           ))}

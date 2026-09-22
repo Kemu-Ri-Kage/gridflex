@@ -9,9 +9,9 @@ import { WalletButton } from '@/components/wallet-button';
  * shared/*.md's insistence on GRIDFLEX as a derivatives venue, not a brand
  * built around a logotype.
  */
-function Wordmark() {
+function Wordmark({ prefetch }: { prefetch?: boolean }) {
   return (
-    <Link className="font-mono text-sm font-bold tracking-[-0.04em]" href="/">
+    <Link className="font-mono text-sm font-bold tracking-[-0.04em]" href="/" prefetch={prefetch}>
       GRIDFLEX
     </Link>
   );
@@ -43,7 +43,7 @@ export function LandingHeader() {
           </a>
         </nav>
         <Link
-          className="border border-foreground px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-foreground transition-colors duration-200 hover:bg-foreground hover:text-background"
+          className="border border-foreground/40 px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-foreground transition-[border-color,opacity] duration-200 hover:border-foreground active:opacity-70"
           href="/trade"
         >
           Open terminal
@@ -53,22 +53,29 @@ export function LandingHeader() {
   );
 }
 
+/**
+ * Links back to the landing page never prefetch it: a prefetch loads the
+ * landing route's client code (GSAP, Lenis, the hero) into /trade, which
+ * carries no motion libraries at all (design-brief.md §14).
+ */
 export function TerminalHeader() {
   return (
     <header className="border-b border-border bg-background">
       <div className="mx-auto flex h-14 max-w-[1920px] items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-8">
-          <Wordmark />
+          <Wordmark prefetch={false} />
           <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
             <Link
               className="px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
               href="/"
+              prefetch={false}
             >
               Home
             </Link>
             <Link
               className="px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
               href="/#proof"
+              prefetch={false}
             >
               Proof
             </Link>
@@ -80,10 +87,9 @@ export function TerminalHeader() {
             nowrap badge beside the wallet button overflows at 390px. */}
         <div className="flex min-w-0 items-center gap-3">
           <Badge
-            className="h-auto min-w-0 shrink gap-1.5 rounded-[2px] whitespace-normal leading-tight sm:h-5 sm:whitespace-nowrap"
+            className="h-auto min-w-0 shrink rounded-[2px] whitespace-normal leading-tight sm:h-5 sm:whitespace-nowrap"
             variant="outline"
           >
-            <span className="size-1.5 rounded-full bg-up" />
             X Layer testnet · MockUSDT
           </Badge>
           <WalletButton />

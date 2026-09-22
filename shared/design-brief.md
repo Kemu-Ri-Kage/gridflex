@@ -390,9 +390,20 @@ aligned, no element sized for visual effect rather than legibility.
 ## 9. The chart
 
 TradingView's **Lightweight Charts** library, on real ERCOT real-time
-15-minute data only (`ercot_spp_real_time_15_min`) — never day-ahead
-hourly data reshaped to look like a candle series, and never synthetic
-data (§6).
+data only — never day-ahead hourly data reshaped to look like a candle
+series, and never synthetic data (§6). Two datasets, by timeframe:
+
+- **`15m` and `1H`** come from the 5-minute dataset
+  (`ercot_lmp_by_settlement_point`). A 15-minute settlement price is one
+  number per 15 minutes, so a 15m candle built from it has open = high =
+  low = close — a flat line, not a candle — and a 1H candle has only four
+  points. The 5-minute prices give each 15m candle three points and each
+  1H candle twelve.
+- **`4H`, `1D` and `1W`** stay on the 15-minute settlement dataset
+  (`ercot_spp_real_time_15_min`), which has enough points per candle.
+
+The candle file records which dataset built each timeframe (`sources`);
+the caption's tooltip carries the hash of the one on screen.
 
 - **Japanese candlesticks**, up/down coloured with `--up` / `--down` (§4) —
   body, wick, and border all use the same up/down pair, no separate chart

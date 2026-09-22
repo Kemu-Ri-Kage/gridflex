@@ -40,16 +40,17 @@ function optionalAddress(value: string | undefined): Address | undefined {
   return getAddress(value);
 }
 
+/**
+ * Optional build-time overrides. The site normally takes every address from
+ * /data/addresses.json (written from shared/addresses.json by
+ * build_feed_data.py), and the order ticket trades whichever listed market
+ * is selected - there is no single "demo market" address any more.
+ */
 export const addresses = {
   oracle: optionalAddress(process.env.NEXT_PUBLIC_GRID_ORACLE_ADDRESS),
   factory: optionalAddress(process.env.NEXT_PUBLIC_MARKET_FACTORY_ADDRESS),
   collateral: optionalAddress(process.env.NEXT_PUBLIC_MOCK_USDT_ADDRESS),
-  market: optionalAddress(process.env.NEXT_PUBLIC_DEMO_MARKET_ADDRESS),
 } as const;
-
-export const contractsConfigured = Boolean(
-  addresses.collateral && addresses.market,
-);
 
 export const binaryMarketAbi = binaryMarketAbiJson as Abi;
 export const gridOracleAbi = gridOracleAbiJson as Abi;

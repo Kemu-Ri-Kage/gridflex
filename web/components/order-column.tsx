@@ -1,29 +1,32 @@
 'use client';
 
-import { getAddress } from 'viem';
+import * as React from 'react';
 
 import { SettlementSummary } from '@/components/settlement-panel';
 import { TradePanel } from '@/components/trade-panel';
-import { addresses } from '@/lib/contracts';
+import { useWeb3 } from '@/components/web3-provider';
 import { useMarkets } from '@/lib/markets';
 
 /**
- * Right column. The order ticket (trade-panel.tsx) trades the one
- * market its environment is configured for, so it only appears when that
- * is the selected market - never beside a different market's name.
+ * Right column. The order ticket follows the market selected in the list:
+ * the selection is handed to the Web3Provider, which reads from and sends
+ * transactions to that contract alone, so the ticket never trades a market
+ * other than the one named above it.
  */
 export function OrderColumn() {
   const { selected } = useMarkets();
-  const ticketMarket = addresses.market;
-  const showTicket =
-    selected !== undefined &&
-    ticketMarket !== undefined &&
-    getAddress(ticketMarket) === selected.address;
+  const { selectMarket } = useWeb3();
+  const address = selected?.address;
+
+  React.useEffect(() => {
+    selectMarket(address);
+    return () => selectMarket(undefined);
+  }, [address, selectMarket]);
 
   return (
     <div className="space-y-3">
       <SettlementSummary />
-      {showTicket && <TradePanel />}
+      {selected && <TradePanel />}
     </div>
   );
 }

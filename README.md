@@ -288,10 +288,14 @@ python3 scripts/export_abi.py
 
 ## Web interface
 
-`web/` is a Vinext/React application using viem. With no addresses it opens in
-safe demo mode. Once the four `NEXT_PUBLIC_*_ADDRESS` values are present in
-`web/.env.local`, it connects MetaMask to X Layer testnet and can mint demo
-collateral, mint a YES+NO set, swap, resolve or cancel, and redeem.
+`web/` is a Vinext/React application using viem. It needs no environment to
+run: contract addresses and the list of markets come from
+`web/public/data/addresses.json`, written from `shared/addresses.json` by
+`build_feed_data.py`. The order ticket trades whichever listed market is
+selected. With a wallet on X Layer testnet it can get demo collateral, buy YES
+or NO (a complete set is minted and the other side swapped in, in one action),
+resolve or cancel after trading closes, and redeem. `web/.env.example` lists
+the optional overrides.
 
 ```bash
 cd web

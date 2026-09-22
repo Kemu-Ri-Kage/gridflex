@@ -11,18 +11,28 @@ can call it), so this reuses finalize.py's finalizer-key convention
 key - the same choice finalize.py already made for finalize(), which is
 permissionless for the same reason.
 
-Mirrors contracts/script/CreateDemoMarket.s.sol's parameter conventions
-(10,000 mUSDT initial liquidity; dispute window 0 for a past-day demo that
-must finalize immediately - shared/deployment.md) rather than inventing new
-ones, and shared/finalize-spec.md's table-parsing approach for reading
-shared/demo-markets.md rather than hand-typing the six candidate markets
-where they could drift from that document.
+Mirrors contracts/script/CreateDemoMarket.s.sol's 10,000 mUSDT initial
+liquidity rather than inventing a new one, and shared/finalize-spec.md's
+table-parsing approach for reading shared/demo-markets.md rather than
+hand-typing the markets where they could drift from that document.
 
-Only creates a market for a dayKey whose oracle reading is already
-published on-chain (checked live via GridOracle.getReading, not assumed) -
-listing a market against a reading that doesn't exist yet would create a
-market that can never resolve. A (metricId, dayKey) pair that already has a
-market - checked live via MarketFactory.getMarkets(), not just the local
+Two kinds of market, named per row in that table:
+
+- live: a future market day, tradeable now. No reading exists yet, by
+  construction. Trading closes (resolveAfter) at 12:30 Texas time on the day
+  before the market day - one hour before ERCOT publishes that day's
+  day-ahead price at 13:30. BinaryMarket's mintSet/swap/seedPool all revert
+  TradingClosed once block.timestamp >= resolveAfter, so this is a real
+  close, not a display convention. Refused once that close has passed.
+- replay: an already-settled market day, so a demo can show the whole
+  mint -> trade -> resolve -> redeem cycle in one take. Its oracle reading
+  must already be published *and* finalized on-chain (checked live via
+  GridOracle.getReading, not assumed); trading closes a fixed window after
+  the createMarket transaction is built, after which resolve() works
+  immediately.
+
+Every market's trading close is shown in both Texas and London time. A
+(metricId, dayKey) pair that already has a market - checked live via MarketFactory.getMarkets(), not just the local
 ledger - is skipped, not recreated, so re-running this script is safe. If
 that existing market is missing from the local ledger (e.g. a prior run's
 createMarket succeeded but a later step in the same run failed), a live run
@@ -59,9 +69,11 @@ import re
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from datetime import time as dt_time
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from hexbytes import HexBytes
 from web3 import Web3
@@ -95,16 +107,34 @@ MARKET_FACTORY_ARTIFACT_PATH = (
 # CreateDemoMarket.s.sol's DEFAULT_INITIAL_LIQUIDITY (10_000e6) - the same
 # 10,000 mUSDT-at-6-decimals seed the Solidity deploy script uses.
 DEFAULT_INITIAL_LIQUIDITY = 10_000 * 10**6
-# shared/deployment.md: "0 for a tightly controlled past-day demo that must
-# finalize immediately" - both markets this script targets by default are
-# exactly that case (dayKeys already in the past, readings already published).
-DEFAULT_DISPUTE_WINDOW = 0
-# How long trading stays open after creation before resolve() becomes
-# callable. BinaryMarket requires resolveAfter > block.timestamp at
-# construction, so this can never be "now" - kept short since the oracle
-# reading already exists and the point is to demo mint -> trade -> resolve
-# -> redeem quickly, not to run a real multi-day market.
-DEFAULT_TRADING_WINDOW_SECONDS = 600
+
+KIND_LIVE = "live"
+KIND_REPLAY = "replay"
+MARKET_KINDS = (KIND_LIVE, KIND_REPLAY)
+
+TEXAS_TZ = ZoneInfo("America/Chicago")
+LONDON_TZ = ZoneInfo("Europe/London")
+# ERCOT posts day D's day-ahead prices at 13:30 Central on D-1; live trading
+# closes an hour before that, so nobody can trade on a published price.
+LIVE_CLOSE_TEXAS_TIME = dt_time(12, 30)
+# A live market whose close is nearer than this is refused before any
+# transaction: mint + approve + createMarket must all land before it.
+LIVE_CLOSE_MIN_LEAD_SECONDS = 600
+# How long a replay market trades after its createMarket transaction is
+# built. BinaryMarket requires resolveAfter > block.timestamp at
+# construction; the reading is already final, so resolve() works the moment
+# this window ends.
+DEFAULT_REPLAY_WINDOW_MINUTES = 45
+# BinaryMarket.cancel() opens at resolveAfter + disputeWindow if no reading
+# has been published. A replay market's reading is already published, so
+# cancel() can never succeed and 0 is safe (shared/deployment.md's
+# past-day-demo value). A live market's reading cannot reach the chain until
+# fetch_ercot.py's UTC-date cutoff passes the market day (~30h after close at
+# the earliest) plus a manual publish/finalize - with 0, anyone could void it
+# in between. Seven days leaves room for a missed run without leaving a
+# market whose data never arrives stuck forever.
+REPLAY_DISPUTE_WINDOW = 0
+LIVE_DISPUTE_WINDOW = 7 * 24 * 60 * 60
 UINT64_MAX = 2**64 - 1
 INT256_MIN = -(2**255)
 INT256_MAX = 2**255 - 1
@@ -158,6 +188,7 @@ class CandidateMarket:
     day_key: int
     threshold: int  # signed, metric's stored unit (USD/MWh x100)
     label: str
+    kind: str = KIND_REPLAY
 
     @property
     def key(self) -> str:
@@ -167,15 +198,55 @@ class CandidateMarket:
     def metric_hash(self) -> bytes:
         return Web3.keccak(text=self.metric_id)
 
+    @property
+    def dispute_window(self) -> int:
+        return LIVE_DISPUTE_WINDOW if self.kind == KIND_LIVE else REPLAY_DISPUTE_WINDOW
+
+
+def day_key_date(day_key: int) -> date:
+    try:
+        return datetime.strptime(str(day_key), "%Y%m%d").date()
+    except ValueError as exc:
+        raise PublisherError(f"dayKey {day_key} is not a YYYYMMDD date.") from exc
+
+
+def live_trading_close(day_key: int) -> int:
+    """12:30 Texas time on the day before the market day, as a UTC epoch.
+    ZoneInfo applies CDT/CST for that specific date, so the close stays at
+    12:30 local across a DST change."""
+    close_day = day_key_date(day_key) - timedelta(days=1)
+    return int(datetime.combine(close_day, LIVE_CLOSE_TEXAS_TIME, tzinfo=TEXAS_TZ).timestamp())
+
+
+def trading_close(candidate: CandidateMarket, now: int, replay_window_seconds: int) -> int:
+    """resolveAfter for this market if its createMarket is built at `now`."""
+    if candidate.kind == KIND_LIVE:
+        return live_trading_close(candidate.day_key)
+    return now + replay_window_seconds
+
+
+def format_close(epoch_seconds: int) -> str:
+    """Both clocks the operator and audience care about, e.g.
+    "2026-09-25 12:30 CDT (Texas) / 18:30 BST (London)"."""
+    moment = datetime.fromtimestamp(epoch_seconds, tz=timezone.utc)
+    texas = moment.astimezone(TEXAS_TZ)
+    london = moment.astimezone(LONDON_TZ)
+    london_text = london.strftime("%H:%M %Z")
+    if london.date() != texas.date():
+        london_text = london.strftime("%Y-%m-%d %H:%M %Z")
+    return f"{texas.strftime('%Y-%m-%d %H:%M %Z')} (Texas) / {london_text} (London)"
+
 
 def parse_demo_markets_candidates(path: Path | None = None) -> list[CandidateMarket]:
-    """Parse shared/demo-markets.md's own Summary table for all six markets.
+    """Parse shared/demo-markets.md's own Summary table for every market.
 
     Reuses finalize.py's exact table-location/shape validation
     (_table_lines, SUMMARY_TABLE_HEADING, SUMMARY_TABLE_COLUMNS) so the two
     scripts fail the same way if the table's shape ever changes, instead of
-    hand-typing the six markets a second time where they could drift from
-    the document that defines them.
+    hand-typing the markets a second time where they could drift from
+    the document that defines them. The Kind column (live/replay) decides
+    how each market's trading close is computed; the Trading close column
+    is for humans and is checked against the computed value in tests.
     """
     path = path or DEMO_MARKETS_PATH
     try:
@@ -213,12 +284,19 @@ def parse_demo_markets_candidates(path: Path | None = None) -> list[CandidateMar
         threshold_text = cells[2]
         day_key_text = cells[3].strip("`")
         date_text = cells[4]
+        kind = cells[5].strip("`*").lower()
         match = threshold_pattern.search(threshold_text)
         if not match or not day_key_text.isdigit():
             raise PublisherError(
                 f"{path}: could not parse a threshold/dayKey pair from row {line!r} - has the "
                 "table's format changed?"
             )
+        if kind not in MARKET_KINDS:
+            raise PublisherError(
+                f"{path}: row {line!r} has kind {cells[5]!r}; expected one of "
+                f"{', '.join(MARKET_KINDS)}."
+            )
+        day_key_date(int(day_key_text))
         threshold_dollars = float(match.group())
         candidates.append(
             CandidateMarket(
@@ -227,10 +305,14 @@ def parse_demo_markets_candidates(path: Path | None = None) -> list[CandidateMar
                 day_key=int(day_key_text),
                 threshold=int(round(threshold_dollars * 100)),
                 label=f"{metric_id} {threshold_text} dayKey {day_key_text} ({date_text})",
+                kind=kind,
             )
         )
     if not candidates:
         raise PublisherError(f"{path}: Summary table parsed but contained zero data rows.")
+    keys = [c.key for c in candidates]
+    if len(set(keys)) != len(keys):
+        raise PublisherError(f"{path}: the Summary table lists the same metric/dayKey twice.")
     return candidates
 
 
@@ -301,14 +383,17 @@ def existing_markets(w3: Web3, factory_contract, binary_market_abi: Any) -> dict
 @dataclass
 class Evaluation:
     candidate: CandidateMarket
-    status: str  # "eligible" | "reading_not_published" | "market_exists"
+    status: str  # one of the STATUS_* values below
     oracle_value: int | None = None
     existing_address: str | None = None  # set only when status is STATUS_EXISTS
     verified: bool | None = None  # set only when status is STATUS_EXISTS
+    trading_close: int | None = None  # resolveAfter if created at plan time
 
 
 STATUS_ELIGIBLE = "eligible"
 STATUS_NOT_PUBLISHED = "reading_not_published"
+STATUS_NOT_FINALIZED = "reading_not_finalized"
+STATUS_CLOSE_PASSED = "trading_close_passed"
 STATUS_EXISTS = "market_exists"
 
 # Fields create_one_market's *complete* record has that its early partial
@@ -346,28 +431,61 @@ def build_plan(
     existing_pairs: dict[str, str],
     w3: Web3,
     binary_market_abi: Any,
+    now: int | None = None,
+    replay_window_seconds: int = DEFAULT_REPLAY_WINDOW_MINUTES * 60,
 ) -> list[Evaluation]:
+    now = int(time.time()) if now is None else now
     evaluations: list[Evaluation] = []
     for candidate in candidates:
+        close = trading_close(candidate, now, replay_window_seconds)
         metric_hash_hex = candidate.metric_hash.hex()
         existing_address = existing_pairs.get(f"{metric_hash_hex}:{candidate.day_key}")
         if existing_address is not None:
             verified = on_chain_threshold_matches(w3, binary_market_abi, candidate, existing_address)
             time.sleep(RPC_COURTESY_SLEEP)
             evaluations.append(
-                Evaluation(candidate, STATUS_EXISTS, existing_address=existing_address, verified=verified)
+                Evaluation(candidate, STATUS_EXISTS, existing_address=existing_address,
+                           verified=verified)
             )
+            continue
+        if candidate.kind == KIND_LIVE:
+            # A future day has no reading yet by construction; only the close matters.
+            status = (
+                STATUS_ELIGIBLE if close - now >= LIVE_CLOSE_MIN_LEAD_SECONDS
+                else STATUS_CLOSE_PASSED
+            )
+            evaluations.append(Evaluation(candidate, status, trading_close=close))
             continue
         current = chain_oracle_reading(oracle_contract, candidate)
         time.sleep(RPC_COURTESY_SLEEP)
         if current is None:
-            evaluations.append(Evaluation(candidate, STATUS_NOT_PUBLISHED))
-            continue
-        evaluations.append(Evaluation(candidate, STATUS_ELIGIBLE, current["value"]))
+            evaluations.append(Evaluation(candidate, STATUS_NOT_PUBLISHED, trading_close=close))
+        elif not current["finalized"]:
+            evaluations.append(
+                Evaluation(candidate, STATUS_NOT_FINALIZED, current["value"], trading_close=close)
+            )
+        else:
+            evaluations.append(
+                Evaluation(candidate, STATUS_ELIGIBLE, current["value"], trading_close=close)
+            )
     return evaluations
 
 
-def print_plan(evaluations: list[Evaluation], ledger: dict[str, dict[str, Any]]) -> None:
+def describe_close(evaluation: Evaluation, replay_window_seconds: int) -> str:
+    candidate = evaluation.candidate
+    if candidate.kind == KIND_LIVE:
+        return format_close(live_trading_close(candidate.day_key))
+    minutes = replay_window_seconds // 60
+    if evaluation.trading_close is None:
+        return f"{minutes} min after creation"
+    return f"{minutes} min after creation - if created now, {format_close(evaluation.trading_close)}"
+
+
+def print_plan(
+    evaluations: list[Evaluation],
+    ledger: dict[str, dict[str, Any]],
+    replay_window_seconds: int = DEFAULT_REPLAY_WINDOW_MINUTES * 60,
+) -> None:
     print("GRIDFLEX create_markets plan")
     for evaluation in evaluations:
         candidate = evaluation.candidate
@@ -378,21 +496,30 @@ def print_plan(evaluations: list[Evaluation], ledger: dict[str, dict[str, Any]])
                 if record_is_complete(ledger.get(candidate.key))
                 else "not yet in local ledger; --live will record it"
             )
-            print(f"  #{candidate.row} {candidate.label}   ALREADY EXISTS, {verify_note} - skipping "
-                  f"({ledger_note})")
+            status = f"ALREADY EXISTS, {verify_note} - skipping ({ledger_note})"
         elif evaluation.status == STATUS_NOT_PUBLISHED:
-            print(f"  #{candidate.row} {candidate.label}   READING NOT PUBLISHED - skipping")
+            status = "READING NOT PUBLISHED - skipping"
+        elif evaluation.status == STATUS_NOT_FINALIZED:
+            status = (f"READING NOT FINALIZED (oracle value {evaluation.oracle_value}) - "
+                      "skipping; run finalize.py first")
+        elif evaluation.status == STATUS_CLOSE_PASSED:
+            status = "TRADING CLOSE PASSED (or too close to send) - skipping"
+        elif candidate.kind == KIND_REPLAY:
+            status = f"ELIGIBLE (oracle value {evaluation.oracle_value}, finalized)"
         else:
-            print(
-                f"  #{candidate.row} {candidate.label}   ELIGIBLE "
-                f"(oracle value {evaluation.oracle_value})"
-            )
-    eligible = sum(1 for e in evaluations if e.status == STATUS_ELIGIBLE)
-    exists = sum(1 for e in evaluations if e.status == STATUS_EXISTS)
-    not_published = sum(1 for e in evaluations if e.status == STATUS_NOT_PUBLISHED)
-    print(f"\n  Eligible to create:           {eligible}")
-    print(f"  Already exist (skipped):      {exists}")
-    print(f"  Reading not published (skip): {not_published}")
+            status = "ELIGIBLE (future day, no reading yet)"
+        print(f"  #{candidate.row} [{candidate.kind}] {candidate.label}   {status}")
+        print(f"       Trading close: {describe_close(evaluation, replay_window_seconds)}")
+        print(f"       Dispute window: {candidate.dispute_window}s")
+    counts = {status: sum(1 for e in evaluations if e.status == status) for status in (
+        STATUS_ELIGIBLE, STATUS_EXISTS, STATUS_NOT_PUBLISHED, STATUS_NOT_FINALIZED,
+        STATUS_CLOSE_PASSED,
+    )}
+    print(f"\n  Eligible to create:           {counts[STATUS_ELIGIBLE]}")
+    print(f"  Already exist (skipped):      {counts[STATUS_EXISTS]}")
+    print(f"  Reading not published (skip): {counts[STATUS_NOT_PUBLISHED]}")
+    print(f"  Reading not finalized (skip): {counts[STATUS_NOT_FINALIZED]}")
+    print(f"  Trading close passed (skip):  {counts[STATUS_CLOSE_PASSED]}")
 
 
 def expected_factory_runtime() -> HexBytes:
@@ -512,14 +639,18 @@ def create_one_market(
     collateral_contract,
     binary_market_abi: Any,
     candidate: CandidateMarket,
-    resolve_after: int,
-    dispute_window: int,
+    replay_window_seconds: int,
     initial_liquidity: int,
     log_path: Path,
     ledger: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Mint -> approve -> createMarket, matching CreateDemoMarket.s.sol's own
     three-call sequence exactly, then read back yesToken()/noToken().
+
+    resolveAfter is computed immediately before createMarket is built, not
+    at plan time: a replay market's window then runs from its creation, not
+    from when the operator typed "yes". A live market whose fixed close is
+    already too near is refused before the mint, so no transaction is sent.
 
     The createMarket transaction hash is written to `ledger` and saved
     immediately once decoded - before the yesToken()/noToken() reads below,
@@ -528,6 +659,15 @@ def create_one_market(
     later run's backfill finds this createTxHash directly in the ledger
     instead of paginating through eth_getLogs to rediscover it.
     """
+    if candidate.kind == KIND_LIVE:
+        close = live_trading_close(candidate.day_key)
+        if close - int(time.time()) < LIVE_CLOSE_MIN_LEAD_SECONDS:
+            raise PublisherError(
+                f"{candidate.key}: trading close {format_close(close)} is less than "
+                f"{LIVE_CLOSE_MIN_LEAD_SECONDS}s away; no transaction was sent for it."
+            )
+    dispute_window = candidate.dispute_window
+
     label = f"{candidate.key} mint"
     _, mint_cost = send_tx(
         w3, account, collateral_contract.functions.mint(account.address, initial_liquidity), label, log_path
@@ -542,6 +682,9 @@ def create_one_market(
         log_path,
     )
 
+    resolve_after = trading_close(candidate, int(time.time()), replay_window_seconds)
+    if resolve_after > UINT64_MAX:
+        raise PublisherError("Computed resolveAfter does not fit uint64.")
     label = f"{candidate.key} createMarket"
     create_function = factory_contract.functions.createMarket(
         addresses["oracle"],
@@ -567,6 +710,7 @@ def create_one_market(
     # Partial record, saved now - see docstring. Overwritten with the
     # complete record below once the token reads succeed.
     ledger[candidate.key] = {
+        "kind": candidate.kind,
         "metricId": candidate.metric_id,
         "dayKey": candidate.day_key,
         "threshold": candidate.threshold,
@@ -585,6 +729,7 @@ def create_one_market(
     no_token = Web3.to_checksum_address(call_with_retry(market_contract.functions.noToken().call))
 
     return {
+        "kind": candidate.kind,
         "metricId": candidate.metric_id,
         "dayKey": candidate.day_key,
         "threshold": candidate.threshold,
@@ -730,6 +875,7 @@ def backfill_existing_market(
         created_at = utc_now()
 
     return {
+        "kind": candidate.kind,
         "metricId": candidate.metric_id,
         "dayKey": candidate.day_key,
         "threshold": on_chain_threshold,
@@ -802,8 +948,7 @@ def live_banner(
     signer: str,
     balance: int,
     eligible: list[Evaluation],
-    resolve_after: int,
-    dispute_window: int,
+    replay_window_seconds: int,
     initial_liquidity: int,
 ) -> None:
     print("\nGRIDFLEX create_markets.py - LIVE MODE\n")
@@ -813,9 +958,10 @@ def live_banner(
     print(f"  Wallet balance:       {Web3.from_wei(balance, 'ether'):.6f} OKB")
     print(f"  Markets to create:    {len(eligible)}")
     for evaluation in eligible:
-        print(f"    #{evaluation.candidate.row} {evaluation.candidate.label}")
-    print(f"  resolveAfter:         {resolve_after} ({format_wall_clock(resolve_after)})")
-    print(f"  disputeWindow:        {dispute_window}s")
+        candidate = evaluation.candidate
+        print(f"    #{candidate.row} [{candidate.kind}] {candidate.label}")
+        print(f"         trading close: {describe_close(evaluation, replay_window_seconds)}")
+        print(f"         disputeWindow: {candidate.dispute_window}s")
     print(f"  initialLiquidity:     {initial_liquidity / 10**6:.2f} mUSDT (each market)")
 
 
@@ -830,20 +976,18 @@ def format_wall_clock(epoch_seconds: int) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--market", action="append", type=int, choices=range(1, 7),
-        help="restrict to this demo-markets.md row number (repeatable); default is all six, "
-        "filtered live to those whose oracle reading is already published",
+        "--market", action="append", type=int,
+        help="restrict to this demo-markets.md Summary-table row number (repeatable); "
+        "default is every row",
     )
     parser.add_argument("--limit", type=int, help="create at most this many markets this run")
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--check", action="store_true")
     parser.add_argument(
-        "--trading-window-seconds", type=int, default=DEFAULT_TRADING_WINDOW_SECONDS,
-        help=f"resolveAfter = now + this many seconds (default {DEFAULT_TRADING_WINDOW_SECONDS})",
-    )
-    parser.add_argument(
-        "--dispute-window", type=int, default=DEFAULT_DISPUTE_WINDOW,
-        help=f"BinaryMarket disputeWindow in seconds (default {DEFAULT_DISPUTE_WINDOW})",
+        "--replay-window-minutes", type=int, default=DEFAULT_REPLAY_WINDOW_MINUTES,
+        help="replay markets only: trading closes this many minutes after creation "
+        f"(default {DEFAULT_REPLAY_WINDOW_MINUTES}); live markets always close at 12:30 "
+        "Texas time the day before their market day",
     )
     parser.add_argument(
         "--initial-liquidity-musdt", type=float, default=DEFAULT_INITIAL_LIQUIDITY / 10**6,
@@ -857,10 +1001,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise PublisherError("Use --check and --live as separate commands.")
     if args.limit is not None and args.limit <= 0:
         raise PublisherError("--limit must be positive.")
-    if args.trading_window_seconds <= 0:
-        raise PublisherError("--trading-window-seconds must be positive.")
-    if args.dispute_window < 0:
-        raise PublisherError("--dispute-window must not be negative.")
+    if args.replay_window_minutes <= 0:
+        raise PublisherError("--replay-window-minutes must be positive.")
     if args.initial_liquidity_musdt <= 0:
         raise PublisherError("--initial-liquidity-musdt must be positive.")
 
@@ -879,10 +1021,13 @@ def print_summary(
     print(f"  Recorded (already existed):     {len(recorded)}")
     print(f"  Already existed (in ledger):    {still_existed}")
     print(f"  Reading not published (skip):   {sum(1 for e in evaluations if e.status == STATUS_NOT_PUBLISHED)}")
+    print(f"  Reading not finalized (skip):   {sum(1 for e in evaluations if e.status == STATUS_NOT_FINALIZED)}")
+    print(f"  Trading close passed (skip):    {sum(1 for e in evaluations if e.status == STATUS_CLOSE_PASSED)}")
     print(f"  Wall-clock time:                {elapsed // 60:02d}:{elapsed % 60:02d}")
     print(f"  Total gas spent:                {Web3.from_wei(total_gas, 'ether'):.6f} OKB")
     for record in created:
-        print(f"  CREATED  {record['metricId']} dayKey {record['dayKey']} -> {record['market']}")
+        print(f"  CREATED  {record['metricId']} dayKey {record['dayKey']} -> {record['market']}"
+              f"  (trading close {format_close(record['resolveAfter'])})")
     for record in recorded:
         print(f"  RECORDED {record['metricId']} dayKey {record['dayKey']} -> {record['market']}")
     print(f"  Ledger updated:                 {MARKET_LEDGER_PATH}")
@@ -907,9 +1052,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  Wallet balance:      {Web3.from_wei(balance, 'ether'):.6f} OKB")
             return 0
 
+        replay_window_seconds = args.replay_window_minutes * 60
         candidates = parse_demo_markets_candidates()
         if args.market:
             wanted = set(args.market)
+            unknown = wanted - {c.row for c in candidates}
+            if unknown:
+                raise PublisherError(
+                    f"--market {sorted(unknown)}: no such row in the demo-markets.md Summary "
+                    f"table (rows 1-{len(candidates)})."
+                )
             candidates = [c for c in candidates if c.row in wanted]
 
         w3 = make_web3(rpc_url)
@@ -922,9 +1074,12 @@ def main(argv: list[str] | None = None) -> int:
         collateral_contract = w3.eth.contract(address=addresses["collateral"], abi=collateral_abi)
 
         pairs = existing_markets(w3, factory_contract, binary_market_abi)
-        evaluations = build_plan(candidates, oracle_contract, pairs, w3, binary_market_abi)
+        evaluations = build_plan(
+            candidates, oracle_contract, pairs, w3, binary_market_abi,
+            replay_window_seconds=replay_window_seconds,
+        )
         ledger = load_market_ledger()
-        print_plan(evaluations, ledger)
+        print_plan(evaluations, ledger, replay_window_seconds)
 
         eligible = [e for e in evaluations if e.status == STATUS_ELIGIBLE]
         if args.limit is not None:
@@ -948,17 +1103,11 @@ def main(argv: list[str] | None = None) -> int:
 
         account = load_finalizer_account()
         chain_id, balance = preflight(w3, addresses, account)
-        resolve_after = int(time.time()) + args.trading_window_seconds
-        if resolve_after > UINT64_MAX:
-            raise PublisherError("Computed resolveAfter does not fit uint64.")
-        dispute_window = args.dispute_window
-        if dispute_window > UINT64_MAX:
-            raise PublisherError("--dispute-window does not fit uint64.")
         initial_liquidity = int(round(args.initial_liquidity_musdt * 10**6))
 
         live_banner(
             chain_id, addresses["factory"], account.address, balance, eligible,
-            resolve_after, dispute_window, initial_liquidity,
+            replay_window_seconds, initial_liquidity,
         )
         if to_backfill:
             print("\n  Existing markets to record (no transaction, chain state only):")
@@ -989,7 +1138,7 @@ def main(argv: list[str] | None = None) -> int:
             candidate = evaluation.candidate
             record = create_one_market(
                 w3, account, addresses, factory_contract, collateral_contract, binary_market_abi,
-                candidate, resolve_after, dispute_window, initial_liquidity, log_path, ledger,
+                candidate, replay_window_seconds, initial_liquidity, log_path, ledger,
             )
             ledger[candidate.key] = record
             save_market_ledger(ledger)

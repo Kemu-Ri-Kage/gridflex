@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -82,10 +83,11 @@ def make_candidate(
     metric_id: str = "ERCOT_HBNORTH_DA_AVG",
     day_key: int = 20260908,
     threshold: int = 3000,
+    kind: str = create_markets.KIND_REPLAY,
 ) -> create_markets.CandidateMarket:
     return create_markets.CandidateMarket(
         row=row, metric_id=metric_id, day_key=day_key, threshold=threshold,
-        label=f"{metric_id} dayKey {day_key}",
+        label=f"{metric_id} dayKey {day_key}", kind=kind,
     )
 
 
@@ -485,7 +487,7 @@ class TestCreateOneMarketPartialLedgerWrite(unittest.TestCase):
             with self.assertRaises(ValueError):
                 create_markets.create_one_market(
                     w3, account, addresses, factory_contract, collateral_contract, [],
-                    candidate, 1790031068, 0, 10_000_000_000, Path("/tmp/x.log"), ledger,
+                    candidate, 2700, 10_000_000_000, Path("/tmp/x.log"), ledger,
                 )
 
         self.assertIn(candidate.key, ledger)
@@ -679,6 +681,299 @@ class TestToBackfillIncludesPartialLedgerEntries(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         mock_backfill.assert_called_once()
         self.assertEqual(mock_backfill.call_args.kwargs.get("known_tx_hash"), "0xpartial")
+
+
+
+def utc_epoch(text: str) -> int:
+    return int(datetime.fromisoformat(text).timestamp())
+
+
+SUMMARY_HEADER = (
+    "## Summary table\n\n"
+    "| # | Metric | Question threshold | dayKey | Date | Kind | Trading close |\n"
+    "|---|---|---|---|---|---|---|\n"
+)
+
+
+class TestDemoMarketsDocument(unittest.TestCase):
+    """The real shared/demo-markets.md: the four markets it names, and a
+    Trading close column that says exactly what the script will send."""
+
+    def setUp(self):
+        self.candidates = create_markets.parse_demo_markets_candidates()
+
+    def test_parses_one_replay_and_three_live_texas_power_markets(self):
+        self.assertEqual(
+            [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates],
+            [
+                (1, "replay", "ERCOT_HBNORTH_DA_AVG", 20250911, 2500),
+                (2, "live", "ERCOT_HBNORTH_DA_AVG", 20260926, 4500),
+                (3, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 4500),
+                (4, "live", "ERCOT_HBNORTH_DA_AVG", 20261006, 4500),
+            ],
+        )
+
+    def test_trading_close_column_matches_what_the_script_computes(self):
+        text = create_markets.DEMO_MARKETS_PATH.read_text(encoding="utf-8")
+        table = create_markets._table_lines(text, create_markets.SUMMARY_TABLE_HEADING)
+        documented = {
+            int(cells[3].strip("`")): cells[6]
+            for cells in ([c.strip() for c in line.strip("|").split("|")] for line in table[2:])
+        }
+        for candidate in self.candidates:
+            if candidate.kind == create_markets.KIND_LIVE:
+                expected = create_markets.format_close(
+                    create_markets.live_trading_close(candidate.day_key)
+                )
+            else:
+                expected = f"{create_markets.DEFAULT_REPLAY_WINDOW_MINUTES} min after creation"
+            self.assertEqual(documented[candidate.day_key], expected, candidate.day_key)
+
+    def test_finalize_verify_still_parses_the_same_table(self):
+        import finalize
+
+        self.assertEqual(
+            finalize.parse_demo_markets_summary_table(),
+            [(c.metric_id, c.day_key) for c in self.candidates],
+        )
+
+
+class TestSummaryTableValidation(unittest.TestCase):
+    def parse(self, rows: str):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "demo-markets.md"
+            path.write_text(SUMMARY_HEADER + rows, encoding="utf-8")
+            return create_markets.parse_demo_markets_candidates(path)
+
+    def test_rejects_an_unknown_kind(self):
+        with self.assertRaisesRegex(PublisherError, "expected one of live, replay"):
+            self.parse("| 1 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260926` | x | forward | x |\n")
+
+    def test_rejects_the_same_metric_and_day_key_twice(self):
+        row = "| {n} | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260926` | x | live | x |\n"
+        with self.assertRaisesRegex(PublisherError, "same metric/dayKey twice"):
+            self.parse(row.format(n=1) + row.format(n=2))
+
+    def test_rejects_a_day_key_that_is_not_a_date(self):
+        with self.assertRaisesRegex(PublisherError, "not a YYYYMMDD date"):
+            self.parse("| 1 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260931` | x | live | x |\n")
+
+
+class TestTradingClose(unittest.TestCase):
+    def test_live_close_is_1230_texas_the_day_before(self):
+        # 12:30 CDT (UTC-5) on 25 Sep = 17:30 UTC = 18:30 BST.
+        self.assertEqual(
+            create_markets.live_trading_close(20260926), utc_epoch("2026-09-25T17:30:00+00:00")
+        )
+        self.assertEqual(
+            create_markets.format_close(create_markets.live_trading_close(20260926)),
+            "2026-09-25 12:30 CDT (Texas) / 18:30 BST (London)",
+        )
+
+    def test_live_close_stays_1230_local_after_texas_leaves_daylight_time(self):
+        # Texas falls back on 1 Nov 2026: 12:30 CST (UTC-6) = 18:30 UTC.
+        self.assertEqual(
+            create_markets.live_trading_close(20261103), utc_epoch("2026-11-02T18:30:00+00:00")
+        )
+
+    def test_london_clock_follows_its_own_dst_change(self):
+        # London leaves BST on 25 Oct, a week before Texas leaves CDT.
+        self.assertEqual(
+            create_markets.format_close(create_markets.live_trading_close(20261028)),
+            "2026-10-27 12:30 CDT (Texas) / 17:30 GMT (London)",
+        )
+
+    def test_replay_close_counts_from_now(self):
+        replay = make_candidate(kind=create_markets.KIND_REPLAY)
+        self.assertEqual(create_markets.trading_close(replay, 1_000, 2_700), 3_700)
+
+    def test_live_close_ignores_now(self):
+        live = make_candidate(day_key=20260926, kind=create_markets.KIND_LIVE)
+        self.assertEqual(
+            create_markets.trading_close(live, 1_000, 2_700),
+            create_markets.live_trading_close(20260926),
+        )
+
+    def test_dispute_window_by_kind(self):
+        self.assertEqual(make_candidate(kind=create_markets.KIND_REPLAY).dispute_window, 0)
+        self.assertEqual(
+            make_candidate(kind=create_markets.KIND_LIVE).dispute_window, 7 * 24 * 60 * 60
+        )
+
+
+class TestBuildPlanByKind(unittest.TestCase):
+    NOW = utc_epoch("2026-09-22T12:00:00+00:00")
+
+    def plan(self, candidates, reading=None, existing=None):
+        oracle = MagicMock()
+        w3 = MagicMock()
+        w3.eth.contract.return_value.functions.threshold().call.return_value = 4500
+        with patch.object(
+            create_markets, "chain_oracle_reading", return_value=reading
+        ) as mock_reading, patch.object(create_markets.time, "sleep"):
+            evaluations = create_markets.build_plan(
+                candidates, oracle, existing or {}, w3, [], now=self.NOW,
+                replay_window_seconds=2_700,
+            )
+        return evaluations, mock_reading
+
+    def test_future_live_market_is_eligible_without_any_reading(self):
+        live = make_candidate(day_key=20260926, threshold=4500, kind="live")
+        [evaluation], mock_reading = self.plan([live])
+        self.assertEqual(evaluation.status, create_markets.STATUS_ELIGIBLE)
+        self.assertEqual(evaluation.trading_close, create_markets.live_trading_close(20260926))
+        mock_reading.assert_not_called()
+
+    def test_live_market_past_its_close_is_refused(self):
+        live = make_candidate(day_key=20260922, threshold=4500, kind="live")
+        [evaluation], _ = self.plan([live])
+        self.assertEqual(evaluation.status, create_markets.STATUS_CLOSE_PASSED)
+
+    def test_live_market_too_near_its_close_is_refused(self):
+        live = make_candidate(day_key=20260926, threshold=4500, kind="live")
+        close = create_markets.live_trading_close(20260926)
+        with patch.object(create_markets.time, "sleep"):
+            [evaluation] = create_markets.build_plan(
+                [live], MagicMock(), {}, MagicMock(), [], now=close - 60,
+            )
+        self.assertEqual(evaluation.status, create_markets.STATUS_CLOSE_PASSED)
+
+    def test_replay_needs_a_finalized_reading(self):
+        replay = make_candidate(day_key=20250911, threshold=2500)
+        [evaluation], _ = self.plan([replay], reading={"value": 2638, "finalized": False})
+        self.assertEqual(evaluation.status, create_markets.STATUS_NOT_FINALIZED)
+
+    def test_replay_with_a_finalized_reading_closes_45_minutes_out(self):
+        replay = make_candidate(day_key=20250911, threshold=2500)
+        [evaluation], _ = self.plan([replay], reading={"value": 2638, "finalized": True})
+        self.assertEqual(evaluation.status, create_markets.STATUS_ELIGIBLE)
+        self.assertEqual(evaluation.oracle_value, 2638)
+        self.assertEqual(evaluation.trading_close, self.NOW + 2_700)
+
+    def test_replay_without_a_reading_is_skipped(self):
+        replay = make_candidate(day_key=20250911, threshold=2500)
+        [evaluation], _ = self.plan([replay], reading=None)
+        self.assertEqual(evaluation.status, create_markets.STATUS_NOT_PUBLISHED)
+
+    def test_an_existing_live_market_is_never_offered_again(self):
+        live = make_candidate(day_key=20260926, threshold=4500, kind="live")
+        key = f"{live.metric_hash.hex()}:{live.day_key}"
+        [evaluation], _ = self.plan([live], existing={key: "0x" + "11" * 20})
+        self.assertEqual(evaluation.status, create_markets.STATUS_EXISTS)
+
+
+class TestCreateOneMarketByKind(unittest.TestCase):
+    ADDRESSES = {
+        "oracle": "0x0000000000000000000000000000000000000001",
+        "factory": "0x0000000000000000000000000000000000000002",
+        "collateral": "0x0000000000000000000000000000000000000003",
+    }
+    MARKET = "0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1"
+
+    def create(self, candidate, now):
+        w3 = MagicMock()
+        factory_contract = MagicMock()
+        factory_contract.events.MarketCreated().process_receipt.return_value = [
+            {"args": {"market": self.MARKET}}
+        ]
+        w3.eth.contract.return_value.functions.yesToken().call.return_value = "0x" + "22" * 20
+        w3.eth.contract.return_value.functions.noToken().call.return_value = "0x" + "33" * 20
+        receipt = SimpleNamespace(transactionHash=HexBytes("0x" + "ab" * 32))
+        with patch.object(
+            create_markets, "send_tx",
+            side_effect=[(MagicMock(), 1), (MagicMock(), 1), (receipt, 1)],
+        ) as mock_send, patch.object(create_markets, "save_market_ledger"), \
+                patch.object(create_markets.time, "time", return_value=now):
+            record = create_markets.create_one_market(
+                w3, SimpleNamespace(address="0xSigner"), self.ADDRESSES, factory_contract,
+                MagicMock(), [], candidate, 2_700, 10_000_000_000, Path("/tmp/x.log"), {},
+            )
+        return record, factory_contract.functions.createMarket, mock_send
+
+    def test_replay_window_runs_from_creation_with_no_dispute_window(self):
+        replay = make_candidate(day_key=20250911, threshold=2500)
+        now = utc_epoch("2026-09-22T12:00:00+00:00")
+        record, create_market, _ = self.create(replay, now)
+        args = create_market.call_args.args
+        self.assertEqual(args[5], now + 2_700)  # resolveAfter
+        self.assertEqual(args[6], 0)  # disputeWindow
+        self.assertEqual(record["kind"], "replay")
+        self.assertEqual(record["resolveAfter"], now + 2_700)
+
+    def test_live_market_uses_its_fixed_close_and_seven_day_dispute_window(self):
+        live = make_candidate(day_key=20260926, threshold=4500, kind="live")
+        record, create_market, _ = self.create(live, utc_epoch("2026-09-22T12:00:00+00:00"))
+        args = create_market.call_args.args
+        self.assertEqual(args[5], utc_epoch("2026-09-25T17:30:00+00:00"))
+        self.assertEqual(args[6], 7 * 24 * 60 * 60)
+        self.assertEqual(record["kind"], "live")
+
+    def test_live_market_past_its_close_sends_no_transaction(self):
+        live = make_candidate(day_key=20260926, threshold=4500, kind="live")
+        with patch.object(create_markets, "send_tx") as mock_send, \
+                patch.object(
+                    create_markets.time, "time",
+                    return_value=utc_epoch("2026-09-25T17:29:00+00:00"),
+                ):
+            with self.assertRaisesRegex(PublisherError, "no transaction was sent"):
+                create_markets.create_one_market(
+                    MagicMock(), SimpleNamespace(address="0xSigner"), self.ADDRESSES,
+                    MagicMock(), MagicMock(), [], live, 2_700, 1, Path("/tmp/x.log"), {},
+                )
+        mock_send.assert_not_called()
+
+
+class TestMainDryRunByKind(unittest.TestCase):
+    ADDRESSES = {
+        "chainId": create_markets.EXPECTED_CHAIN_ID,
+        "oracle": "0x0000000000000000000000000000000000000001",
+        "factory": "0x0000000000000000000000000000000000000002",
+        "collateral": "0x0000000000000000000000000000000000000003",
+    }
+
+    def run_main(self, argv):
+        with patch.object(create_markets, "load_addresses", return_value=self.ADDRESSES), \
+                patch.object(create_markets, "make_web3", return_value=MagicMock()), \
+                patch.object(create_markets, "load_abi", return_value=[]), \
+                patch.object(create_markets, "existing_markets", return_value={}), \
+                patch.object(
+                    create_markets, "chain_oracle_reading",
+                    return_value={"value": 2638, "finalized": True},
+                ), \
+                patch.object(create_markets, "load_market_ledger", return_value={}), \
+                patch.object(create_markets.time, "sleep"), \
+                patch.object(
+                    create_markets.time, "time",
+                    return_value=utc_epoch("2026-09-22T12:00:00+00:00"),
+                ), \
+                patch.object(create_markets, "load_finalizer_account") as mock_key, \
+                patch.object(create_markets, "create_one_market") as mock_create, \
+                patch("builtins.input", side_effect=AssertionError("dry run must not prompt")):
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                exit_code = create_markets.main(argv)
+        mock_key.assert_not_called()
+        mock_create.assert_not_called()
+        return exit_code, out.getvalue(), err.getvalue()
+
+    def test_dry_run_numbers_each_market_and_shows_both_clocks(self):
+        exit_code, output, _ = self.run_main([])
+        self.assertEqual(exit_code, 0)
+        for row in ("#1 [replay]", "#2 [live]", "#3 [live]", "#4 [live]"):
+            self.assertIn(row, output)
+        self.assertIn("2026-09-25 12:30 CDT (Texas) / 18:30 BST (London)", output)
+        self.assertIn(
+            "45 min after creation - if created now, "
+            "2026-09-22 07:45 CDT (Texas) / 13:45 BST (London)",
+            output,
+        )
+        self.assertIn("Eligible to create:           4", output)
+        self.assertIn("DRY RUN ONLY", output)
+
+    def test_unknown_market_row_is_an_error(self):
+        exit_code, _, err = self.run_main(["--market", "9"])
+        self.assertEqual(exit_code, 1)
+        self.assertIn("no such row", err)
 
 
 if __name__ == "__main__":

@@ -557,10 +557,10 @@ silently stop working. This is a manual, on-demand tool.
 but `XLAYER_RPC_URL` — no key, no keystore, no wallet, runnable from any
 machine (a laptop in Singapore with nothing configured on it at all).
 
-It reads the six demo `dayKey`s from `shared/demo-markets.md` (one per
-demo market: `ERCOT_HBNORTH_DA_AVG` at `20260908`/`20260924`/`20261005`,
-`ERCOT_WEST_NORTH_DA_BASIS` at `20260812`/`20260924`/`20261005`) and, for
-each, reports:
+It reads the demo `dayKey`s from `shared/demo-markets.md`'s Summary table
+(one per demo market: today `ERCOT_HBNORTH_DA_AVG` at `20250911`, the
+replay market, and `20260926`/`20260930`/`20261006`, the live ones) and,
+for each, reports:
 
 ```
 ERCOT_HBNORTH_DA_AVG      dayKey 20260908   PUBLISHED, FINALIZED

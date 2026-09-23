@@ -377,7 +377,10 @@ class TestBackfillDoesNotDuplicateCreation(unittest.TestCase):
                 patch("builtins.input", return_value="yes"):
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                exit_code = create_markets.main(["--live"])
+                # Both rows are replay markets, so both must be named.
+                exit_code = create_markets.main(
+                    ["--live", "--market", "1", "--market", "4"]
+                )
 
         self.assertEqual(exit_code, 0)
         mock_backfill.assert_called_once()
@@ -696,13 +699,13 @@ SUMMARY_HEADER = (
 
 
 class TestDemoMarketsDocument(unittest.TestCase):
-    """The real shared/demo-markets.md: the four markets it names, and a
+    """The real shared/demo-markets.md: the five markets it names, and a
     Trading close column that says exactly what the script will send."""
 
     def setUp(self):
         self.candidates = create_markets.parse_demo_markets_candidates()
 
-    def test_parses_one_replay_and_three_live_texas_power_markets(self):
+    def test_parses_two_replay_and_three_live_texas_power_markets(self):
         self.assertEqual(
             [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates],
             [
@@ -710,6 +713,7 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (2, "live", "ERCOT_HBNORTH_DA_AVG", 20260926, 4500),
                 (3, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 4500),
                 (4, "live", "ERCOT_HBNORTH_DA_AVG", 20261002, 4500),
+                (5, "replay", "ERCOT_HBNORTH_DA_AVG", 20250910, 2000),
             ],
         )
 
@@ -959,7 +963,7 @@ class TestMainDryRunByKind(unittest.TestCase):
     def test_dry_run_numbers_each_market_and_shows_both_clocks(self):
         exit_code, output, _ = self.run_main([])
         self.assertEqual(exit_code, 0)
-        for row in ("#1 [replay]", "#2 [live]", "#3 [live]", "#4 [live]"):
+        for row in ("#1 [replay]", "#2 [live]", "#3 [live]", "#4 [live]", "#5 [replay]"):
             self.assertIn(row, output)
         self.assertIn("2026-09-25 12:30 CDT (Texas) / 18:30 BST (London)", output)
         self.assertIn(
@@ -967,13 +971,50 @@ class TestMainDryRunByKind(unittest.TestCase):
             "2026-09-22 07:45 CDT (Texas) / 13:45 BST (London)",
             output,
         )
-        self.assertIn("Eligible to create:           4", output)
+        self.assertIn("Eligible to create:           5", output)
         self.assertIn("DRY RUN ONLY", output)
 
     def test_unknown_market_row_is_an_error(self):
         exit_code, _, err = self.run_main(["--market", "9"])
         self.assertEqual(exit_code, 1)
         self.assertIn("no such row", err)
+
+    def test_live_run_without_market_refuses_before_loading_the_key(self):
+        # run_main also asserts the key is never loaded and nothing is created
+        # or prompted: rows 1 and 5 are replay markets nobody named.
+        exit_code, _, err = self.run_main(["--live"])
+        self.assertEqual(exit_code, 1)
+        self.assertIn("#1 dayKey 20250911, #5 dayKey 20250910", err)
+        self.assertIn("no transaction was sent", err)
+
+
+class TestRefuseUnnamedReplays(unittest.TestCase):
+    def evaluation(self, candidate):
+        return create_markets.Evaluation(candidate, create_markets.STATUS_ELIGIBLE)
+
+    def test_an_unnamed_replay_is_refused(self):
+        spare = make_candidate(row=5, day_key=20250910, threshold=2000)
+        with self.assertRaisesRegex(PublisherError, "#5 dayKey 20250910"):
+            create_markets.refuse_unnamed_replays([self.evaluation(spare)], None)
+
+    def test_a_replay_named_with_market_passes(self):
+        replay = make_candidate(row=1, day_key=20250911, threshold=2500)
+        create_markets.refuse_unnamed_replays([self.evaluation(replay)], [1])
+
+    def test_naming_one_replay_does_not_cover_the_other(self):
+        first = make_candidate(row=1, day_key=20250911, threshold=2500)
+        spare = make_candidate(row=5, day_key=20250910, threshold=2000)
+        with self.assertRaisesRegex(PublisherError, "#5 dayKey 20250910") as caught:
+            create_markets.refuse_unnamed_replays(
+                [self.evaluation(first), self.evaluation(spare)], [1]
+            )
+        self.assertNotIn("#1", str(caught.exception))
+
+    def test_live_markets_need_no_market_flag(self):
+        live = make_candidate(
+            row=2, day_key=20260926, threshold=4500, kind=create_markets.KIND_LIVE
+        )
+        create_markets.refuse_unnamed_replays([self.evaluation(live)], None)
 
 
 if __name__ == "__main__":

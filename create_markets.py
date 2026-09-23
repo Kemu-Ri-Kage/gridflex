@@ -1007,6 +1007,27 @@ def validate_args(args: argparse.Namespace) -> None:
         raise PublisherError("--initial-liquidity-musdt must be positive.")
 
 
+def refuse_unnamed_replays(
+    eligible: list[Evaluation], requested_rows: list[int] | None
+) -> None:
+    """Refuse live mode if it would create a replay market --market did not name.
+
+    A replay market's trading clock starts the moment it is created, and the
+    spare exists only for a failed take, so neither may be created as a side
+    effect of a run meant for other rows."""
+    named = set(requested_rows or [])
+    unnamed = [
+        e.candidate for e in eligible
+        if e.candidate.kind == KIND_REPLAY and e.candidate.row not in named
+    ]
+    if unnamed:
+        rows = ", ".join(f"#{c.row} dayKey {c.day_key}" for c in unnamed)
+        raise PublisherError(
+            f"Replay market(s) {rows} would start a trading clock but were not named. "
+            "Name each one to create with --market N; no transaction was sent."
+        )
+
+
 def print_summary(
     created: list[dict[str, Any]],
     recorded: list[dict[str, Any]],
@@ -1100,6 +1121,7 @@ def main(argv: list[str] | None = None) -> int:
         if not eligible and not to_backfill:
             print("Nothing to create. No transactions were sent.")
             return 0
+        refuse_unnamed_replays(eligible, args.market)
 
         account = load_finalizer_account()
         chain_id, balance = preflight(w3, addresses, account)

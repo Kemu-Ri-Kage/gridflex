@@ -1,6 +1,6 @@
 # GRIDFLEX demo markets
 
-Four markets, all on the one public product — the Texas power price,
+Five markets, all on the one public product — the Texas power price,
 `ERCOT_HBNORTH_DA_AVG` (see `shared/design-brief.md` §5). They come in two
 kinds, and `create_markets.py` reads the kind of each one from the
 Summary table below:
@@ -49,7 +49,12 @@ finalize is separate, set in `GridOracle`.
 
 ---
 
-## Replay market
+## Replay markets
+
+Two, so a failed take can be redone: the second is a spare, created only
+if the first one's take fails. In live mode `create_markets.py` creates a
+replay market only when its row is named with `--market`, so running it
+without `--market` can never start a replay clock by accident.
 
 ### 1. Texas power, 11 September 2025, above $25
 
@@ -64,6 +69,23 @@ finalize is separate, set in `GridOracle`.
   whole 45 minutes counts from creation.
 - Resolvable as soon as trading closes. Record the video within that
   window: trade, wait for the close, resolve, redeem.
+- Create with `python3 create_markets.py --market 1 --live`.
+
+### 5. Spare: Texas power, 10 September 2025, above $20
+
+> **"Did Texas power cost more than $20 on September 10, 2025?"**
+
+- Metric: `ERCOT_HBNORTH_DA_AVG`, **`dayKey 20250910`**
+- Strike: $20.00/MWh (on-chain threshold `2000`)
+- Reading: **$22.62/MWh** (`2262`), already published and finalized
+  (`data/metrics/ERCOT_HBNORTH_DA_AVG__2025-09-10.json`) — **YES wins**
+- Trading close: 45 minutes after creation, the same as market 1.
+- Why this day: it's the only other Texas power price day with a published,
+  finalized reading and no market. The third, 8 September 2026, already
+  has one, and `create_markets.py` creates at most one market per metric
+  and day.
+- Create **only if market 1's take fails**, with
+  `python3 create_markets.py --market 5 --live`.
 
 ---
 
@@ -111,6 +133,7 @@ from one to the next is the market day.
 | 2 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260926` | 2026-09-26 | live | 2026-09-25 12:30 CDT (Texas) / 18:30 BST (London) |
 | 3 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260930` | 2026-09-30 | live | 2026-09-29 12:30 CDT (Texas) / 18:30 BST (London) |
 | 4 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261002` | 2026-10-02 | live | 2026-10-01 12:30 CDT (Texas) / 18:30 BST (London) |
+| 5 | `ERCOT_HBNORTH_DA_AVG` | > $20 | `20250910` | 2025-09-10 (past, $22.62 — YES; spare) | replay | 45 min after creation |
 
 `create_markets.py` and `finalize.py --verify` both parse this table, so
 keep its seven-column shape. Metric is column 2, dayKey column 4 and Kind

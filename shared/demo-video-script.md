@@ -138,19 +138,39 @@ Load every OKLink tab once before recording, so none of them loads on camera.
   - RPC `https://testrpc.xlayer.tech/terigon`. The backup is
     `https://xlayertestrpc.okx.com/terigon`.
   - Explorer `https://www.oklink.com/x-layer-testnet`.
-- **OKB:** at least **0.05 test OKB** from the X Layer faucet. The take sends
-  13 transactions:
+- **OKB: 0.01 test OKB, sent by `fund_demo_wallet.py`.** The take sends 13
+  transactions:
   - 1 demo mUSDT mint
   - 4 for the 2 Oct buy
   - 2 for the switch
   - 4 for the replay buy
   - resolve and redeem
 
-  Each costs a tiny fraction of that.
-- **mUSDT: 0.** The *Get 1,000 demo mUSDT* step is on camera. That gives
-  1,000, spent as 100 on 2 Oct and 100 on the replay.
+  At most about 964,000 gas in all, which is **0.00002 OKB** at the 0.02 gwei
+  gas price read on 23 September. 0.01 OKB covers that about 500 times over,
+  enough for gas spikes, the wallet's upfront fee reserve, and a spare-market
+  retake (4 more buys' worth plus resolve and redeem). The per-transaction
+  figures are in the script's `DEMO_TRANSACTIONS`: measured receipts where
+  one exists, otherwise the worst case in `forge test --gas-report`.
+  - **Dry run:** `python3 fund_demo_wallet.py --to 0xNEW` checks the chain,
+    shows the account's OKB, mUSDT and transaction count and whether it's
+    fresh, and loads no key.
+  - **Send:** `python3 fund_demo_wallet.py --to 0xNEW --live` sends it from
+    the deployer after a typed `yes`. It refuses any address recorded in
+    `shared/addresses.json` and any contract, and caps at 0.05 OKB.
+  - Run it off camera, like `create_markets.py`. It asks for the keystore
+    password.
+  - **Alternatively,** any wallet that already holds test OKB can send it. It
+    has to be a plain OKB transfer: no mUSDT, no approvals, nothing on any
+    market. The script's value is that it can't send anything else.
+- **mUSDT: 0. No script.** The *Get 1,000 demo mUSDT* button calls
+  `MockUSDT.mint`, which any account may call, and it's on camera at 1:14.
+  1,000 covers 100 on 2 Oct, 100 on the replay, and 100 more if the spare is
+  needed.
 - **Not connected to the site.** If the account has connected before, remove
   the site from the wallet's connected sites, so *Connect* is real.
+- **Check it's still fresh** just before recording: the dry run must say
+  `Fresh: yes` and show 0 transactions sent. Receiving OKB doesn't count.
 - If you use OKX Wallet, check beforehand that it answers the site's
   connect request, not another installed wallet.
 
@@ -158,30 +178,45 @@ Load every OKLink tab once before recording, so none of them loads on camera.
 
 - Only the replay market is created for the video, and it's created off
   camera. Everything else already exists on chain.
-- The deployer needs the replay market's 10,000 mUSDT of starting pool
-  liquidity plus gas. `create_markets.py` checks both before sending.
+- `create_markets.py` mints its own 10,000 mUSDT of starting liquidity for
+  each market, so the deployer needs only OKB for gas: about 0.00006 OKB per
+  market. It held 0.1998 OKB on 23 September.
 - Don't run `./refresh_data.sh` with a fetch on recording day. It can change
   the hero's figures.
-- Do one full rehearsal on the 26 Sep market with a second throwaway account.
-  That times the wallet prompts on the day, without touching the replay market.
+- Do one full rehearsal on the 26 Sep market with a second throwaway account,
+  funded the same way. That times the wallet prompts on the day without
+  touching the replay market or the recording account.
 
 ### The replay market: when to create it, and how long each step takes
 
-The replay market for 11 Sep 2025 **can be created only once.**
-`create_markets.py` skips a metric and day that already exist. If its window
-passes without a buy, there's no second attempt.
+Each replay market **can be created only once**: `create_markets.py` skips a
+metric and day that already exist. In live mode it also refuses to create a
+replay market that `--market` didn't name, so a run can never start a replay
+clock by accident. There are two:
+
+| Row | Question on screen | Strike | Published price | Result | Create with |
+|---|---|---|---|---|---|
+| 1 | Will Texas power cost more than $25 on 11 Sep? | $25.00 | $26.38 | YES | `--market 1` |
+| 5 (spare) | Will Texas power cost more than $20 on 10 Sep? | $20.00 | $22.62 | YES | `--market 5`, only if market 1's take fails |
+
+Both readings were confirmed published and finalized on chain by the dry run
+on 23 September. 10 Sep 2025 is the only other Texas power price day with a
+finalized reading and no market (8 Sep 2026 already has one).
 
 Trading closes **45 minutes after creation.** Any buy can happen anywhere in
-that window, so **buy first, then record everything else while it runs.**
+that window. The wallet has to be connected and holding mUSDT before the
+replay buy, so record the terminal section first, then the replay buy, then
+everything else while the clock runs.
 
 | Clock | Step | Takes |
 |---|---|---|
-| T−2 min | Off camera: `python3 create_markets.py --market 1 --live`. Write down the close time it prints, in Texas and London. | about 1–2 min (approve, then `createMarket`) |
+| T−2 min | Off camera: `python3 create_markets.py --market 1 --live`. Write down the close time it prints, in Texas and London. | about 1–2 min (mint, approve, `createMarket`) |
 | **T0** | `createMarket` confirmed. The 45 minutes start here. | |
 | T0 → T+8 | `./refresh_data.sh --no-fetch`. It republishes `addresses.json`, commits and pushes the data files on this branch, builds and deploys. Commit `shared/addresses.json` afterwards; the script only commits the data files. | build and deploy; time it in the rehearsal |
 | T+8 | Hard-reload `/trade`. **Will Texas power cost more than $25 on 11 Sep?** is listed as *Trading*, and its close matches what you wrote down. | |
-| **T+10** | **Record 2:00–2:27** first: select the replay market, Buy YES, four prompts. **The buy must be confirmed by T+40.** Don't start it after T+38. | about 1 min |
-| T+12 → T+44 | Record 0:00–1:59, then 2:50–3:32. | as long as needed |
+| **T+10** | **Record 1:00–1:59**: connect, get demo mUSDT, the 2 Oct buy, History, Positions, the switch. | about 5–8 min with retakes |
+| **T+20** | **Record 2:00–2:27**: select the replay market, Buy YES, four prompts. **The buy must be confirmed by T+40.** Don't start it after T+38. | about 1 min |
+| T+22 → T+44 | Record 0:00–0:59, then 2:50–3:32. | as long as needed |
 | T+45 | Trading closes. | |
 | **T+46** | Record 2:27–2:50: *Trading closed*, **Resolve**, **Redeem**. Wait a full minute past the close before resolving; the chain's clock can run a few seconds behind the browser's. | Resolve and Redeem are one prompt each, about 10s each |
 
@@ -189,6 +224,41 @@ Measured on 22 September: approvals and trades confirmed 8–12 seconds
 apart, and the first live trade's two steps landed 9 seconds apart
 (`shared/demo-evidence.md`). A four-prompt buy with human clicking takes
 roughly 40–60 seconds.
+
+### When to use the spare
+
+A failed take isn't always a reason to use the spare:
+
+- **A resolve or redeem that reverted, or never got sent,** can simply be
+  retried. Both stay open after the close, so re-record 2:27–2:50 on
+  market 1.
+- **Use the spare only when it can't be re-shot on market 1.** That means:
+  - the buy wasn't confirmed before the close;
+  - the resolve or redeem went through but the recording of it is unusable
+    (the market is resolved for good);
+  - the wallet redeemed off camera.
+
+To run the spare:
+
+1. Repeat the table above with `--market 5`, the same wallet and the same
+   45 minutes.
+2. Skip 1:00–1:59; that section is already recorded.
+3. After the deploy, record the replay buy straight away.
+
+The wallet still has 800 mUSDT and plenty of OKB. A new market means the
+same four prompts again, and its History starts empty.
+
+For the spare, these lines change and nothing else does:
+
+| Time | Say instead |
+|---|---|
+| 2:04 | "It replays 10 September 2025, a day that has already settled." |
+| 2:38 | "Twenty-two sixty-two, above twenty. YES wins." |
+
+The screen shows **Will Texas power cost more than $20 on 10 Sep?**, and the
+pay line reads *…for 10 Sep 2025 settles above $20.00/MWh.* On a 100 mUSDT
+buy the redeem is again about 199 mUSDT, because the pool starts at the same
+10,000 each side.
 
 ### Never on screen
 
@@ -204,9 +274,10 @@ roughly 40–60 seconds.
 ### After recording
 
 - Add the replay market's transactions (create, buy, resolve, redeem) to
-  `shared/demo-evidence.md`.
+  `shared/demo-evidence.md`, and the funding transfer from
+  `logs/fund-demo-wallet-*.log`.
 - Update the README's market count and table. The factory will read six
-  markets.
+  markets, or seven if the spare was used.
 
 ---
 

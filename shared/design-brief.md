@@ -376,7 +376,9 @@ string is either a number, a label, or an honest status.
 - **Left:** market selector — every listed Texas power price question,
   named and labelled from its own contract state (§5, §6). With none
   listed, an honest empty state; never a list padded with placeholders.
-- **Centre:** the chart (§9), with the selected question's strike line.
+- **Centre:** the chart (§9) in two views: settlement price (the default),
+  with every listed strike, and live price, with the selected question's
+  strike line.
 - **Right:** a compact settlement summary (labels and numbers the
   instrument bar doesn't already show), plus the order ticket
   (`trade-panel.tsx` — see §12) when the ticket is configured for the
@@ -393,6 +395,54 @@ aligned, no element sized for visual effect rather than legibility.
 ---
 
 ## 9. The chart
+
+The terminal's chart has two views, chosen by a `Settlement price` /
+`Live price` toggle above it. **Settlement price is the default**, because
+it shows the number markets settle on.
+
+### Settlement price (default)
+
+The verified daily Texas power price from the committed metric files
+(`/data/ERCOT_HBNORTH_DA_AVG.json`, built from `data/metrics` by
+`build_feed_data.py`), so a viewer can judge whether the selected question
+is genuinely uncertain. See `web/components/settlement-price-chart.tsx`.
+
+- **The daily line with its points**, one point per published day, drawn
+  straight between points (never smoothed, so no curve crosses a strike
+  the prices never crossed), in `--chart-1`. **No candles on this view.**
+- **Range toggle:** `90 days` (the default) and `Full year`, the same two
+  ranges as the landing page's chart (§7).
+- **Every listed market's strike** as a dashed horizontal line. The
+  selected market's strike is in `--warning` at full strength; the others
+  are faint `--muted-foreground`. Markets on the same strike share one
+  line, so a ladder (e.g. $45 and $40 on 30 September) reads as separate
+  lines. Each line has its price as a tag on the right price scale (the
+  selected one filled `--warning`) and its listed days at the left edge of
+  the plot, the selected one prefixed `Strike`. Labels are spread apart so
+  strikes $2 apart stay readable, and never cover the latest prices. The y
+  range always includes every listed strike.
+- **The region above the selected strike is shaded very lightly** in
+  `--warning` (5% opacity), so "above the line" reads instantly. It marks
+  where a day settles YES; it isn't a range, a band or a signal.
+- **Past frequency**, beside the chart (left of it at `lg`, above it
+  below `lg`): for the selected market, how many days settled strictly
+  above its strike in the last 30 and the last 90 published days before
+  its market day, e.g. `12 of 30`, with the last day counted
+  (`To 22 Sep 2026`). The test is integer cents `>` integer cents, the
+  same one `BinaryMarket.resolve()` applies (`reading.value > threshold`),
+  so a day exactly at the strike counts as not above. The market's own day
+  and anything after it are never counted.
+  - Labelled **Past frequency**, never probability, chance, odds, forecast
+    or anything implying it predicts the outcome.
+  - Shown as a count of days, never a percentage, so it can't be read as
+    a probability or compared with the YES price in cents.
+  - Never placed beside the YES/NO price, the order ticket, or anything
+    that frames it against the market's price. It is context, not a
+    signal: no "fair value", no "edge", no colour coding it as good or bad.
+- Caption: "Daily Texas power price, $/MWh · the verified price markets
+  settle on".
+
+### Live price
 
 TradingView's **Lightweight Charts** library, on real ERCOT real-time
 data only — never day-ahead hourly data reshaped to look like a candle
@@ -507,11 +557,13 @@ only when every item is a pass.
 18. Live ERCOT market-data (the chart) is visually/textually distinguished
     from on-chain verified readings (the feed table) — they are never
     presented as the same trust level.
-19. The chart shows Japanese candlesticks in `--up`/`--down`, a `15m 1H 4H
-    1D 1W` timeframe row, no hub switcher, a top-left OHLC legend that
-    updates with the crosshair, the price scale on the right, and a
-    crosshair.
-20. The strike appears on the chart as a labelled horizontal line.
+19. The live-price view shows Japanese candlesticks in `--up`/`--down`, a
+    `15m 1H 4H 1D 1W` timeframe row, no hub switcher, a top-left OHLC
+    legend that updates with the crosshair, the price scale on the right,
+    and a crosshair.
+20. The strike appears on the chart as a labelled horizontal line. On the
+    settlement-price view every listed strike does, the selected one
+    emphasised and the others faint.
 21. Lightweight Charts' TradingView attribution mark is present, not
     removed.
 22. The page works at 390px width: no horizontal overflow of the page
@@ -563,6 +615,15 @@ only when every item is a pass.
     "sourceHash", no "dayKey", no basis, hub, dispute window or finalize.
     Contract names beside addresses and the verbatim source file names in
     *How we verify* are data and don't count.
+42. The terminal's chart defaults to the settlement-price view: the daily
+    line with its points (no candles), `90 days` by default with a
+    `Full year` toggle, and the region above the selected strike shaded
+    very lightly (§9).
+43. Past frequency is computed from the committed metric files with the
+    contract's strictly-greater-than test, over days before the market's
+    own day; it is labelled past frequency, shown as a count of days (never
+    a percentage), and never placed beside the YES/NO price or framed as a
+    probability, forecast or sign of mispricing (§9).
 
 ---
 

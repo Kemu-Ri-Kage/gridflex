@@ -25,7 +25,7 @@ X Layer testnet carries the whole settlement path. `GridOracle` stores one
 reading per day; `MarketFactory` creates each market; `BinaryMarket` holds
 fully collateralised YES and NO tokens (`OutcomeToken`), lets a wallet Buy
 YES, Buy NO or switch sides, and resolves against the oracle's reading.
-Five markets exist: three trading, two resolved. Next: cashing out before
+Seven markets exist: five trading, two resolved. Next: cashing out before
 settlement, stop-loss and take-profit orders, and dated futures on a week or
 month of prices.
 

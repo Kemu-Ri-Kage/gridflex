@@ -62,13 +62,15 @@ with blocks and raw values, is in
 
 ### Every market
 
-The factory has created five markets (`marketCount()` reads `5`).
+The factory has created seven markets (`marketCount()` reads `7`).
 
 | Question | Status | Market |
 |---|---|---|
 | Will Texas power cost more than $45 on 26 Sep 2026? | trading | [`0xb1FaDd61…2F94`](https://www.oklink.com/x-layer-testnet/address/0xb1FaDd618FFC37E26bf75143E6C852d6D3992F94) |
 | Will Texas power cost more than $45 on 30 Sep 2026? | trading | [`0x204Ef087…73af`](https://www.oklink.com/x-layer-testnet/address/0x204Ef0871892c52b7Abf00AC4755333c5e7F73af) |
+| Will Texas power cost more than $40 on 30 Sep 2026? | trading | [`0x4f8eCF1f…b13d`](https://www.oklink.com/x-layer-testnet/address/0x4f8eCF1f34727d57797158634576DC8dbFF7b13d) |
 | Will Texas power cost more than $45 on 2 Oct 2026? | trading, first live trade | [`0xb22A449c…E604`](https://www.oklink.com/x-layer-testnet/address/0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604) |
+| Will Texas power cost more than $38 on 2 Oct 2026? | trading | [`0x845A0500…1D77`](https://www.oklink.com/x-layer-testnet/address/0x845A05007aD577f37eDC8779afF28169a7321D77) |
 | Will Texas power cost more than $30 on 8 Sep 2026? | **resolved YES** | [`0x1b89e1dC…B8c1`](https://www.oklink.com/x-layer-testnet/address/0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1) |
 | Will West Texas power cost more than North Texas power on 12 Aug 2026? | **resolved NO** | [`0x62D65F4e…BE07`](https://www.oklink.com/x-layer-testnet/address/0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07) |
 

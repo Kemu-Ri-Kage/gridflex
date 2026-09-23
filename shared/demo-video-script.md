@@ -276,8 +276,8 @@ buy the redeem is again about 199 mUSDT, because the pool starts at the same
 - Add the replay market's transactions (create, buy, resolve, redeem) to
   `shared/demo-evidence.md`, and the funding transfer from
   `logs/fund-demo-wallet-*.log`.
-- Update the README's market count and table. The factory will read six
-  markets, or seven if the spare was used.
+- Update the README's market count and table. The factory will read eight
+  markets, or nine if the spare was used.
 
 ---
 

@@ -90,6 +90,36 @@
       "threshold": 4500,
       "totalGasCost": 61737903086895,
       "yesToken": "0x7Ab974d156E5C0bA65C90C5385F8Bc64Ca5AcB2A"
+    },
+    {
+      "createTxHash": "0xf4075068e26a30a98882036f1f3637f8226b8e633554585feae7bc6a88460a8b",
+      "createdAt": "2026-09-23T11:36:08Z",
+      "dayKey": 20260930,
+      "disputeWindow": 604800,
+      "initialLiquidity": 10000000000,
+      "kind": "live",
+      "market": "0x4f8eCF1f34727d57797158634576DC8dbFF7b13d",
+      "metricId": "ERCOT_HBNORTH_DA_AVG",
+      "noToken": "0xe9d83b4c4b960bEfECBe0189793A7639F2684a68",
+      "resolveAfter": 1790703000,
+      "threshold": 4000,
+      "totalGasCost": 61491903074595,
+      "yesToken": "0x5b1bbDe179EB64bDa299dBFaF9ca5Ef23c6218d9"
+    },
+    {
+      "createTxHash": "0x18232e03a19b3709ce27086d02f200f4c0ce850b9c0e4ce35d4d98f63f2e2cf3",
+      "createdAt": "2026-09-23T11:36:31Z",
+      "dayKey": 20261002,
+      "disputeWindow": 604800,
+      "initialLiquidity": 10000000000,
+      "kind": "live",
+      "market": "0x845A05007aD577f37eDC8779afF28169a7321D77",
+      "metricId": "ERCOT_HBNORTH_DA_AVG",
+      "noToken": "0xCEA8595b18ca4ECb6686fbA7aeFa096D4E4E04FA",
+      "resolveAfter": 1790875800,
+      "threshold": 3800,
+      "totalGasCost": 61491903074595,
+      "yesToken": "0x1d419831e413cD885707Fe71f6bBB53F2Ab3852a"
     }
   ],
   "reporter": "0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902",

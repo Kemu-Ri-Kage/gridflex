@@ -21,6 +21,7 @@ import {
   xLayerTransport,
 } from '@/lib/contracts';
 import { formatPrice } from '@/lib/format';
+import { compareMarkets } from '@/lib/market-order';
 import {
   buildLedger,
   findChangeBlocks,
@@ -266,13 +267,12 @@ export function MarketsProvider({ children }: { children: React.ReactNode }) {
       ),
     )
       .then((result) => {
-        // Only the public product; most recent market day first, and the
-        // first is selected by default.
+        // Only the public product, in compareMarkets order.
         if (!cancelled) {
           setFacts(
             result
               .filter((m) => m.metricId === PUBLIC_METRIC)
-              .sort((a, b) => b.dayKey - a.dayKey),
+              .sort(compareMarkets),
           );
         }
       })

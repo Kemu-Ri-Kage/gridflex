@@ -4,7 +4,8 @@ This file lists the onchain transactions that the README and the demo video
 point to. Every value here was read back from X Layer testnet (chain
 `1952`, RPC `https://testrpc.xlayer.tech/terigon`) on 2026-09-22 with
 `cast`. The approvals, the demo mUSDT mint and the two reverted attempts
-were found and read back on 2026-09-23. Amounts are in token units (all three
+were found and read back on 2026-09-23, as were the two strike-ladder markets
+(with web3.py). Amounts are in token units (all three
 tokens have 6 decimals), and raw onchain integers are shown in brackets.
 Contract addresses come from `shared/addresses.json`.
 
@@ -88,6 +89,33 @@ Read at the latest block (`41658789`). They are the same as at block
 The balances reconcile: 1,000 − 10 = 990 mUSDT, 10 + 9.990009 = 19.990009
 YES, and 10 − 10 = 0 NO. The position is a YES position: it pays out if
 the 2 October 2026 HB_NORTH day-ahead average closes above $45.00/MWh.
+
+---
+
+## Strike ladder
+
+Two live markets added on 2026-09-23, rows 6 and 7 of the Summary table in
+`shared/demo-markets.md`. Each sits beside a $45 market on the same day. Both
+were created through `MarketFactory` by wallet
+`0xD95Bd9f3E641974515B53adE252AD43e7cB28059`, with 10,000 mUSDT of initial
+liquidity (`[10000000000]`) and a seven-day dispute window (`[604800]`).
+After they were created, `marketCount()` read `7`, and `marketAt(5)` and
+`marketAt(6)` returned these two markets. Neither creation transaction emitted
+a log from any of the five earlier markets. The earlier markets still read
+the same strike, day, close, dispute window and tokens as
+`shared/addresses.json`.
+
+| | 30 September, above $40 | 2 October, above $38 |
+|---|---|---|
+| Question | "Will Texas power cost more than $40 on September 30, 2026?" | "Will Texas power cost more than $38 on October 2, 2026?" |
+| Metric, `dayKey`, threshold | `ERCOT_HBNORTH_DA_AVG`, `20260930`, `4000` | `ERCOT_HBNORTH_DA_AVG`, `20261002`, `3800` |
+| Trading closes | 2026-09-29 17:30 UTC (12:30 CDT), `resolveAfter` `1790703000` | 2026-10-01 17:30 UTC (12:30 CDT), `resolveAfter` `1790875800` |
+| Market | [`0x4f8eCF1f34727d57797158634576DC8dbFF7b13d`](https://www.oklink.com/x-layer-testnet/address/0x4f8eCF1f34727d57797158634576DC8dbFF7b13d) | [`0x845A05007aD577f37eDC8779afF28169a7321D77`](https://www.oklink.com/x-layer-testnet/address/0x845A05007aD577f37eDC8779afF28169a7321D77) |
+| YES token | [`0x5b1bbDe179EB64bDa299dBFaF9ca5Ef23c6218d9`](https://www.oklink.com/x-layer-testnet/address/0x5b1bbDe179EB64bDa299dBFaF9ca5Ef23c6218d9) | [`0x1d419831e413cD885707Fe71f6bBB53F2Ab3852a`](https://www.oklink.com/x-layer-testnet/address/0x1d419831e413cD885707Fe71f6bBB53F2Ab3852a) |
+| NO token | [`0xe9d83b4c4b960bEfECBe0189793A7639F2684a68`](https://www.oklink.com/x-layer-testnet/address/0xe9d83b4c4b960bEfECBe0189793A7639F2684a68) | [`0xCEA8595b18ca4ECb6686fbA7aeFa096D4E4E04FA`](https://www.oklink.com/x-layer-testnet/address/0xCEA8595b18ca4ECb6686fbA7aeFa096D4E4E04FA) |
+| Created | [`0xf4075068e26a30a98882036f1f3637f8226b8e633554585feae7bc6a88460a8b`](https://www.oklink.com/x-layer-testnet/tx/0xf4075068e26a30a98882036f1f3637f8226b8e633554585feae7bc6a88460a8b) | [`0x18232e03a19b3709ce27086d02f200f4c0ce850b9c0e4ce35d4d98f63f2e2cf3`](https://www.oklink.com/x-layer-testnet/tx/0x18232e03a19b3709ce27086d02f200f4c0ce850b9c0e4ce35d4d98f63f2e2cf3) |
+| Block, time (UTC) | `41704525`, 2026-09-23 11:36:02 | `41704545`, 2026-09-23 11:36:22 |
+| Status | success, `MarketCreated` from the factory | success, `MarketCreated` from the factory |
 
 ---
 

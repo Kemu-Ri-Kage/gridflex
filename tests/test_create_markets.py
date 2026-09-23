@@ -288,6 +288,7 @@ class TestExistingMarketsMapsPairToAddress(unittest.TestCase):
         market_contract = MagicMock()
         market_contract.functions.metricId().call.return_value = HexBytes("0x" + "aa" * 32)
         market_contract.functions.dayKey().call.return_value = 20260908
+        market_contract.functions.threshold().call.return_value = 3000
         w3.eth.contract.return_value = market_contract
         factory_contract = MagicMock()
         factory_contract.functions.getMarkets().call.return_value = ["0x1234567890123456789012345678901234567890"]
@@ -297,7 +298,7 @@ class TestExistingMarketsMapsPairToAddress(unittest.TestCase):
 
         self.assertIsInstance(pairs, dict)
         self.assertEqual(
-            pairs[f"{('aa' * 32)}:20260908"],
+            pairs[f"{('aa' * 32)}:20260908:3000"],
             Web3.to_checksum_address("0x1234567890123456789012345678901234567890"),
         )
 
@@ -342,7 +343,9 @@ class TestBackfillDoesNotDuplicateCreation(unittest.TestCase):
             "createTxHash": "0xnew", "createdAt": "2026-01-01T00:00:00Z",
             "totalGasCost": 100,
         }
-        existing_pair_key = f"{self.candidate_1.metric_hash.hex()}:{self.candidate_1.day_key}"
+        existing_pair_key = create_markets.pair_key(
+            self.candidate_1.metric_hash.hex(), self.candidate_1.day_key, self.candidate_1.threshold
+        )
 
         with patch.object(create_markets, "load_addresses", return_value=self.addresses), \
                 patch.object(create_markets, "make_web3", return_value=w3), \
@@ -398,7 +401,9 @@ class TestBackfillDoesNotDuplicateCreation(unittest.TestCase):
         w3.eth.contract.return_value.functions.threshold().call.return_value = (
             self.candidate_1.threshold
         )
-        existing_pair_key = f"{self.candidate_1.metric_hash.hex()}:{self.candidate_1.day_key}"
+        existing_pair_key = create_markets.pair_key(
+            self.candidate_1.metric_hash.hex(), self.candidate_1.day_key, self.candidate_1.threshold
+        )
 
         with patch.object(create_markets, "load_addresses", return_value=self.addresses), \
                 patch.object(create_markets, "make_web3", return_value=w3), \
@@ -641,7 +646,9 @@ class TestToBackfillIncludesPartialLedgerEntries(unittest.TestCase):
             "factory": "0x0000000000000000000000000000000000000002",
             "collateral": "0x0000000000000000000000000000000000000003",
         }
-        existing_pair_key = f"{candidate.metric_hash.hex()}:{candidate.day_key}"
+        existing_pair_key = create_markets.pair_key(
+            candidate.metric_hash.hex(), candidate.day_key, candidate.threshold
+        )
         partial_ledger = {candidate.key: {"createTxHash": "0xpartial", "market": market_address}}
         backfilled_record = {
             "metricId": candidate.metric_id, "dayKey": candidate.day_key,
@@ -699,13 +706,13 @@ SUMMARY_HEADER = (
 
 
 class TestDemoMarketsDocument(unittest.TestCase):
-    """The real shared/demo-markets.md: the five markets it names, and a
+    """The real shared/demo-markets.md: the seven markets it names, and a
     Trading close column that says exactly what the script will send."""
 
     def setUp(self):
         self.candidates = create_markets.parse_demo_markets_candidates()
 
-    def test_parses_two_replay_and_three_live_texas_power_markets(self):
+    def test_parses_two_replay_and_five_live_texas_power_markets(self):
         self.assertEqual(
             [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates],
             [
@@ -714,6 +721,8 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (3, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 4500),
                 (4, "live", "ERCOT_HBNORTH_DA_AVG", 20261002, 4500),
                 (5, "replay", "ERCOT_HBNORTH_DA_AVG", 20250910, 2000),
+                (6, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 4000),
+                (7, "live", "ERCOT_HBNORTH_DA_AVG", 20261002, 3800),
             ],
         )
 
@@ -721,7 +730,7 @@ class TestDemoMarketsDocument(unittest.TestCase):
         text = create_markets.DEMO_MARKETS_PATH.read_text(encoding="utf-8")
         table = create_markets._table_lines(text, create_markets.SUMMARY_TABLE_HEADING)
         documented = {
-            int(cells[3].strip("`")): cells[6]
+            int(cells[0]): cells[6]
             for cells in ([c.strip() for c in line.strip("|").split("|")] for line in table[2:])
         }
         for candidate in self.candidates:
@@ -731,7 +740,7 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 )
             else:
                 expected = f"{create_markets.DEFAULT_REPLAY_WINDOW_MINUTES} min after creation"
-            self.assertEqual(documented[candidate.day_key], expected, candidate.day_key)
+            self.assertEqual(documented[candidate.row], expected, candidate.row)
 
     def test_finalize_verify_still_parses_the_same_table(self):
         import finalize
@@ -753,10 +762,15 @@ class TestSummaryTableValidation(unittest.TestCase):
         with self.assertRaisesRegex(PublisherError, "expected one of live, replay"):
             self.parse("| 1 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260926` | x | forward | x |\n")
 
-    def test_rejects_the_same_metric_and_day_key_twice(self):
+    def test_rejects_the_same_metric_day_key_and_strike_twice(self):
         row = "| {n} | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260926` | x | live | x |\n"
-        with self.assertRaisesRegex(PublisherError, "same metric/dayKey twice"):
+        with self.assertRaisesRegex(PublisherError, "same metric/dayKey/threshold twice"):
             self.parse(row.format(n=1) + row.format(n=2))
+
+    def test_accepts_a_second_strike_on_the_same_day(self):
+        row = "| {n} | `ERCOT_HBNORTH_DA_AVG` | > ${k} | `20260926` | x | live | x |\n"
+        candidates = self.parse(row.format(n=1, k=45) + row.format(n=2, k=40))
+        self.assertEqual([c.threshold for c in candidates], [4500, 4000])
 
     def test_rejects_a_day_key_that_is_not_a_date(self):
         with self.assertRaisesRegex(PublisherError, "not a YYYYMMDD date"):
@@ -861,9 +875,19 @@ class TestBuildPlanByKind(unittest.TestCase):
 
     def test_an_existing_live_market_is_never_offered_again(self):
         live = make_candidate(day_key=20260926, threshold=4500, kind="live")
-        key = f"{live.metric_hash.hex()}:{live.day_key}"
+        key = create_markets.pair_key(live.metric_hash.hex(), live.day_key, live.threshold)
         [evaluation], _ = self.plan([live], existing={key: "0x" + "11" * 20})
         self.assertEqual(evaluation.status, create_markets.STATUS_EXISTS)
+
+    def test_a_new_strike_on_a_day_that_already_has_a_market_is_eligible(self):
+        existing = make_candidate(day_key=20260930, threshold=4500, kind="live")
+        ladder = make_candidate(row=6, day_key=20260930, threshold=4000, kind="live")
+        key = create_markets.pair_key(existing.metric_hash.hex(), existing.day_key, 4500)
+        evaluations, _ = self.plan([existing, ladder], existing={key: "0x" + "11" * 20})
+        self.assertEqual(
+            [e.status for e in evaluations],
+            [create_markets.STATUS_EXISTS, create_markets.STATUS_ELIGIBLE],
+        )
 
 
 class TestCreateOneMarketByKind(unittest.TestCase):
@@ -963,7 +987,8 @@ class TestMainDryRunByKind(unittest.TestCase):
     def test_dry_run_numbers_each_market_and_shows_both_clocks(self):
         exit_code, output, _ = self.run_main([])
         self.assertEqual(exit_code, 0)
-        for row in ("#1 [replay]", "#2 [live]", "#3 [live]", "#4 [live]", "#5 [replay]"):
+        for row in ("#1 [replay]", "#2 [live]", "#3 [live]", "#4 [live]", "#5 [replay]",
+                    "#6 [live]", "#7 [live]"):
             self.assertIn(row, output)
         self.assertIn("2026-09-25 12:30 CDT (Texas) / 18:30 BST (London)", output)
         self.assertIn(
@@ -971,7 +996,7 @@ class TestMainDryRunByKind(unittest.TestCase):
             "2026-09-22 07:45 CDT (Texas) / 13:45 BST (London)",
             output,
         )
-        self.assertIn("Eligible to create:           5", output)
+        self.assertIn("Eligible to create:           7", output)
         self.assertIn("DRY RUN ONLY", output)
 
     def test_unknown_market_row_is_an_error(self):
@@ -1019,3 +1044,53 @@ class TestRefuseUnnamedReplays(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLedgerKeys(unittest.TestCase):
+    def load(self, ledger):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "market-ledger.json"
+            path.write_text(json.dumps(ledger), encoding="utf-8")
+            with patch.object(create_markets, "MARKET_LEDGER_PATH", path):
+                return create_markets.load_market_ledger()
+
+    def test_an_entry_keyed_before_the_strike_joined_the_key_is_still_found(self):
+        entry = {"threshold": 4500, "market": "0xabc", "yesToken": "0x1", "noToken": "0x2"}
+        ledger = self.load({"ERCOT_HBNORTH_DA_AVG:20260930": entry})
+        existing = make_candidate(day_key=20260930, threshold=4500, kind="live")
+        ladder = make_candidate(day_key=20260930, threshold=4000, kind="live")
+        self.assertTrue(create_markets.record_is_complete(ledger.get(existing.key)))
+        self.assertIsNone(ledger.get(ladder.key))
+
+    def test_new_style_keys_pass_through(self):
+        entry = {"threshold": 4000, "market": "0xabc"}
+        self.assertEqual(
+            self.load({"ERCOT_HBNORTH_DA_AVG:20260930:4000": entry}),
+            {"ERCOT_HBNORTH_DA_AVG:20260930:4000": entry},
+        )
+
+    def test_an_old_entry_without_a_threshold_is_refused(self):
+        with self.assertRaisesRegex(PublisherError, "no threshold"):
+            self.load({"ERCOT_HBNORTH_DA_AVG:20260930": {"market": "0xabc"}})
+
+    def test_an_old_and_a_new_entry_for_the_same_market_are_refused(self):
+        entry = {"threshold": 4500, "market": "0xabc"}
+        with self.assertRaisesRegex(PublisherError, "two entries"):
+            self.load({
+                "ERCOT_HBNORTH_DA_AVG:20260930": entry,
+                "ERCOT_HBNORTH_DA_AVG:20260930:4500": entry,
+            })
+
+
+class TestWriteAddressesFileKeepsTheLadder(unittest.TestCase):
+    def test_a_second_strike_on_the_same_day_is_appended(self):
+        existing = {"metricId": "ERCOT_HBNORTH_DA_AVG", "dayKey": 20260930, "threshold": 4500,
+                    "market": "0xold"}
+        ladder = dict(existing, threshold=4000, market="0xnew", yesToken="0x1", noToken="0x2")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "addresses.json"
+            path.write_text(json.dumps({"markets": [existing]}), encoding="utf-8")
+            with patch.object(create_markets, "ADDRESSES_PATH", path):
+                create_markets.write_addresses_file([ladder, dict(existing)])
+            markets = json.loads(path.read_text(encoding="utf-8"))["markets"]
+        self.assertEqual([m["market"] for m in markets], ["0xold", "0xnew"])

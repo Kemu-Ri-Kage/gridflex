@@ -100,11 +100,11 @@ compared it to its own strike.
 
 ### Tests
 
-**424 automated tests, all passing** on 23 September 2026:
+**431 automated tests, all passing** on 23 September 2026:
 
 | Suite | Tests | Run it |
 |---|---|---|
-| Data pipeline, publisher, finalizer (Python) | 299 | `python3 -m unittest discover -s tests` |
+| Data pipeline, publisher, finalizer (Python) | 306 | `python3 -m unittest discover -s tests` |
 | Contracts (Solidity, Foundry) | 54 | `cd contracts && forge test` |
 | Web app logic (TypeScript) | 71 | `cd web && node --test lib/*.test.ts` |
 

@@ -1,6 +1,6 @@
 # GRIDFLEX demo markets
 
-Five markets, all on the one public product — the Texas power price,
+Seven markets, all on the one public product — the Texas power price,
 `ERCOT_HBNORTH_DA_AVG` (see `shared/design-brief.md` §5). They come in two
 kinds, and `create_markets.py` reads the kind of each one from the
 Summary table below:
@@ -82,8 +82,8 @@ without `--market` can never start a replay clock by accident.
 - Trading close: 45 minutes after creation, the same as market 1.
 - Why this day: it's the only other Texas power price day with a published,
   finalized reading and no market. The third, 8 September 2026, already
-  has one, and `create_markets.py` creates at most one market per metric
-  and day.
+  has a market. `create_markets.py` creates at most one market per metric,
+  day and strike.
 - Create **only if market 1's take fails**, with
   `python3 create_markets.py --market 5 --live`.
 
@@ -91,8 +91,11 @@ without `--market` can never start a replay clock by accident.
 
 ## Live markets
 
-All three have the same strike, **$45/MWh** (threshold `4500`). What changes
-from one to the next is the market day.
+Markets 2–4 share a strike of **$45/MWh** (threshold `4500`) and differ by
+market day. Markets 6 and 7 add a second, lower strike on 30 September and
+2 October, so each of those days shows a strike ladder on the same
+underlying: $40 and $45 on 30 September, $38 and $45 on 2 October. Why
+those strikes: see "Choosing the ladder strikes" below.
 
 ### 2. Texas power, 26 September 2026
 
@@ -123,6 +126,26 @@ from one to the next is the market day.
   `resolve()` works. That leaves time for it to settle before the
   6 October finale.
 
+### 6. Texas power, 30 September 2026, above $40
+
+> **"Will Texas power cost more than $40 on September 30, 2026?"**
+
+- **`dayKey 20260930`**, strike $40.00/MWh (threshold `4000`). The lower
+  rung of the ladder beside market 3 ($45) on the same day.
+- Trading close: **2026-09-29 12:30 CDT (Texas) / 18:30 BST (London)**, the
+  same as market 3.
+- Settles on the same reading as market 3, so both resolve together.
+
+### 7. Texas power, 2 October 2026, above $38
+
+> **"Will Texas power cost more than $38 on October 2, 2026?"**
+
+- **`dayKey 20261002`**, strike $38.00/MWh (threshold `3800`). The lower
+  rung beside market 4 ($45) on the same day.
+- Trading close: **2026-10-01 12:30 CDT (Texas) / 18:30 BST (London)**, the
+  same as market 4.
+- Settles on the same reading as market 4.
+
 ---
 
 ## Summary table
@@ -134,10 +157,15 @@ from one to the next is the market day.
 | 3 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260930` | 2026-09-30 | live | 2026-09-29 12:30 CDT (Texas) / 18:30 BST (London) |
 | 4 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261002` | 2026-10-02 | live | 2026-10-01 12:30 CDT (Texas) / 18:30 BST (London) |
 | 5 | `ERCOT_HBNORTH_DA_AVG` | > $20 | `20250910` | 2025-09-10 (past, $22.62 — YES; spare) | replay | 45 min after creation |
+| 6 | `ERCOT_HBNORTH_DA_AVG` | > $40 | `20260930` | 2026-09-30 | live | 2026-09-29 12:30 CDT (Texas) / 18:30 BST (London) |
+| 7 | `ERCOT_HBNORTH_DA_AVG` | > $38 | `20261002` | 2026-10-02 | live | 2026-10-01 12:30 CDT (Texas) / 18:30 BST (London) |
 
 `create_markets.py` and `finalize.py --verify` both parse this table, so
-keep its seven-column shape. Metric is column 2, dayKey column 4 and Kind
-column 6. The Trading close column is written for humans, and
+keep its seven-column shape. Metric is column 2, threshold column 3, dayKey
+column 4 and Kind column 6. The # column is the row's position: new rows go
+at the bottom so existing numbers never change. A market is one metric, day
+and strike, so a day may appear once per strike but never twice with the
+same strike. The Trading close column is written for humans, and
 `tests/test_create_markets.py` checks it against the close the script
 computes.
 
@@ -166,6 +194,53 @@ in both the annual data (41.0%) and the demo-window match (50.0%). $45 was
 chosen for these markets anyway. These numbers are here so the choice is
 made knowingly. They describe what has already happened and don't predict
 these dates.
+
+---
+
+## Choosing the ladder strikes
+
+Worked from `data/metrics` on 23 September 2026, with the latest reading
+for 22 September. Each share uses the contract's own test: strictly
+greater than the strike.
+
+### 30 September: $40
+
+- The **30-day median is $37.52** and the **7-day median is $44.10**. $40
+  sits between them.
+- Two ways of reading the last year, each applied from 22 September to a
+  day 8 days later:
+  - **Persistence** (prices stay near the recent 7-day level): **63%**
+    of outcomes above $40.
+  - **Reversion** (history since September 2025 after the 7-day median ran
+    more than 1.25× the 90-day median, as it does now): **35%** above
+    $40.
+  - The midpoint is **near 50%**, which is what a strike meant to be
+    uncertain should give.
+- Low confidence. If the current run holds (6 of the last 7 days were
+  above $40), YES is close to certain; if it breaks as the late-August run
+  did, prices fall back to $30–35 and NO is close to certain.
+
+### 2 October: $38
+
+- $2 below 30 September, for two reasons:
+  - **Fridays run below mid-week.** Over the last 30 days the Friday
+    median is **$36.71** against **$42.47** for Wednesdays. 30 September
+    is a Wednesday; 2 October is a Friday.
+  - **Two more days to revert** from the current run.
+- No cut for the season. In 2025, October was no lower than September:
+  1–15 October averaged $30.77 against $31.43 for 15–30 September, and the
+  medians were level.
+
+### What these numbers can't tell us
+
+- **One year of history can't establish seasonality.** There is exactly
+  one September-to-October transition in the data. It shows no decline,
+  but one year can neither confirm nor rule one out.
+- **The 7-day and 30-day evidence disagree by about $6** ($44.10 against
+  $37.52). That gap is the real uncertainty in both strikes, more than any
+  single percentage above.
+- The reversion figure rests on only a handful of separate episodes, one
+  of them the January storm.
 
 ---
 

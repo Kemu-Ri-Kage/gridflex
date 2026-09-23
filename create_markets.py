@@ -32,8 +32,9 @@ Two kinds of market, named per row in that table:
   immediately.
 
 Every market's trading close is shown in both Texas and London time. A
-(metricId, dayKey) pair that already has a market - checked live via MarketFactory.getMarkets(), not just the local
-ledger - is skipped, not recreated, so re-running this script is safe. If
+market is identified by (metricId, dayKey, threshold), so one day can carry
+a ladder of strikes. One that already exists - checked live via
+MarketFactory.getMarkets(), not just the local ledger - is skipped, not recreated, so re-running this script is safe. If
 that existing market is missing from the local ledger (e.g. a prior run's
 createMarket succeeded but a later step in the same run failed), a live run
 records it - reading its real parameters back from the chain, never
@@ -192,7 +193,7 @@ class CandidateMarket:
 
     @property
     def key(self) -> str:
-        return f"{self.metric_id}:{self.day_key}"
+        return f"{self.metric_id}:{self.day_key}:{self.threshold}"
 
     @property
     def metric_hash(self) -> bytes:
@@ -201,6 +202,13 @@ class CandidateMarket:
     @property
     def dispute_window(self) -> int:
         return LIVE_DISPUTE_WINDOW if self.kind == KIND_LIVE else REPLAY_DISPUTE_WINDOW
+
+
+def pair_key(metric_hash_hex: str, day_key: int, threshold: int) -> str:
+    """How existing_markets() and build_plan() name one on-chain market: the
+    strike is part of it, so a second strike on the same metric and day is
+    a new market, while the same metric, day and strike is a duplicate."""
+    return f"{metric_hash_hex}:{day_key}:{threshold}"
 
 
 def day_key_date(day_key: int) -> date:
@@ -312,7 +320,9 @@ def parse_demo_markets_candidates(path: Path | None = None) -> list[CandidateMar
         raise PublisherError(f"{path}: Summary table parsed but contained zero data rows.")
     keys = [c.key for c in candidates]
     if len(set(keys)) != len(keys):
-        raise PublisherError(f"{path}: the Summary table lists the same metric/dayKey twice.")
+        raise PublisherError(
+            f"{path}: the Summary table lists the same metric/dayKey/threshold twice."
+        )
     return candidates
 
 
@@ -338,12 +348,27 @@ def load_abi(name: str) -> Any:
 
 
 def load_market_ledger() -> dict[str, dict[str, Any]]:
+    """The local ledger, keyed like CandidateMarket.key. Entries written
+    before the strike joined the key are named "metric:dayKey"; they are
+    renamed from their own recorded threshold on load, so an existing market
+    is still found (and never re-created) under the new key."""
     if not MARKET_LEDGER_PATH.exists():
         return {}
     ledger = load_json(MARKET_LEDGER_PATH)
     if not isinstance(ledger, dict):
         raise PublisherError(f"Ledger must be a JSON object: {MARKET_LEDGER_PATH}")
-    return ledger
+    normalized: dict[str, dict[str, Any]] = {}
+    for key, entry in ledger.items():
+        if key.count(":") == 1:
+            if not isinstance(entry, dict) or "threshold" not in entry:
+                raise PublisherError(
+                    f"{MARKET_LEDGER_PATH}: entry {key!r} has no threshold to key it by."
+                )
+            key = f"{key}:{int(entry['threshold'])}"
+        if key in normalized:
+            raise PublisherError(f"{MARKET_LEDGER_PATH}: two entries for {key!r}.")
+        normalized[key] = entry
+    return normalized
 
 
 def save_market_ledger(ledger: dict[str, dict[str, Any]]) -> None:
@@ -359,8 +384,8 @@ def chain_oracle_reading(oracle_contract, candidate: CandidateMarket) -> dict[st
 
 
 def existing_markets(w3: Web3, factory_contract, binary_market_abi: Any) -> dict[str, str]:
-    """Live (metricId, dayKey) pairs that already have a BinaryMarket, mapped
-    to that market's address.
+    """Live (metricId, dayKey, threshold) triples that already have a
+    BinaryMarket, mapped to that market's address (see pair_key).
 
     Reads every market the factory has ever created, not the local ledger -
     the same "trust the chain, not local state" rule finalize.py already
@@ -375,7 +400,8 @@ def existing_markets(w3: Web3, factory_contract, binary_market_abi: Any) -> dict
         market = w3.eth.contract(address=address, abi=binary_market_abi)
         metric_hash = HexBytes(call_with_retry(market.functions.metricId().call)).hex()
         day_key = int(call_with_retry(market.functions.dayKey().call))
-        pairs[f"{metric_hash}:{day_key}"] = Web3.to_checksum_address(address)
+        threshold = int(call_with_retry(market.functions.threshold().call))
+        pairs[pair_key(metric_hash, day_key, threshold)] = Web3.to_checksum_address(address)
         time.sleep(RPC_COURTESY_SLEEP)
     return pairs
 
@@ -439,7 +465,9 @@ def build_plan(
     for candidate in candidates:
         close = trading_close(candidate, now, replay_window_seconds)
         metric_hash_hex = candidate.metric_hash.hex()
-        existing_address = existing_pairs.get(f"{metric_hash_hex}:{candidate.day_key}")
+        existing_address = existing_pairs.get(
+            pair_key(metric_hash_hex, candidate.day_key, candidate.threshold)
+        )
         if existing_address is not None:
             verified = on_chain_threshold_matches(w3, binary_market_abi, candidate, existing_address)
             time.sleep(RPC_COURTESY_SLEEP)
@@ -905,9 +933,9 @@ def write_addresses_file(created: list[dict[str, Any]]) -> None:
     markets = config.get("markets")
     if not isinstance(markets, list):
         markets = []
-    existing_keys = {f"{m.get('metricId')}:{m.get('dayKey')}" for m in markets}
+    existing_keys = {f"{m.get('metricId')}:{m.get('dayKey')}:{m.get('threshold')}" for m in markets}
     for record in created:
-        key = f"{record['metricId']}:{record['dayKey']}"
+        key = f"{record['metricId']}:{record['dayKey']}:{record['threshold']}"
         if key in existing_keys:
             continue
         markets.append(record)
@@ -1047,10 +1075,12 @@ def print_summary(
     print(f"  Wall-clock time:                {elapsed // 60:02d}:{elapsed % 60:02d}")
     print(f"  Total gas spent:                {Web3.from_wei(total_gas, 'ether'):.6f} OKB")
     for record in created:
-        print(f"  CREATED  {record['metricId']} dayKey {record['dayKey']} -> {record['market']}"
+        print(f"  CREATED  {record['metricId']} dayKey {record['dayKey']} "
+              f"threshold {record['threshold']} -> {record['market']}"
               f"  (trading close {format_close(record['resolveAfter'])})")
     for record in recorded:
-        print(f"  RECORDED {record['metricId']} dayKey {record['dayKey']} -> {record['market']}")
+        print(f"  RECORDED {record['metricId']} dayKey {record['dayKey']} "
+              f"threshold {record['threshold']} -> {record['market']}")
     print(f"  Ledger updated:                 {MARKET_LEDGER_PATH}")
 
 

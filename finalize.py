@@ -271,7 +271,8 @@ def run_verify(args: argparse.Namespace, oracle_address: str, rpc_url: str) -> i
     if args.metric and args.day_key is not None:
         rows = [(args.metric[0], args.day_key)]
     else:
-        rows = parse_demo_markets_summary_table()
+        # A strike ladder lists one reading under several rows; check it once.
+        rows = list(dict.fromkeys(parse_demo_markets_summary_table()))
 
     all_ok = True
     for metric_id, day_key in rows:

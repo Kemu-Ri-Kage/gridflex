@@ -54,10 +54,13 @@ export interface CandlePalette {
 
 /**
  * Shared between the candle series' autoscale provider and its renderer:
- * the price the visible scale stops at when a wick runs past it, or null.
+ * the price the visible scale stops at when a wick runs past it, or null,
+ * and whether the scale is fitting itself (false once the viewer has
+ * stretched the price axis by hand).
  */
 export interface ScaleState {
   cap: number | null;
+  autoScale: () => boolean;
 }
 
 /**
@@ -77,6 +80,11 @@ export const CARET_HEIGHT = 7;
 export const CARET_GAP = 3;
 /** Room above the cap for the carets. */
 export const TOP_MARGIN = CARET_GAP + CARET_HEIGHT + 6;
+/**
+ * With the price axis stretched by hand there is no cap: a wick is cut
+ * where it would run into the caret zone at the top of the pane (px).
+ */
+export const MANUAL_CLIP = CARET_GAP + CARET_HEIGHT + 2;
 
 class CandleRenderer implements ICustomSeriesPaneRenderer {
   data: PaneRendererCustomData<Time, CandlePoint> | null = null;
@@ -100,8 +108,9 @@ class CandleRenderer implements ICustomSeriesPaneRenderer {
       // Narrower than CARET_WIDTH when days are packed tight, so neighbouring
       // carets stay apart.
       const caretHalf = Math.min(CARET_WIDTH / 2, Math.max(2.5, barSpacing * 0.45)) * hpr;
-      const cap = scale.cap;
-      const capY = cap === null ? null : priceToCoordinate(cap);
+      // Where a wick is cut and marked: at the cap while the scale fits
+      // itself, or just under the caret zone once it is stretched by hand.
+      const clipY = scale.autoScale() ? (scale.cap === null ? null : priceToCoordinate(scale.cap)) : MANUAL_CLIP;
 
       for (let i = visibleRange.from; i < visibleRange.to; i++) {
         const bar = bars[i];
@@ -110,8 +119,8 @@ class CandleRenderer implements ICustomSeriesPaneRenderer {
         const ys = [d.open, d.close, d.high, d.low].map((price) => priceToCoordinate(price));
         if (ys.some((y) => y === null)) continue;
         const [yOpen, yClose, yHigh, yLow] = (ys as number[]).map((y) => Math.round(y * vpr));
-        const clipped = cap !== null && capY !== null && d.high > cap;
-        const topLimit = clipped ? Math.round((capY as number) * vpr) : yHigh;
+        const clipped = clipY !== null && yHigh < Math.round(clipY * vpr);
+        const topLimit = clipped ? Math.round((clipY as number) * vpr) : yHigh;
 
         const direction = d.close > d.open ? 'up' : d.close < d.open ? 'down' : 'flat';
         const color = direction === 'up' ? palette.up : direction === 'down' ? palette.down : palette.flat;
@@ -209,6 +218,11 @@ const LABEL_GAP = 14;
 /** The height of a price-scale tag at the chart's 10px axis font. */
 const TAG_GAP = 17;
 
+/** The arrow on a pinned strike label: which way its line is. */
+function pointer(side: 'above' | 'below' | 'in' | undefined): string {
+  return side === 'above' ? '↑ ' : side === 'below' ? '↓ ' : '';
+}
+
 type MediaScope = Parameters<Parameters<DrawTarget['useMediaCoordinateSpace']>[0]>[0];
 
 function paneRenderer(draw: (scope: MediaScope) => void, background = false): IPrimitivePaneRenderer {
@@ -227,6 +241,8 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
   private lines: LadderLine[] = [];
   private ys: (number | null)[] = [];
   private tagYs: number[] = [];
+  /** Where each strike sits against the pane: above it, below it, or in view. */
+  private sides: ('above' | 'below' | 'in')[] = [];
 
   constructor(private readonly palette: LadderPalette) {}
 
@@ -250,6 +266,10 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
   updateAllViews(): void {
     const series = this.series;
     this.ys = this.lines.map((line) => (series ? series.priceToCoordinate(line.price) : null));
+    // A hand-stretched scale can leave a strike off the pane; its tag and
+    // label stay pinned to the nearest edge with an arrow pointing to it.
+    const height = this.chart?.paneSize().height ?? Number.POSITIVE_INFINITY;
+    this.sides = this.ys.map((y) => (y === null ? 'in' : y < 0 ? 'above' : y > height ? 'below' : 'in'));
     this.tagYs = spreadLabels(
       this.ys.map((y) => y ?? -TAG_GAP),
       TAG_GAP,
@@ -312,7 +332,7 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
           context.lineJoin = 'round';
           for (const i of order) {
             if (ys[i] === null) continue;
-            const text = lines[i].selected ? `Strike · ${lines[i].days}` : lines[i].days;
+            const text = pointer(this.sides[i]) + (lines[i].selected ? `Strike · ${lines[i].days}` : lines[i].days);
             context.globalAlpha = lines[i].selected ? 1 : 0.75;
             // A halo in the background colour keeps the label legible
             // over the candles without a box hiding them.
@@ -342,7 +362,7 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
       coordinate: () => -1000,
       fixedCoordinate: () => this.tagYs[i],
       visible: () => this.ys[i] !== null,
-      text: () => lines[i].tag,
+      text: () => pointer(this.sides[i]) + lines[i].tag,
       textColor: () => (lines[i].selected ? palette.background : palette.muted),
       backColor: () => (lines[i].selected ? palette.warning : palette.background),
     }));

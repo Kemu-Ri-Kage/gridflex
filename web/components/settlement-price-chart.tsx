@@ -28,6 +28,7 @@ import {
   CARET_HEIGHT,
   CARET_WIDTH,
   CandleSeriesView,
+  MANUAL_CLIP,
   StrikeLadderPrimitive,
   TOP_MARGIN,
   type CandlePoint,
@@ -62,6 +63,8 @@ interface ViewStats {
   skipped: number;
   spikes: number;
   cap: number | null;
+  /** The price axis has been stretched by hand, so auto-fit is off. */
+  manual: boolean;
 }
 
 /** YYYYMMDD as the chart's business-day time, by string slicing. */
@@ -227,7 +230,7 @@ export function SettlementPriceChart({
   const ladderRef = React.useRef<StrikeLadderPrimitive | null>(null);
   const daysRef = React.useRef<typeof days>(null);
   const strikesRef = React.useRef<number[]>([]);
-  const scaleRef = React.useRef<ScaleState>({ cap: null });
+  const scaleRef = React.useRef<ScaleState>({ cap: null, autoScale: () => true });
   // Set by a zoom or pan gesture, cleared when a preset is applied: a range
   // change while it is set means the viewer moved off the preset.
   const gestureRef = React.useRef(false);
@@ -238,8 +241,10 @@ export function SettlementPriceChart({
     skippedRef.current = priceCandles?.skipped ?? [];
   }, [onViewChange, priceCandles]);
 
-  const [stats, setStats] = React.useState<ViewStats>({ skipped: 0, spikes: 0, cap: null });
+  const [stats, setStats] = React.useState<ViewStats>({ skipped: 0, spikes: 0, cap: null, manual: false });
   const [visibleSpan, setVisibleSpan] = React.useState('');
+  const restoreAutoFitRef = React.useRef<(() => void) | null>(null);
+  const refreshStatsRef = React.useRef<(() => void) | null>(null);
 
   /** The visible days' candles, and the price window they need. */
   const visibleWindow = React.useCallback((range: LogicalRange | null) => {
@@ -335,18 +340,25 @@ export function SettlementPriceChart({
         timeFormatter: (time: Time) => dayLabel(dayKeyOf(time), true),
       },
       // Wheel and pinch zoom the time axis; drag and horizontal wheel pan it.
-      // A vertical swipe on a touch screen scrolls the page, never the chart,
-      // and the price axis always fits what is visible.
+      // A vertical swipe on a touch screen scrolls the page, never the chart.
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      // Dragging the price axis stretches the scale and switches auto-fit
+      // off; a double-click on the axis (or the chart, or any preset)
+      // switches it back on. On a touch screen a vertical drag on the axis
+      // scrolls the page like the chart body does.
       handleScale: {
         mouseWheel: true,
         pinch: true,
-        axisPressedMouseMove: { time: true, price: false },
-        axisDoubleClickReset: { time: false, price: false },
+        axisPressedMouseMove: { time: true, price: true },
+        axisDoubleClickReset: { time: false, price: true },
       },
     });
 
     const scale = scaleRef.current;
+    const priceScale = chart.priceScale('right');
+    scale.autoScale = () => priceScale.options().autoScale;
+    const restoreAutoFit = () => priceScale.applyOptions({ autoScale: true });
+    restoreAutoFitRef.current = restoreAutoFit;
     const candles = chart.addCustomSeries(
       new CandleSeriesView(
         CANDLE_STYLE,
@@ -387,27 +399,43 @@ export function SettlementPriceChart({
     averageSeriesRef.current = average;
     ladderRef.current = ladder;
 
+    // What the caption reports for the days on screen, from the scale as it
+    // stands: the cap while it fits itself, or the wicks cut at the top of a
+    // hand-stretched scale.
     let frame = 0;
-    const onRange = (range: LogicalRange | null) => {
-      if (gestureRef.current) onViewChangeRef.current(null);
+    const refreshStats = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const found = visibleWindow(range);
+        const found = visibleWindow(chart.timeScale().getVisibleLogicalRange());
         if (!found || found.shown.length === 0) return;
         const first = found.shown[0].record.dayKey;
         const last = found.shown[found.shown.length - 1].record.dayKey;
+        const manual = !priceScale.options().autoScale;
+        const cutAtTop = found.shown.filter(({ candle }) => {
+          const y = candle ? candles.priceToCoordinate(candle.high / 100) : null;
+          return y !== null && y < MANUAL_CLIP;
+        }).length;
         setVisibleSpan(`${first}-${last}`);
         setStats((previous) => {
           const next = {
             skipped: skippedInRange(skippedRef.current, first, last),
-            spikes: found.window?.spikes ?? 0,
-            cap: found.window?.cap ?? null,
+            spikes: manual ? cutAtTop : (found.window?.spikes ?? 0),
+            cap: manual ? null : (found.window?.cap ?? null),
+            manual,
           };
-          return previous.skipped === next.skipped && previous.spikes === next.spikes && previous.cap === next.cap
+          return previous.skipped === next.skipped &&
+            previous.spikes === next.spikes &&
+            previous.cap === next.cap &&
+            previous.manual === next.manual
             ? previous
             : next;
         });
       });
+    };
+    refreshStatsRef.current = refreshStats;
+    const onRange = () => {
+      if (gestureRef.current) onViewChangeRef.current(null);
+      refreshStats();
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
 
@@ -425,23 +453,37 @@ export function SettlementPriceChart({
     const onGesture = () => {
       gestureRef.current = true;
     };
-    // Double-click fits every published day, the same view as Full year.
-    const onDoubleClick = () => {
-      gestureRef.current = false;
-      chart.timeScale().fitContent();
-      onViewChangeRef.current('year');
+    // A double-click on the price axis only switches auto-fit back on (the
+    // library resets the axis itself); anywhere else it also fits every
+    // published day, the same view as Full year.
+    const onDoubleClick = (event: MouseEvent) => {
+      const onPriceAxis = event.clientX - container.getBoundingClientRect().left > chart.paneSize().width;
+      if (!onPriceAxis) {
+        gestureRef.current = false;
+        chart.timeScale().fitContent();
+        onViewChangeRef.current('year');
+      }
+      restoreAutoFit();
+      refreshStats();
     };
+    // A stretch of the price axis changes what is cut at the top, which no
+    // time-range event reports.
+    const onRelease = () => refreshStats();
     container.addEventListener('wheel', onGesture, { passive: true });
     container.addEventListener('pointerdown', onGesture);
+    container.addEventListener('pointerup', onRelease);
     container.addEventListener('dblclick', onDoubleClick);
 
     return () => {
       cancelAnimationFrame(frame);
       container.removeEventListener('wheel', onGesture);
       container.removeEventListener('pointerdown', onGesture);
+      container.removeEventListener('pointerup', onRelease);
       container.removeEventListener('dblclick', onDoubleClick);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRange);
       chart.unsubscribeCrosshairMove(onCrosshair);
+      restoreAutoFitRef.current = null;
+      refreshStatsRef.current = null;
       chartRef.current = null;
       candleSeriesRef.current = null;
       averageSeriesRef.current = null;
@@ -493,7 +535,9 @@ export function SettlementPriceChart({
     const chart = chartRef.current;
     if (!chart || !days || days.length === 0) return;
     gestureRef.current = false;
+    restoreAutoFitRef.current?.();
     chart.timeScale().setVisibleLogicalRange(presetRange(days.length, request.range));
+    refreshStatsRef.current?.();
   }, [request, days]);
 
   let status: string | null = null;
@@ -518,7 +562,14 @@ export function SettlementPriceChart({
       <div className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
         Daily Texas power price, $/MWh · the verified price markets settle on
         {stats.skipped > 0 && ` · ${stats.skipped} ${stats.skipped === 1 ? 'day' : 'days'} without 24 hours not drawn`}
-        {stats.cap !== null && (
+        {stats.manual && (
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <CaretGlyph />
+            Scale set by hand · {stats.spikes} {stats.spikes === 1 ? 'spike' : 'spikes'} above it marked · double-click
+            the price axis to refit
+          </div>
+        )}
+        {!stats.manual && stats.cap !== null && (
           <div className="mt-0.5 flex items-center gap-1.5">
             <CaretGlyph />
             Scale capped at ${stats.cap.toLocaleString('en-US')} so the strikes stay readable · {stats.spikes} higher{' '}

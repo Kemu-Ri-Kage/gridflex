@@ -455,9 +455,18 @@ and `web/lib/settlement-chart-drawing.ts`.
 - **Zoom and pan.** Every published day is loaded; nothing is filtered.
   The mouse wheel or a pinch zooms the time axis, a drag or a horizontal
   swipe pans back through history, and a double-click fits every day
-  (the `Full year` view). The price axis can't be dragged: it always fits
-  what is on screen. On a touch screen a vertical swipe scrolls the page,
-  never the chart.
+  (the `Full year` view). On a touch screen a vertical swipe scrolls the
+  page, never the chart, including one on the price axis.
+- **Stretching the price axis.** Dragging the price axis (it shows a
+  resize cursor) stretches the vertical scale by hand and switches
+  auto-fit off. There is always a way back: a double-click on the price
+  axis switches auto-fit on and refits to what is on screen; a
+  double-click on the chart does that and fits every day; `90 days` and
+  `Full year` switch it on too. While stretched there is no cap: a wick
+  that runs into the top of the pane is cut under a caret, the caption
+  reads "Scale set by hand · N spikes above it marked · double-click the
+  price axis to refit", and a strike pushed off the pane keeps its tag and
+  label pinned to the nearest edge with an arrow (↑ or ↓) pointing to it.
 - **Range presets:** `90 days` (the default) and `Full year`, the same two
   ranges as the landing page's chart (§7). They set the visible range and
   nothing else; once the viewer zooms or pans off one, neither is shown
@@ -531,9 +540,11 @@ the caption's tooltip carries the hash of the one on screen.
   with no cap.
 - **Gestures match the settlement view:** wheel and pinch zoom the time
   axis, drag and horizontal swipe pan it, the edges are fixed at the first
-  and last candle, and a double-click anywhere refits the timeframe. The
-  price axis can't be dragged, so auto-fit can't be switched off. On a
-  touch screen a vertical swipe scrolls the page, never the chart.
+  and last candle, and a double-click on the chart refits the timeframe.
+  Dragging the price axis stretches the scale and switches auto-fit off; a
+  double-click on the axis or the chart, or any timeframe switch, switches
+  it back on. On a touch screen a vertical swipe scrolls the page, never
+  the chart.
 - **Neutral dark theme**: chart background transparent over `--background`,
   grid lines in `--border` at low opacity, axis text in
   `--muted-foreground`, mono font family read from the same
@@ -683,7 +694,9 @@ only when every item is a pass.
     zoom; the daily average markets settle on as a quiet 1px line over
     them, both labelled; faint horizontal gridlines only; wheel/pinch zoom,
     drag pan and double-click fit over every published day, a vertical
-    touch swipe scrolling the page; a price scale fitted to the days on
+    touch swipe scrolling the page; a price axis that stretches when
+    dragged, with auto-fit restored by a double-click on the axis or the
+    chart or by either preset; a price scale fitted to the days on
     screen and capped at 1.5× the highest average or strike, with any
     higher wick marked by a caret and the cap stated under the chart;
     `90 days` by default and `Full year` as presets that set the visible

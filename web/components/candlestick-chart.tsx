@@ -148,15 +148,16 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
       crosshair: { vertLine: { color: muted }, horzLine: { color: muted } },
       // The same gestures as the settlement chart: wheel and pinch zoom the
       // time axis, drag and horizontal swipe pan it, and a vertical swipe on
-      // a touch screen scrolls the page instead of being swallowed. The
-      // price axis can't be dragged, so auto-fit can't be switched off with
-      // no way back; a double-click (below) refits instead.
+      // a touch screen scrolls the page instead of being swallowed. Dragging
+      // the price axis stretches the scale and switches auto-fit off; a
+      // double-click on the axis or the chart, or a timeframe switch,
+      // switches it back on.
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       handleScale: {
         mouseWheel: true,
         pinch: true,
-        axisPressedMouseMove: { time: true, price: false },
-        axisDoubleClickReset: { time: false, price: false },
+        axisPressedMouseMove: { time: true, price: true },
+        axisDoubleClickReset: { time: false, price: true },
       },
     });
 
@@ -209,9 +210,14 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
     chart.subscribeCrosshairMove(onCrosshairMove);
     renderLegend(latestCandleRef.current);
 
-    // Double-click anywhere refits every candle of the timeframe, matching
-    // the settlement view.
-    const onDoubleClick = () => chart.timeScale().fitContent();
+    // A double-click on the price axis only switches auto-fit back on (the
+    // library resets the axis itself); anywhere else it also refits every
+    // candle of the timeframe, matching the settlement view.
+    const onDoubleClick = (event: MouseEvent) => {
+      const onPriceAxis = event.clientX - container.getBoundingClientRect().left > chart.paneSize().width;
+      if (!onPriceAxis) chart.timeScale().fitContent();
+      chart.priceScale('right').applyOptions({ autoScale: true });
+    };
     container.addEventListener('dblclick', onDoubleClick);
 
     return () => {
@@ -244,6 +250,9 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
         close: c.close,
       }));
       series.setData(data);
+      // A timeframe switch always returns a fitted view, even after the
+      // price axis was stretched by hand.
+      chartRef.current?.priceScale('right').applyOptions({ autoScale: true });
       chartRef.current?.timeScale().fitContent();
 
       const latest = data.length ? data[data.length - 1] : null;

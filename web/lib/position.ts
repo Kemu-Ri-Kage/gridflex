@@ -199,38 +199,77 @@ export function positionRows(
   return rows;
 }
 
+export interface ChangeSearch {
+  /** Each block where the probe changed, with the probe's value there. */
+  changes: { block: bigint; value: string }[];
+  /** The probe's value at `to`. */
+  toValue: string;
+  /** False when the probe budget ran out before every range was searched. */
+  complete: boolean;
+}
+
 /**
- * The blocks in (from, to] at which `probe` changes value, found by
- * bisection: a range whose two ends read the same is taken to hold no
- * change. `probe` returns a comparable key (e.g. "yesBalance:noBalance").
- * `fromValue` is the probe at `from`, if already known.
+ * The blocks in (from, to] at which `probe` changes value, oldest first. A
+ * range whose two ends read the same is taken to hold no change; a range
+ * whose ends differ is split into `fanout` parts probed in parallel, so the
+ * search takes about log_fanout(span) round trips instead of log2(span).
+ * `probe` returns a comparable key (e.g. "yesBalance:noBalance");
+ * `fromValue` is the probe at `from`, if already known. Past `maxProbes`
+ * calls the ranges still unsearched are dropped and `complete` is false:
+ * the changes found are real, but some may be missing.
  */
 export async function findChangeBlocks(
   probe: (block: bigint) => Promise<string>,
   from: bigint,
   to: bigint,
-  fromValue?: string,
-): Promise<bigint[]> {
-  if (to <= from) return [];
+  {
+    fromValue,
+    fanout = 2,
+    maxProbes = Infinity,
+  }: { fromValue?: string; fanout?: number; maxProbes?: number } = {},
+): Promise<ChangeSearch> {
+  let probes = 0;
+  let complete = true;
+  const read = (block: bigint) => {
+    probes += 1;
+    return probe(block);
+  };
   const [low, high] = await Promise.all([
-    fromValue === undefined ? probe(from) : Promise.resolve(fromValue),
-    probe(to),
+    fromValue === undefined ? read(from) : Promise.resolve(fromValue),
+    to <= from ? Promise.resolve(fromValue ?? '') : read(to),
   ]);
+  if (to <= from) return { changes: [], toValue: low, complete };
+
+  const parts = BigInt(Math.max(2, fanout));
   const search = async (
     lo: bigint,
     hi: bigint,
     loValue: string,
     hiValue: string,
-  ): Promise<bigint[]> => {
+  ): Promise<ChangeSearch['changes']> => {
     if (loValue === hiValue) return [];
-    if (hi - lo === 1n) return [hi];
-    const mid = lo + (hi - lo) / 2n;
-    const midValue = await probe(mid);
-    const [left, right] = await Promise.all([
-      search(lo, mid, loValue, midValue),
-      search(mid, hi, midValue, hiValue),
-    ]);
-    return [...left, ...right];
+    if (hi - lo === 1n) return [{ block: hi, value: hiValue }];
+    const points: bigint[] = [];
+    for (let i = 1n; i < parts; i += 1n) {
+      const point = lo + ((hi - lo) * i) / parts;
+      if (point > lo && point < hi && !points.includes(point)) {
+        points.push(point);
+      }
+    }
+    if (probes + points.length > maxProbes) {
+      complete = false;
+      return [];
+    }
+    const values = await Promise.all(points.map(read));
+    const blocks = [lo, ...points, hi];
+    const ends = [loValue, ...values, hiValue];
+    const found = await Promise.all(
+      blocks
+        .slice(1)
+        .map((block, i) => search(blocks[i], block, ends[i], ends[i + 1])),
+    );
+    return found.flat();
   };
-  return search(from, to, low, high);
+  const changes = await search(from, to, low, high);
+  return { changes, toValue: high, complete };
 }

@@ -100,11 +100,22 @@ export function formatCentsE18(priceE18: bigint): string {
 
 /** A signed mUSDT amount with an explicit sign, e.g. "+1.99", "−0.42", "0.00". */
 export function formatSignedToken(value: bigint): string {
+  const direction = signedTokenDirection(value);
   const magnitude = formatToken(value < 0n ? -value : value);
   // Below the 0.01 display step a sign would claim a gain or loss that the
   // shown digits can't.
-  if (magnitude === '0') return '0.00';
-  return `${value < 0n ? '−' : '+'}${magnitude}`;
+  if (direction === 'flat') return '0.00';
+  return `${direction === 'down' ? '−' : '+'}${magnitude}`;
+}
+
+/**
+ * Whether a signed token amount reads as a gain, a loss or neither once
+ * shown at formatSignedToken's 0.01 step - so a P&L's colour always agrees
+ * with its digits: "0.00" is flat, never up or down.
+ */
+export function signedTokenDirection(value: bigint): 'up' | 'down' | 'flat' {
+  if (formatToken(value < 0n ? -value : value) === '0') return 'flat';
+  return value < 0n ? 'down' : 'up';
 }
 
 /** A signed fraction as a percentage, e.g. 0.1994 -> "+19.9%"; "0.0%" when it rounds to zero. */
@@ -119,4 +130,10 @@ export function formatTokenExact(value: bigint): string {
   return Number(formatUnits(value, 6)).toLocaleString('en-US', {
     maximumFractionDigits: 6,
   });
+}
+
+/** A block's unix time in UTC, e.g. 1790116275 -> "22 Sep 2026, 22:31 UTC". */
+export function formatBlockTime(seconds: number): string {
+  const { date, time } = clockReading(new Date(seconds * 1000), 'UTC');
+  return `${date}, ${time} UTC`;
 }

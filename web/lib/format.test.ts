@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  formatBlockTime,
   formatCentsE18,
   formatSignedPercent,
   formatSignedToken,
   formatTokenExact,
   formatUpdated,
+  signedTokenDirection,
 } from './format.ts';
 
 void test('formatUpdated: Texas summer time and UTC', () => {
@@ -68,4 +70,16 @@ void test('formatTokenExact keeps all six decimals', () => {
   assert.equal(formatTokenExact(9_995_004n), '9.995004');
   assert.equal(formatTokenExact(19_990_009n), '19.990009');
   assert.equal(formatTokenExact(1_000_000_000n), '1,000');
+});
+
+void test('signedTokenDirection: a P&L that shows as 0.00 is flat, not up or down', () => {
+  assert.equal(signedTokenDirection(1_994_005n), 'up');
+  assert.equal(signedTokenDirection(-420_000n), 'down');
+  assert.equal(signedTokenDirection(0n), 'flat');
+  assert.equal(signedTokenDirection(1_994n), 'flat');
+  assert.equal(signedTokenDirection(-1_994n), 'flat');
+});
+
+void test('formatBlockTime: a block time in UTC', () => {
+  assert.equal(formatBlockTime(1790116275), '22 Sep 2026, 22:31 UTC');
 });

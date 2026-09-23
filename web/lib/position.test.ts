@@ -142,8 +142,38 @@ void test('findChangeBlocks finds each block where the probe changes', async () 
     calls += 1;
     return String(changes.filter((c) => c <= block).length);
   };
-  assert.deepEqual(await findChangeBlocks(probe, 0n, 44_000n), changes);
+  const blocks = async (...args: Parameters<typeof findChangeBlocks>) =>
+    (await findChangeBlocks(...args)).changes.map((change) => change.block);
+  assert.deepEqual(await blocks(probe, 0n, 44_000n), changes);
   assert.ok(calls < 60, `took ${calls} probes`);
-  assert.deepEqual(await findChangeBlocks(probe, 50_000n, 60_000n), []);
-  assert.deepEqual(await findChangeBlocks(probe, 5n, 5n), []);
+  assert.deepEqual(await blocks(probe, 50_000n, 60_000n), []);
+  assert.deepEqual(await blocks(probe, 5n, 5n), []);
+  for (const fanout of [3, 16]) {
+    assert.deepEqual(await blocks(probe, 0n, 44_000n, { fanout }), changes);
+  }
+  const search = await findChangeBlocks(probe, 0n, 44_000n, { fanout: 16 });
+  assert.equal(search.complete, true);
+  assert.equal(search.toValue, '3');
+  assert.deepEqual(
+    search.changes.map((change) => change.value),
+    ['1', '2', '3'],
+  );
+});
+
+void test('findChangeBlocks stops at its probe budget and says so', async () => {
+  const changes = [1_000n, 1_009n, 40_000n];
+  let calls = 0;
+  const probe = async (block: bigint) => {
+    calls += 1;
+    return String(changes.filter((c) => c <= block).length);
+  };
+  const search = await findChangeBlocks(probe, 0n, 44_000n, {
+    fanout: 16,
+    maxProbes: 40,
+  });
+  assert.equal(search.complete, false);
+  assert.ok(calls <= 40, `took ${calls} probes`);
+  // Whatever it did find is a real change.
+  for (const change of search.changes)
+    assert.ok(changes.includes(change.block));
 });

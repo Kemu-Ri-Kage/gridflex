@@ -526,6 +526,14 @@ the caption's tooltip carries the hash of the one on screen.
 - **Crosshair** enabled, both axes.
 - **The strike as a labelled horizontal line** on the chart, in `--warning`,
   dashed, with its dollar value in the axis label.
+  The price scale always takes in the strike, so the line never scrolls
+  out of view; otherwise it fits the visible candles' full high and low,
+  with no cap.
+- **Gestures match the settlement view:** wheel and pinch zoom the time
+  axis, drag and horizontal swipe pan it, the edges are fixed at the first
+  and last candle, and a double-click anywhere refits the timeframe. The
+  price axis can't be dragged, so auto-fit can't be switched off. On a
+  touch screen a vertical swipe scrolls the page, never the chart.
 - **Neutral dark theme**: chart background transparent over `--background`,
   grid lines in `--border` at low opacity, axis text in
   `--muted-foreground`, mono font family read from the same

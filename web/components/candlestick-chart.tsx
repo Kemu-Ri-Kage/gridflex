@@ -6,6 +6,7 @@ import {
   ColorType,
   createChart,
   LineStyle,
+  type AutoscaleInfo,
   type IChartApi,
   type ISeriesApi,
   type MouseEventParams,
@@ -87,6 +88,9 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
   // "show the latest candle when the cursor leaves the chart" fallback.
   const legendRef = React.useRef<HTMLDivElement | null>(null);
   const latestCandleRef = React.useRef<Candle | null>(null);
+  // The strike the price scale always takes in, so its line can't scroll
+  // out of view at any zoom - read by the series' autoscale provider.
+  const strikeRef = React.useRef<number | undefined>(strikeDollars);
 
   const renderLegend = React.useCallback((candle: Candle | null) => {
     const el = legendRef.current;
@@ -131,8 +135,29 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
         horzLines: { color: border, style: LineStyle.Dotted },
       },
       rightPriceScale: { borderColor: border },
-      timeScale: { borderColor: border, timeVisible: true, secondsVisible: false },
+      // Fixed edges: the chart can't be dragged into empty space past the
+      // first or last candle.
+      timeScale: {
+        borderColor: border,
+        timeVisible: true,
+        secondsVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        rightOffset: 0,
+      },
       crosshair: { vertLine: { color: muted }, horzLine: { color: muted } },
+      // The same gestures as the settlement chart: wheel and pinch zoom the
+      // time axis, drag and horizontal swipe pan it, and a vertical swipe on
+      // a touch screen scrolls the page instead of being swallowed. The
+      // price axis can't be dragged, so auto-fit can't be switched off with
+      // no way back; a double-click (below) refits instead.
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: { time: true, price: false },
+        axisDoubleClickReset: { time: false, price: false },
+      },
     });
 
     const series = chart.addSeries(CandlestickSeries, {
@@ -141,6 +166,20 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
       borderVisible: false,
       wickUpColor: up,
       wickDownColor: down,
+      // The full high and low of the visible candles, with no cap, widened
+      // only to take in the strike.
+      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+        const info = original();
+        const strike = strikeRef.current;
+        if (!info?.priceRange || strike === undefined) return info;
+        return {
+          ...info,
+          priceRange: {
+            minValue: Math.min(info.priceRange.minValue, strike),
+            maxValue: Math.max(info.priceRange.maxValue, strike),
+          },
+        };
+      },
     });
 
     chartRef.current = chart;
@@ -170,7 +209,13 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
     chart.subscribeCrosshairMove(onCrosshairMove);
     renderLegend(latestCandleRef.current);
 
+    // Double-click anywhere refits every candle of the timeframe, matching
+    // the settlement view.
+    const onDoubleClick = () => chart.timeScale().fitContent();
+    container.addEventListener('dblclick', onDoubleClick);
+
     return () => {
+      container.removeEventListener('dblclick', onDoubleClick);
       chart.unsubscribeCrosshairMove(onCrosshairMove);
       // Nulled before remove() so the strike-line cleanup below can tell the
       // series is gone and skip it.
@@ -224,6 +269,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
   // series that is no longer current is left alone - the line went with
   // the chart.
   React.useEffect(() => {
+    strikeRef.current = strikeDollars;
     const series = seriesRef.current;
     if (!series || strikeDollars === undefined) return;
 

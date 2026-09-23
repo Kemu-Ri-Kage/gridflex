@@ -1,0 +1,45 @@
+name: check
+
+# Runs scripts/check_all.sh on every push and pull request: metric-file
+# validation and the Python suite, forge fmt/test and the ABI export, then
+# the web tests, lint and production build. Nothing here touches the chain
+# or needs a secret.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check_all:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          # The version verified locally; scripts/check_all.sh looks for the same one.
+          version: v1.8.1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Run the complete project check
+        run: ./scripts/check_all.sh

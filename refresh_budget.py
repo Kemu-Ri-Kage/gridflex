@@ -25,10 +25,15 @@ a fetch through.
 Usage:
     python refresh_budget.py            # plan, check the allowance, exit 0/1
     python refresh_budget.py --plan     # plan only; no GridStatus call at all
+    python refresh_budget.py --tomorrow # the day-ahead window includes tomorrow,
+                                        # as fetch_ercot.py --tomorrow reads it
+
+The guard must never estimate a smaller fetch than the one that follows it,
+so every flag that widens fetch_ercot.py's window has a twin here and
+refresh_data.sh passes both.
 """
 
 import argparse
-import math
 import sys
 import time
 from datetime import date
@@ -36,13 +41,8 @@ from datetime import date
 import build_candles
 import fetch_ercot
 
-# Rows GridStatus returns per market day, rounded up for the 25-hour
-# fall-back day (5-minute SCED also re-runs a few intervals: up to 300 seen).
-ROWS_PER_DAY = {
-    "ercot_spp_day_ahead_hourly": 25,
-    "ercot_spp_real_time_15_min": 100,
-    "ercot_lmp_by_settlement_point": 300,
-}
+# Rows per market day are the ceilings fetch_ercot.ROWS_PER_DAY budgets with.
+ROWS_PER_DAY = fetch_ercot.ROWS_PER_DAY
 
 # The same days refresh_data.sh passes as --days.
 REFRESH_DAYS = 3
@@ -60,9 +60,10 @@ ROWS_USED_KEYS = ("total_api_rows_returned", "api_rows_returned", "rows_returned
 PAGE_LIMIT_KEYS = ("api_rows_per_response_limit", "rows_per_response_limit")
 
 
-def refresh_windows(today: date) -> list:
+def refresh_windows(today: date, include_tomorrow: bool = False) -> list:
     """[(dataset, location, start, end)] one refresh reads."""
-    da_start, da_end = fetch_ercot.fetch_window(REFRESH_DAYS, fill_gaps=True, today=today)
+    da_start, da_end = fetch_ercot.fetch_window(
+        REFRESH_DAYS, fill_gaps=True, today=today, include_tomorrow=include_tomorrow)
     candles = build_candles.fetch_windows(today)
     location = fetch_ercot.DAY_AHEAD["location"]
     return [
@@ -72,26 +73,15 @@ def refresh_windows(today: date) -> list:
     ]
 
 
-def plan_refresh(today: date, rows_per_page: int | None = None) -> list:
+def plan_refresh(today: date, rows_per_page: int | None = None,
+                 include_tomorrow: bool = False) -> list:
     """
     [{dataset, location, spans, requests, rows}] - what fetch() will request
     for each dataset, from the cache as it is now. A span longer than one
-    response page costs one request per page.
+    response page costs one request per page. include_tomorrow widens the
+    day-ahead window by one day, as fetch_ercot.py --tomorrow does.
     """
-    plan = []
-    for dataset, location, start, end in refresh_windows(today):
-        chunks = fetch_ercot.plan_chunks(dataset, location, start, end, today)
-        wanted = fetch_ercot.chunks_to_fetch(dataset, location, chunks, today)
-        spans = fetch_ercot.request_spans(wanted)
-        requests = rows = 0
-        for span_start, span_end in spans:
-            days = (date.fromisoformat(span_end) - date.fromisoformat(span_start)).days
-            span_rows = days * ROWS_PER_DAY[dataset]
-            rows += span_rows
-            requests += max(1, math.ceil(span_rows / rows_per_page)) if rows_per_page else 1
-        plan.append({"dataset": dataset, "location": location, "spans": spans,
-                     "requests": requests, "rows": rows})
-    return plan
+    return fetch_ercot.plan_reads(refresh_windows(today, include_tomorrow), today, rows_per_page)
 
 
 def _find(section: dict, keys: tuple):
@@ -167,11 +157,15 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plan", action="store_true",
                         help="print the plan only; make no GridStatus call")
+    parser.add_argument("--tomorrow", action="store_true",
+                        help="plan for fetch_ercot.py --tomorrow: the day-ahead "
+                             "window includes tomorrow's market day")
     args = parser.parse_args(argv)
     today = fetch_ercot.utc_today()
 
-    print(f"Planned GridStatus use of one refresh ({today}, from the raw cache):")
-    plan = plan_refresh(today)
+    print(f"Planned GridStatus use of one refresh ({today}, from the raw cache"
+          f"{', including tomorrow' if args.tomorrow else ''}):")
+    plan = plan_refresh(today, include_tomorrow=args.tomorrow)
     print_plan(plan)
     if args.plan:
         return 0
@@ -194,7 +188,7 @@ def main(argv=None) -> int:
         return 1
 
     if allowance["rows_per_page"]:
-        plan = plan_refresh(today, allowance["rows_per_page"])
+        plan = plan_refresh(today, allowance["rows_per_page"], include_tomorrow=args.tomorrow)
 
     def show(limit, used):
         return "no limit" if limit is None else f"{limit - used:,} of {limit:,} left"

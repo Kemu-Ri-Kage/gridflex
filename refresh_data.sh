@@ -8,6 +8,13 @@
 #                                  push, build and deploy (candles are left
 #                                  as they are - rebuilding them re-fetches
 #                                  the recent days). Needs no API key.
+#   ./refresh_data.sh --tomorrow   also read tomorrow's market day: the one
+#                                  whose day-ahead prices ERCOT publishes
+#                                  about 13:30 Central (18:30 UTC) today.
+#                                  Use it on the afternoon a live market
+#                                  closes, so its reading can be published
+#                                  and finalized the same evening instead of
+#                                  after 00:00 UTC (docs/OPS-RUNBOOK.md).
 #
 # Fetches only what the site and the live markets use, one GridStatus request
 # per dataset (three in all), each spanning every day the cache can't answer:
@@ -41,12 +48,14 @@ set -euo pipefail
 
 deploy=1
 fetch=1
+include_tomorrow=0
 for arg in "$@"; do
   case "$arg" in
     --no-deploy) deploy=0 ;;
     --no-fetch) fetch=0 ;;
+    --tomorrow) include_tomorrow=1 ;;
     -h | --help)
-      sed -n '2,39p' "$0"
+      sed -n '2,46p' "$0"
       exit 0
       ;;
     *)
@@ -119,15 +128,25 @@ run_log="$(mktemp)"
 trap 'rm -f "$run_log"' EXIT
 
 if [[ "$fetch" == 1 ]]; then
+  # The argument lists start non-empty and only ever grow, so they expand
+  # the same way under set -u on Bash 3.2 (macOS) as on Bash 5: an empty
+  # array expanded there is an "unbound variable" error.
+  budget_args=(refresh_budget.py)
+  fetch_args=(fetch_ercot.py --days "$fetch_days" --fill-gaps)
+  if [[ "$include_tomorrow" == 1 ]]; then
+    budget_args+=(--tomorrow)
+    fetch_args+=(--tomorrow)
+  fi
+
   echo "[0/6] Checking the GridStatus allowance"
-  if ! "$python_bin" refresh_budget.py; then
+  if ! "$python_bin" "${budget_args[@]}"; then
     echo "Nothing fetched. Run with --no-fetch to rebuild from data/metrics without GridStatus." >&2
     exit 1
   fi
 
   echo
   echo "[1/6] Fetching ERCOT prices"
-  "$python_bin" fetch_ercot.py --days "$fetch_days" --fill-gaps | tee "$run_log"
+  "$python_bin" "${fetch_args[@]}" | tee "$run_log"
 
   echo
   echo "[2/6] Rebuilding candle data"

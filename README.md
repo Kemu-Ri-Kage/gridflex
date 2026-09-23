@@ -102,16 +102,16 @@ compared it to its own strike.
 
 ### Tests
 
-**431 automated tests, all passing** on 23 September 2026:
+**503 automated tests, all passing** on 23 September 2026:
 
 | Suite | Tests | Run it |
 |---|---|---|
-| Data pipeline, publisher, finalizer (Python) | 306 | `python3 -m unittest discover -s tests` |
+| Data pipeline, publisher, finalizer, operator scripts (Python) | 358 | `python3 -m unittest discover -s tests` |
 | Contracts (Solidity, Foundry) | 54 | `cd contracts && forge test` |
-| Web app logic (TypeScript) | 71 | `cd web && node --test lib/*.test.ts` |
+| Web app logic (TypeScript) | 91 | `cd web && node --test lib/*.test.ts` |
 
 `./scripts/check_all.sh` runs all three plus data validation, lint and the
-production build.
+production build. The `check` GitHub Actions workflow runs it on every push.
 
 ### Check it yourself
 
@@ -125,6 +125,10 @@ cast call $ORACLE 'isFinal(bytes32,uint32)(bool)' $(cast keccak ERCOT_HBNORTH_DA
 # Did YES win on 8 Sep?  -> true.   On 12 Aug?  -> false
 cast call 0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1 'yesWon()(bool)' --rpc-url $RPC
 cast call 0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07 'yesWon()(bool)' --rpc-url $RPC
+
+# Recompute the 8 Sep price from ERCOT's published hourly prices and compare
+# with the oracle (needs a free GridStatus API key)
+python3 verify_reading.py --day-key 20260908 --fetch
 ```
 
 ---
@@ -139,7 +143,9 @@ cast call 0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07 'yesWon()(bool)' --rpc-url 
    together with a SHA-256 hash of the exact source files it was computed
    from. The metric file in [`data/metrics/`](data/metrics/) lists those
    files by name and order, so anyone holding them can recompute the hash
-   with `shasum -a 256`.
+   with `shasum -a 256`. Anyone without them can still recompute the
+   number: the 24 hourly prices are public, and `verify_reading.py` reads
+   them again and checks the mean against the oracle.
 3. **Finalize.** After a one-hour dispute window, anyone can finalize the
    reading. Until then no market can use it.
 4. **Resolve.** Anyone can call `resolve()` on a market once trading has
@@ -201,9 +207,13 @@ every trade, with OKLink as the public record.
   to release their collateral adds a real exit.
 - **Stop loss and take profit** orders on open positions.
 - **More markets**: more days and strikes on the Texas power price.
+- **Buy in one transaction.** Today a Buy YES is a mint and a swap, two
+  wallet confirmations after the approvals. A single `buy(side, amount,
+  minimumOut)` on the market halves the prompts a first-time trader sees.
 - **A statewide price index**: what Texas as a whole paid for power each
-  day, weighted by where it was used. It's already computed and published to
-  the oracle; a market on it is the next listing.
+  day, weighted by where it was used. It's already computed for the full
+  year and one day of it is on the oracle; a market on it is the next
+  listing.
 - **Dated futures**: contracts on a week or month of prices, not just one
   day.
 - **More US grids.** GridStatus already carries PJM, CAISO, MISO, NYISO,
@@ -213,6 +223,11 @@ every trade, with OKLink as the public record.
   contracts with no dependency on a host venue, so listing them on an
   exchange's own infrastructure is a deployment decision rather than a
   rewrite.
+- **A second reporter and a scheduled publish.** Today one person with one
+  key publishes and finalizes every reading by hand, on the calendar in
+  [`docs/OPS-RUNBOOK.md`](docs/OPS-RUNBOOK.md). A second reporter with a
+  stake, and a scheduled job that runs the cycle, are what make the oracle
+  something other people can rely on.
 
 ---
 
@@ -227,6 +242,9 @@ every trade, with OKLink as the public record.
 - [`shared/oracle-interface.md`](shared/oracle-interface.md): the oracle's
   structs, functions and events.
 - [`shared/deployment.md`](shared/deployment.md): deploying the contracts.
+- [`docs/OPS-RUNBOOK.md`](docs/OPS-RUNBOOK.md): the dated publish,
+  finalize, resolve and redeem calendar for every live market, through the
+  finale.
 - [`docs/HANDOFF.md`](docs/HANDOFF.md): implementation status.
 
 GRIDFLEX lists cash-settled contracts on a published price. Nothing on it is

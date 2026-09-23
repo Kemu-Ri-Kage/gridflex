@@ -138,6 +138,25 @@ SHA-256 rather than keccak256 so that anyone can verify with standard command
 line tools rather than an Ethereum library. The contract stores it as bytes32
 either way.
 
+**What a third party can and cannot check.** `data/raw/` is not committed, so
+the hash above is reproducible only by whoever holds the same response files.
+What anyone can check without them is the number itself: the day's 24 hourly
+prices are public, the rule is a plain mean, and `verify_reading.py`
+re-reads them from GridStatus and recomputes it with the pipeline's own
+functions, then compares with the oracle:
+
+```bash
+python3 verify_reading.py --day-key 20260908                # chain vs committed file
+python3 verify_reading.py --day-key 20260908 --fetch        # plus a recompute from GridStatus
+python3 verify_reading.py --day-key 20260812 --metric ERCOT_WEST_NORTH_DA_BASIS --fetch
+```
+
+It prints three checks as PASS, FAIL or SKIP: the oracle's value and hash
+against the committed file; the committed hash against the raw files, when
+they are present; and the recomputed value against the oracle. Read-only,
+no wallet, exit status 1 on any FAIL. `--fetch` needs `GRIDSTATUS_API_KEY`
+and spends 24 rows (48 for the basis) of the monthly allowance.
+
 ## Data source
 
 GridStatus.io hosted API, which redistributes public ERCOT market data.
@@ -388,3 +407,64 @@ would finalize. `--live` finalizes everything currently eligible, checked fresh 
 every time (never against the ledger's cached state) and isolates each reading independently — one
 revert never blocks the rest of the batch. See `shared/finalize-spec.md` for the full design.
 
+### Return the pool's collateral after settlement
+
+Each market is seeded with 10,000 mUSDT that only its provider can take back,
+with `claimLiquidity()`, once the market has resolved or cancelled (the
+winning reserve after a resolution, half of each reserve after a
+cancellation). Nothing else releases it. `claim_liquidity.py` lists every
+listed market's pool and what a claim pays, and with `--live` sends the
+claims that belong to the signer (finalizer-key convention, typed `yes`):
+
+```bash
+python3 claim_liquidity.py
+python3 claim_liquidity.py --live
+```
+
+### Verify the contracts' source on OKLink
+
+`contracts/scripts/verify_contracts.sh` submits the source of every deployed
+contract in `shared/addresses.json` to OKLink's X Layer testnet verifier, so
+an address page shows Solidity rather than bytecode. It needs an OKLink API
+key and Foundry, sends no transactions, and skips what is already verified:
+
+```bash
+OKLINK_API_KEY=... contracts/scripts/verify_contracts.sh --dry-run
+OKLINK_API_KEY=... contracts/scripts/verify_contracts.sh
+```
+
+### Reading tomorrow's price the afternoon it appears
+
+`fetch_ercot.py` reads up to and including today's market day (UTC). The day
+a live market settles on is tomorrow's, and ERCOT publishes its day-ahead
+prices about 13:30 Texas time, 18:30 UTC in summer. `--tomorrow` (also on
+`refresh_data.sh`) extends the window by one day so that reading can be
+published the same evening; before ERCOT has published, the day has no rows
+and is skipped. The dated sequence for every live market is in
+`docs/OPS-RUNBOOK.md`.
+
+### Request guards on direct runs
+
+`refresh_data.sh` is not the only way to spend the GridStatus allowance; a
+direct `fetch_ercot.py` or `build_candles.py` run is. Both now plan every
+request from the raw cache before sending one, the same
+`plan_chunks -> chunks_to_fetch -> request_spans` path `fetch()` follows,
+and `refresh_budget.py` plans with the same functions, so the allowance
+guard never budgets a smaller operation than the fetch that follows it.
+
+```bash
+python3 fetch_ercot.py --plan --days 3 --fill-gaps --tomorrow   # no API call at all
+python3 fetch_ercot.py --usage                                   # one get_api_usage() call, nothing else
+python3 fetch_ercot.py --days 400 --feed-metrics                 # refused: over --max-requests 10
+python3 fetch_ercot.py --days 400 --feed-metrics --max-requests 120
+python3 build_candles.py --plan
+python3 refresh_budget.py --tomorrow                             # the budget refresh_data.sh --tomorrow checks
+```
+
+`--max-requests` defaults to 10 (`fetch_ercot.DEFAULT_MAX_REQUESTS`): a
+routine refresh is one request per dataset and a full 31-day feed-metrics
+run is ten. A plan above it stops before the first request with the count
+and a message; raising it is the deliberate act. On a fresh clone with no
+`data/raw/`, the first `build_candles.py` is a full-history pull of about
+16 requests and needs `--max-requests 20` once; after that the cache makes
+a refresh two requests.

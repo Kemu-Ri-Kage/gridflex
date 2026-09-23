@@ -110,6 +110,31 @@ class TestPlan(CacheTest):
     def test_a_span_longer_than_a_page_costs_a_request_per_page(self):
         self.assertEqual(self.plan(rows_per_page=250)[LMP]["requests"], 4)
 
+    def test_the_default_plan_stops_at_today(self):
+        # Unchanged by the --tomorrow flag's existence: 19 Sep to today.
+        plan = self.plan()
+        self.assertEqual(plan[DA]["spans"], [("2026-09-19", "2026-09-23")])
+        self.assertEqual(plan[DA]["rows"], 4 * 25)
+
+    def test_tomorrow_adds_exactly_one_day_ahead_day_to_the_budget(self):
+        default = self.plan()
+        plan = self.plan(include_tomorrow=True)
+        self.assertEqual(plan[DA]["spans"], [("2026-09-19", "2026-09-24")])
+        self.assertEqual(plan[DA]["rows"], default[DA]["rows"] + 25)
+        self.assertEqual(plan[DA]["requests"], 1)
+        # The candle datasets are not widened: build_candles.py has no such flag.
+        for dataset in (RT, LMP):
+            self.assertEqual(plan[dataset], default[dataset])
+
+    def test_tomorrow_never_plans_less_than_the_fetch_that_follows(self):
+        # The window the guard budgets is the window fetch_ercot.py --tomorrow reads.
+        plan = self.plan(include_tomorrow=True)
+        start, end = fetch_ercot.fetch_window(
+            refresh_budget.REFRESH_DAYS, fill_gaps=True, today=TODAY, include_tomorrow=True)
+        (span_start, span_end), = plan[DA]["spans"]
+        self.assertLessEqual(date.fromisoformat(span_start), start)
+        self.assertEqual(date.fromisoformat(span_end), end)
+
     def test_it_plans_the_windows_the_fetchers_use(self):
         windows = {d: (s, e) for d, _, s, e in refresh_budget.refresh_windows(TODAY)}
         self.assertEqual(windows[DA], tuple(str(d) for d in fetch_ercot.fetch_window(
@@ -212,6 +237,22 @@ class TestMain(CacheTest):
         code, _, _, err = self.run_main({"something": "else"})
         self.assertEqual(code, 1)
         self.assertIn("Refusing to refresh", err)
+
+    def test_tomorrow_flag_reaches_the_plan_and_the_check(self):
+        code, client, out, _ = self.run_main(usage(), argv=["--tomorrow"])
+        self.assertEqual(code, 0)
+        client.get_api_usage.assert_called_once_with()
+        self.assertIn("including tomorrow", out)
+        self.assertIn("one refresh: 3 request(s), ~1,325 rows", out)
+
+    def test_tomorrow_can_be_what_tips_it_over(self):
+        # Exactly the default fits; the extra 25 rows do not.
+        default_rows = 1_300
+        code, _, _, _ = self.run_main(usage(rows_used=500_000 - default_rows))
+        self.assertEqual(code, 0)
+        code, _, _, err = self.run_main(usage(rows_used=500_000 - default_rows), argv=["--tomorrow"])
+        self.assertEqual(code, 1)
+        self.assertIn("needs 1,325 rows", err)
 
     def test_plan_only_makes_no_call(self):
         with patch.object(fetch_ercot, "get_client") as get_client, \

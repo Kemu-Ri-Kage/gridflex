@@ -12,8 +12,8 @@ GRIDFLEX lists YES/NO questions on the Texas power price, such as "Will Texas
 power cost more than $45 on 2 Oct 2026?" Each YES pays 1 MockUSDT if that
 day's price settles above the strike. It settles against the official published
 price from ERCOT, Texas's official grid price: the average of the day's 24 hourly
-day-ahead prices, published with a SHA-256 hash of its source files so anyone
-can recompute it.
+day-ahead prices, published with a SHA-256 hash of its source files, and
+anyone can recompute the number from ERCOT's public hourly prices.
 
 It's for traders who want exposure unrelated to crypto, since Texas power
 moves on weather, gas prices and grid demand, and for anyone whose costs

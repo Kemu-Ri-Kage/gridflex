@@ -44,6 +44,13 @@ repository. Operator keys belong in an encrypted keystore outside the project.
 - Wallet-connected web interface for collateral minting, position creation,
   trading, settlement, and redemption.
 - Source-hash verification and an idempotent publication ledger.
+- Operator scripts, all dry-run by default: `publish.py`, `finalize.py`,
+  `create_markets.py`, `resolve_markets.py`, `claim_liquidity.py`,
+  `fund_demo_wallet.py`, and the read-only `verify_reading.py`, which
+  recomputes a published price from ERCOT's public hourly prices.
+- `contracts/scripts/verify_contracts.sh` for source verification on OKLink.
+- A GitHub Actions workflow (`.github/workflows/check.yml`) that runs
+  `scripts/check_all.sh` on every push.
 
 Only `ERCOT_HBNORTH_DA_AVG` and `ERCOT_WEST_NORTH_DA_BASIS` are eligible to
 settle MVP markets. Other published metrics are display-only feeds.
@@ -67,13 +74,13 @@ The trade-safe factory was deployed in transaction
 Its runtime bytecode matches the current local build exactly; the previous
 factory is retained only as a superseded audit record in `shared/addresses.json`.
 
-The next end-to-end milestone is to:
-
-1. finalise the eligible demo readings;
-2. create and seed a past-day market through `CreateDemoMarket.s.sol`;
-3. execute the complete mint, swap, resolve, and redeem lifecycle;
-4. record every public transaction hash;
-5. run `build_feed_data.py` so `web/public/data/addresses.json` lists the market, and verify the live UI.
+The two resolved markets settled without any position in them, so the
+lifecycle has not yet been shown end to end with a trade and a `redeem()`
+on the chain, and only a handful of the 376 committed price days are
+published to the oracle. `docs/OPS-RUNBOOK.md` lists both as the first
+items for 23 September, followed by the dated cycle for each live market
+(26 Sep, 30 Sep, 2 Oct) and the markets to create for the 7 October
+finale in Singapore.
 
 Detailed operator commands are in `shared/deployment.md`,
 `shared/publish-spec.md`, and `shared/finalize-spec.md`.

@@ -95,3 +95,17 @@ current Unix time plus 2,700 seconds.
 After deployment, save every public transaction hash (deploy, submit, finalize, create,
 swap, resolve, redeem) in the README. Public addresses and hashes are safe to share; private
 keys are not.
+
+## Verify the source on OKLink
+
+Once deployed, publish the source so the explorer shows Solidity instead of
+bytecode. `contracts/scripts/verify_contracts.sh` reads every address in
+`shared/addresses.json` and submits it (needs an OKLink API key, sends no
+transactions):
+
+```bash
+OKLINK_API_KEY=... contracts/scripts/verify_contracts.sh --dry-run
+OKLINK_API_KEY=... contracts/scripts/verify_contracts.sh
+```
+
+Re-run it after creating markets; addresses already verified are skipped.

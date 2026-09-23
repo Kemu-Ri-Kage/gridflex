@@ -390,6 +390,17 @@ class TestFetchWindow(unittest.TestCase):
         self.assertEqual(self.window(fill_gaps=False),
                          (date(2026, 9, 19), date(2026, 9, 23)))
 
+    def test_tomorrow_is_included_only_on_request(self):
+        # With include_tomorrow the window reaches [19 Sep, 24 Sep): tomorrow,
+        # 23 Sep, is the day whose day-ahead prices ERCOT publishes today.
+        self.assertEqual(
+            fetch_ercot.fetch_window(3, False, self.TODAY, self.metrics, include_tomorrow=True),
+            (date(2026, 9, 19), date(2026, 9, 24)))
+        # The default is unchanged, so refresh_budget.py's plan still matches.
+        self.assertEqual(
+            fetch_ercot.fetch_window(3, False, self.TODAY, self.metrics),
+            (date(2026, 9, 19), date(2026, 9, 23)))
+
     def test_the_current_gap_is_filled(self):
         # The state the audit found: files up to 9 Sep, then 19-21 Sep.
         self.have_range(date(2026, 9, 1), date(2026, 9, 9))
@@ -517,7 +528,10 @@ class TestWhatTheCandleBuilderFetches(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_main(self, *argv):
-        with patch("sys.argv", ["build_candles.py", *argv]):
+        # The plan is made from the real (here: empty) cache, so a full
+        # history would trip the request guard; this test is about which
+        # datasets are read, not the guard (tests/test_request_budget.py).
+        with patch("sys.argv", ["build_candles.py", "--max-requests", "50", *argv]):
             build_candles.main()
         return self.calls
 

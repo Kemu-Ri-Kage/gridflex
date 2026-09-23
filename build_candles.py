@@ -196,6 +196,18 @@ def fetch_windows(end_date: date, start: str = DEFAULT_START, days: int | None =
     }
 
 
+def planned_reads(locations, windows) -> list:
+    """[(dataset, location, start, end)] main() fetches, in its order: for
+    each location the 5-minute dispatch LMPs, then the 15-minute prices."""
+    five_min_start, end = windows[FIVE_MIN_DATASET]
+    start, _ = windows[DATASET]
+    reads = []
+    for location in locations:
+        reads.append((FIVE_MIN_DATASET, location, five_min_start, end))
+        reads.append((DATASET, location, start, end))
+    return reads
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", default=DEFAULT_START,
@@ -206,7 +218,18 @@ def main():
                         help="how many days of 5-min dispatch LMPs to fetch, for 15m/1h candles")
     parser.add_argument("--west-hub", action="store_true",
                         help=f"also build {WEST_HUB} candles (the site doesn't show them)")
+    parser.add_argument("--plan", action="store_true",
+                        help="print the requests and rows this run would spend, "
+                             "from the raw cache, and stop; no API call at all")
+    parser.add_argument("--usage", action="store_true",
+                        help="print what is left of the GridStatus allowance "
+                             "(one get_api_usage() request) and stop; fetches nothing")
+    parser.add_argument("--max-requests", type=int, default=fetch_ercot.DEFAULT_MAX_REQUESTS,
+                        help="stop before fetching if the run would send more GridStatus "
+                             f"requests than this (default {fetch_ercot.DEFAULT_MAX_REQUESTS})")
     args = parser.parse_args()
+    if args.max_requests < 1:
+        parser.error("--max-requests must be at least 1")
     locations = LOCATIONS + ([WEST_HUB] if args.west_hub else [])
 
     end_date = datetime.now(timezone.utc).date()
@@ -217,6 +240,19 @@ def main():
     print(f"GRIDFLEX candle builder @ {locations}")
     print(f"  {FIVE_MIN_DATASET} (15m, 1h): {five_min_start} -> {end}")
     print(f"  {DATASET} (4h, 1d, 1w): {start} -> {end}\n")
+
+    # The same reads the loop below makes, planned from the cache first.
+    plan = fetch_ercot.plan_reads(planned_reads(locations, windows), end_date)
+    print("Planned GridStatus use (from the raw cache):")
+    fetch_ercot.print_plan(plan)
+    print()
+    if args.plan:
+        return
+    if args.usage:
+        fetch_ercot.print_usage(get_client())
+        return
+    fetch_ercot.enforce_request_limit(plan, args.max_requests)
+
     client = get_client()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 

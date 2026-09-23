@@ -120,11 +120,11 @@ those strikes: see "Choosing the ladder strikes" below.
 - Trading close: **2026-10-01 12:30 CDT (Texas) / 18:30 BST (London)**.
   It stays open for trading through the judges' review period, which runs
   until 30 September.
-- Resolution: `fetch_ercot.py` stops at "yesterday in UTC", so 2 October
-  can be fetched once UTC reaches 2026-10-03 (08:00 SGT on 3 October; see
-  the note at the end). After that come publish and finalize, and then
-  `resolve()` works. That leaves time for it to settle before the
-  6 October finale.
+- Resolution: `fetch_ercot.py` reads up to today in UTC, so 2 October can
+  be fetched once UTC reaches 2026-10-02, or on the afternoon of 1 October
+  with `--tomorrow` (see the note at the end). After that come publish and
+  finalize, and then `resolve()` works. That leaves time for it to settle
+  before the 7 October finale.
 
 ### 6. Texas power, 30 September 2026, above $40
 

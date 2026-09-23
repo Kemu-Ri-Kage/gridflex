@@ -44,6 +44,7 @@ expensive one because it arrives every 5 minutes.
 import argparse
 import hashlib
 import json
+import math
 import os
 import time
 from collections import defaultdict
@@ -165,6 +166,27 @@ RECENT_DAYS = 3
 # decode bug in the HTTP stack (see month_chunks).
 MAX_REQUEST_DAYS = 31
 
+# Rows GridStatus returns per market day, as a ceiling that never undershoots
+# (a 25-hour fall-back day has 25 hourly prices; 5-minute SCED re-runs a few
+# intervals). The load data may come back wide (one row per hour) or long
+# (one row per hour per zone); the ceiling covers the long shape. Used to
+# budget a run before it starts, here and in refresh_budget.py.
+ROWS_PER_DAY = {
+    "ercot_spp_day_ahead_hourly": 25,
+    "ercot_spp_real_time_15_min": 100,
+    "ercot_lmp_by_settlement_point": 300,
+    "ercot_fuel_mix": 300,
+    "ercot_load_by_forecast_zone": 100,
+}
+
+# A run that would send more GridStatus requests than this stops before the
+# first one unless --max-requests raises it. The free plan meters requests
+# as well as rows, and a routine refresh is one request per dataset: the
+# day-ahead price is one, the two candle datasets are one each, the feed
+# metrics add eight. Anything above this is a deliberate backfill, and
+# saying so on the command line is the whole cost.
+DEFAULT_MAX_REQUESTS = 10
+
 # Rows GridStatus returned to this process - what the free plan meters - and
 # the requests that returned them. Cached chunks cost nothing and are not
 # counted.
@@ -274,7 +296,8 @@ def latest_complete_day(metric_id=DAY_AHEAD["metric_id"], metrics_dir=None):
     return last
 
 
-def fetch_window(days, fill_gaps=False, today=None, metrics_dir=None):
+def fetch_window(days, fill_gaps=False, today=None, metrics_dir=None,
+                 include_tomorrow=False):
     """
     The [start, end) market days one run reads.
 
@@ -283,6 +306,14 @@ def fetch_window(days, fill_gaps=False, today=None, metrics_dir=None):
     is before 00:00 UTC of that day, so on any UTC date that day's prices
     already exist. Real-time data for today is still partial and fails the
     completeness check, as it should.
+
+    With include_tomorrow the end moves one day later, so tomorrow's
+    market day is read too. That is the day whose day-ahead prices ERCOT
+    publishes this afternoon (about 13:30 Central, 18:30 UTC in summer),
+    and the day a market that closed at 12:30 Central today settles on.
+    Without the flag those prices are only picked up after 00:00 UTC.
+    Before ERCOT has published, the day has no rows and is skipped by the
+    completeness check; nothing partial is ever written.
 
     The start is `days` before today. With fill_gaps it moves back to the
     day after the latest complete day in data/metrics, so a day that was
@@ -296,7 +327,8 @@ def fetch_window(days, fill_gaps=False, today=None, metrics_dir=None):
         complete = latest_complete_day(metrics_dir=metrics_dir)
         if complete is not None:
             start = min(start, complete + timedelta(days=1))
-    return start, today + timedelta(days=1)
+    end = today + timedelta(days=2 if include_tomorrow else 1)
+    return start, end
 
 
 def chunk_is_final(start, end, today=None):
@@ -402,6 +434,83 @@ def request_spans(chunks):
                 continue
         spans.append((start, end))
     return spans
+
+
+def plan_fetch(dataset, location, start, end, today=None, rows_per_page=None):
+    """
+    What one fetch() call will request, from the cache as it is now, without
+    touching the network: {dataset, location, spans, requests, rows}. The
+    same plan_chunks -> chunks_to_fetch -> request_spans path fetch() takes,
+    so the estimate is the request list, not a guess at it. Rows are the
+    per-day ceiling in ROWS_PER_DAY; a span longer than one response page
+    costs one request per page when rows_per_page is known.
+    """
+    chunks = plan_chunks(dataset, location, start, end, today)
+    wanted = chunks_to_fetch(dataset, location, chunks, today)
+    spans = request_spans(wanted)
+    requests = rows = 0
+    for span_start, span_end in spans:
+        days = (date.fromisoformat(span_end) - date.fromisoformat(span_start)).days
+        span_rows = days * ROWS_PER_DAY[dataset]
+        rows += span_rows
+        requests += max(1, math.ceil(span_rows / rows_per_page)) if rows_per_page else 1
+    return {"dataset": dataset, "location": location, "spans": spans,
+            "requests": requests, "rows": rows}
+
+
+def plan_reads(reads, today=None, rows_per_page=None):
+    """[plan_fetch(...) for each (dataset, location, start, end) in reads]."""
+    return [plan_fetch(dataset, location, start, end, today, rows_per_page)
+            for dataset, location, start, end in reads]
+
+
+def plan_totals(plan):
+    """(requests, rows) a plan adds up to."""
+    return (sum(item["requests"] for item in plan), sum(item["rows"] for item in plan))
+
+
+def print_plan(plan):
+    for item in plan:
+        spans = ", ".join(f"{s} -> {e}" for s, e in item["spans"]) or "all from cache"
+        print(f"  {item['dataset']} {item['location'] or 'all'}: "
+              f"{item['requests']} request(s), ~{item['rows']:,} rows  [{spans}]")
+    requests, rows = plan_totals(plan)
+    print(f"  this run: {requests} request(s), ~{rows:,} rows")
+
+
+def enforce_request_limit(plan, max_requests):
+    """Stop, before any request is sent, if the plan needs more than allowed."""
+    requests, rows = plan_totals(plan)
+    if requests > max_requests:
+        raise SystemExit(
+            f"Refusing to fetch: this run would send {requests} GridStatus requests "
+            f"(~{rows:,} rows), more than --max-requests {max_requests}. Nothing was "
+            "sent. Narrow the window, or pass a higher --max-requests on purpose.")
+
+
+def print_usage(client):
+    """
+    Print what is left of the GridStatus allowance, from ONE get_api_usage()
+    call and no other request. Fails closed: an answer without the limits
+    and usage in it is an error, not a pass.
+    """
+    from refresh_budget import read_allowance  # shares the answer's field names
+
+    client.max_retries = 0
+    try:
+        usage = client.get_api_usage()
+    finally:
+        time.sleep(RATE_LIMIT_SLEEP)
+    try:
+        allowance = read_allowance(usage)
+    except ValueError as exc:
+        raise SystemExit(f"get_api_usage() answer could not be read: {exc}.")
+
+    def show(limit, used):
+        return "no limit" if limit is None else f"{limit - used:,} of {limit:,} left ({used:,} used)"
+    print(f"GridStatus allowance: requests {show(allowance['requests_limit'], allowance['requests_used'])}, "
+          f"rows {show(allowance['rows_limit'], allowance['rows_used'])}")
+    return allowance
 
 
 def fetch_span(client, dataset, start, end, location=None):
@@ -839,6 +948,24 @@ def write_metric(metric_id, day, value, source_hash, source_files,
 # MAIN
 # --------------------------------------------------------------------------
 
+def planned_reads(start, end, feed_metrics=False, fuel_mix=False):
+    """
+    [(dataset, location, start, end)] main() fetches for these flags, in the
+    order it fetches them. Kept next to main() so a new fetch there is a new
+    line here: the request guard budgets exactly this list.
+    """
+    reads = [(DAY_AHEAD["dataset"], DAY_AHEAD["location"], start, end)]
+    if feed_metrics:
+        reads.append((BASIS["dataset"], BASIS["location"], start, end))
+        reads.append((REAL_TIME["dataset"], REAL_TIME["location"], start, end))
+        for point in INDEX["zones"]:
+            reads.append((INDEX["price_dataset"], point, start, end))
+        reads.append((INDEX["load_dataset"], None, start, end))
+    if fuel_mix:
+        reads.append((FUEL_MIX["dataset"], None, start, end))
+    return reads
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=1,
@@ -854,16 +981,47 @@ def main():
                              "load-weighted index (4 load zones + load)")
     parser.add_argument("--fuel-mix", action="store_true",
                         help="also fetch the fuel mix feed (about 288 rows/day)")
+    parser.add_argument("--tomorrow", action="store_true",
+                        help="also read tomorrow's market day, whose day-ahead "
+                             "prices ERCOT publishes about 13:30 Central today; "
+                             "use it to settle a market that closed today "
+                             "without waiting for 00:00 UTC")
+    parser.add_argument("--plan", action="store_true",
+                        help="print the requests and rows this run would spend, "
+                             "from the raw cache, and stop; no API call at all")
+    parser.add_argument("--usage", action="store_true",
+                        help="print what is left of the GridStatus allowance "
+                             "(one get_api_usage() request) and stop; fetches nothing")
+    parser.add_argument("--max-requests", type=int, default=DEFAULT_MAX_REQUESTS,
+                        help="stop before fetching if the run would send more "
+                             f"GridStatus requests than this (default {DEFAULT_MAX_REQUESTS})")
     args = parser.parse_args()
+    if args.max_requests < 1:
+        parser.error("--max-requests must be at least 1")
 
-    start_date, end_date = fetch_window(args.days, fill_gaps=args.fill_gaps)
+    start_date, end_date = fetch_window(args.days, fill_gaps=args.fill_gaps,
+                                        include_tomorrow=args.tomorrow)
     start, end = str(start_date), str(end_date)
     recent_start = utc_today() - timedelta(days=args.days)
 
     print(f"GRIDFLEX pipeline: {start} to {end}")
     if start_date < recent_start:
         print(f"  filling missing days {start} to {recent_start - timedelta(days=1)}")
+
+    # Every read this run will make, in the order main() makes them, planned
+    # from the cache before a single request goes out.
+    reads = planned_reads(start, end, feed_metrics=args.feed_metrics, fuel_mix=args.fuel_mix)
+    plan = plan_reads(reads)
+    print("Planned GridStatus use (from the raw cache):")
+    print_plan(plan)
     print()
+    if args.plan:
+        return
+    if args.usage:
+        print_usage(get_client())
+        return
+    enforce_request_limit(plan, args.max_requests)
+
     client = get_client()
 
     # Readings already onchain keep their committed file - see write_metric.

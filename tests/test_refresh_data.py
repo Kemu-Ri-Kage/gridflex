@@ -172,6 +172,34 @@ class RefreshScriptTest(unittest.TestCase):
             "python build_feed_data.py",
         ])
 
+    def test_tomorrow_reaches_both_the_budget_check_and_the_fetch(self):
+        result = self.refresh("--tomorrow")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        steps = [c for c in self.calls() if c.startswith("python ")]
+        self.assertEqual(steps, [
+            "python refresh_budget.py --tomorrow",
+            "python fetch_ercot.py --days 3 --fill-gaps --tomorrow",
+            "python build_candles.py",
+            "python build_feed_data.py",
+        ])
+        # The fetch still counts towards the totals the script reports.
+        self.assertIn("requests used by this refresh: 3", result.stdout)
+        self.assertIn("rows used by this refresh: 1334", result.stdout)
+
+    def test_the_fetch_step_is_never_skipped_silently(self):
+        # Bash 3.2 (macOS) treats an empty array expansion as unbound under
+        # set -u. The fetch command line is built from a list that is never
+        # empty, so a plain run and a --tomorrow run both reach fetch_ercot.py
+        # exactly once, and a run that did not would fail this test.
+        for args in ((), ("--tomorrow",)):
+            self.log.write_text("")
+            result = self.refresh(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            fetches = [c for c in self.calls() if c.startswith("python fetch_ercot.py")]
+            self.assertEqual(len(fetches), 1, args)
+            self.assertTrue(fetches[0].startswith("python fetch_ercot.py --days 3 --fill-gaps"), args)
+            self.assertIn("[1/6] Fetching ERCOT prices", result.stdout)
+
     def test_no_room_in_the_allowance_stops_it_before_fetching(self):
         before = self.git("rev-parse", "HEAD")
         result = self.refresh(STUB_BUDGET_REFUSE="1")

@@ -30,8 +30,8 @@
 # built worker. Prints the GridStatus requests and rows it used.
 #
 # Refuses to run on main. Deploys only what is committed and pushed: it stops
-# before fetching if anything under web/ other than web/public/data/ has
-# uncommitted changes, and again before building if anything is left over.
+# before fetching if anything under web/ other than web/public/data/ and
+# web/lib/generated/ has uncommitted changes, and again before building if anything is left over.
 #
 # Needs GRIDSTATUS_API_KEY - taken from the environment, or loaded from .env
 # without ever being printed - and a logged-in wrangler for the deploy.
@@ -76,7 +76,7 @@ git_remote="${GIT_REMOTE:-origin}"
 fetch_days=3
 
 # The files this script regenerates, and so the only ones it commits.
-data_paths=(data/metrics web/public/data)
+data_paths=(data/metrics web/public/data web/lib/generated)
 
 # Everything the site build reads from the repo.
 build_paths=(web data/metrics)
@@ -92,9 +92,9 @@ if [[ "$branch" == "main" ]]; then
 fi
 
 # The site is built from the working tree, so anything uncommitted under web/
-# would ship without being in any commit. Only web/public/data/ may differ:
-# this run regenerates and commits it.
-dirty="$(git status --porcelain --untracked-files=all -- web ':(exclude)web/public/data')"
+# would ship without being in any commit. Only web/public/data/ and
+# web/lib/generated/ may differ: this run regenerates and commits them.
+dirty="$(git status --porcelain --untracked-files=all -- web ':(exclude)web/public/data' ':(exclude)web/lib/generated')"
 if [[ -n "$dirty" ]]; then
   echo "Uncommitted changes under web/ would be deployed without a commit:" >&2
   echo "$dirty" >&2

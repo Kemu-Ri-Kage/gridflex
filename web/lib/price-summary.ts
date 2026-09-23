@@ -1,12 +1,13 @@
-import summaryJson from '@/public/data/price-summary.json';
+import summaryJson from '@/lib/generated/price-summary.json';
 
 /**
  * The landing page's lead, written by build_feed_data.py's
- * write_price_summary(): the latest day's cheapest and dearest hour, the
+ * write_price_summary() into lib/generated/: the latest day's cheapest and dearest hour, the
  * normal range of daily prices, and the peak day. Prices are cents per
  * MWh, the same x100 scale as oracle readings.
  *
- * Imported at build time rather than fetched, so the hero headline renders
+ * Imported at build time rather than fetched (nothing requests it by URL,
+ * so it isn't in public/), so the hero headline renders
  * in its final text on first paint - no layout shift, nothing for the
  * word-by-word reveal to wait on (design-brief.md §13).
  */

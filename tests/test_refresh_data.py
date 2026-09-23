@@ -32,6 +32,7 @@ case "$1" in
   build_feed_data.py)
     if [[ -z "${STUB_NO_CHANGE:-}" ]]; then
       echo "{\\"run\\": \\"$RANDOM$RANDOM\\"}" > web/public/data/price.json
+      echo "{\\"run\\": \\"$RANDOM$RANDOM\\"}" > web/lib/generated/price-summary.json
       echo "{}" > data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-22.json
     fi
     ;;
@@ -65,6 +66,7 @@ class RefreshScriptTest(unittest.TestCase):
         for path, text in {
             "web/app.tsx": "export {};\n",
             "web/public/data/price.json": "{}\n",
+            "web/lib/generated/price-summary.json": "{}\n",
             "data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-21.json": "{}\n",
             "README.md": "repo\n",
         }.items():
@@ -138,7 +140,11 @@ class RefreshScriptTest(unittest.TestCase):
         changed = self.git("diff", "--name-only", before, head).splitlines()
         self.assertEqual(
             sorted(changed),
-            ["data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-22.json", "web/public/data/price.json"],
+            [
+                "data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-22.json",
+                "web/lib/generated/price-summary.json",
+                "web/public/data/price.json",
+            ],
         )
 
         build, deploy = [c for c in self.calls() if c.startswith("pnpm")]
@@ -196,6 +202,14 @@ class RefreshScriptTest(unittest.TestCase):
         # Leftover data from an earlier run is regenerated and committed.
         (self.repo / "web/public/data/price.json").write_text('{"old": true}\n')
         self.assertEqual(self.refresh().returncode, 0)
+
+    def test_stale_generated_imports_are_not_a_reason_to_stop(self):
+        # web/lib/generated/ is regenerated like web/public/data/, and committed.
+        (self.repo / "web/lib/generated/price-summary.json").write_text('{"old": true}\n')
+        before = self.git("rev-parse", "HEAD")
+        self.assertEqual(self.refresh().returncode, 0)
+        changed = self.git("diff", "--name-only", before, "HEAD").splitlines()
+        self.assertIn("web/lib/generated/price-summary.json", changed)
 
     def test_only_the_data_paths_are_committed(self):
         (self.repo / "README.md").write_text("staged, unrelated\n")

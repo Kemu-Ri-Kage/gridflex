@@ -4,8 +4,10 @@
 Implements shared/feed-spec.md §9: the feed page never reads the 2,168 raw
 data/metrics/*.json files directly, and never depends on a live RPC call to
 render anything but its per-row verification badge. This script writes one
-small, trimmed file per in-scope metric into web/public/data/ - the only
-thing under web/ this script touches, and the only new path it adds.
+small, trimmed file per in-scope metric into web/public/data/, and the
+landing page's price summary into web/lib/generated/ (imported at build
+time, so it can't live in public/) - the only two paths under web/ this
+script touches.
 
 Reuses publish.py's metric-file loading and ledger I/O (shared/publish-spec.md
 already validates and normalizes both) rather than re-parsing data/metrics/
@@ -31,6 +33,9 @@ from publish import EXPECTED_METRICS, MetricReading, collect_readings, load_ledg
 
 ROOT = Path(__file__).resolve().parent
 WEB_DATA_DIR = ROOT / "web" / "public" / "data"
+# Files the web app imports at build time rather than fetching by URL: they
+# live outside public/, which Vite won't let JavaScript import from.
+WEB_GENERATED_DIR = ROOT / "web" / "lib" / "generated"
 ADDRESSES_SOURCE = ROOT / "shared" / "addresses.json"
 METRICS_DIR = ROOT / "data" / "metrics"
 RAW_DIR = ROOT / "data" / "raw"
@@ -313,6 +318,8 @@ def price_range(records: list[dict[str, Any]]) -> dict[str, Any]:
 def write_price_summary(output_dir: Path, records: list[dict[str, Any]]) -> bool:
     """Publish the landing page's lead: the latest day's cheapest and dearest
     hour, next to the normal range and the peak.
+    Written to web/lib/generated/ (not public/): the web app imports it at
+    build time and nothing fetches it by URL.
 
     The hours come from the exact sourceFiles list of the latest daily
     price's own metric file, read from the data/raw/ cache - the same bytes
@@ -321,6 +328,7 @@ def write_price_summary(output_dir: Path, records: list[dict[str, Any]]) -> bool
     """
     if not records:
         return False
+    output_dir.mkdir(parents=True, exist_ok=True)
     latest = records[-1]
     metric_path = METRICS_DIR / f"{PRICE_METRIC_ID}__{latest['marketDay']}.json"
     try:
@@ -351,6 +359,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--metric", action="append", choices=EXPECTED_METRICS)
     parser.add_argument("--out", type=Path, default=WEB_DATA_DIR)
+    parser.add_argument("--generated-out", type=Path, default=WEB_GENERATED_DIR)
     args = parser.parse_args(argv)
     collect_args = argparse.Namespace(metric=args.metric, start=None, end=None, days=None)
 
@@ -364,7 +373,7 @@ def main(argv: list[str] | None = None) -> int:
     write_addresses(args.out)
     write_feed_meta(args.out)
     write_evidence(args.out)
-    summary_written = write_price_summary(args.out, by_metric.get(PRICE_METRIC_ID, []))
+    summary_written = write_price_summary(args.generated_out, by_metric.get(PRICE_METRIC_ID, []))
     candle_counts = write_price_candles(args.out, by_metric.get(PRICE_METRIC_ID, []))
 
     total = sum(len(records) for records in by_metric.values())

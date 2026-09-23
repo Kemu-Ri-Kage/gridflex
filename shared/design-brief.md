@@ -301,7 +301,7 @@ cost $21.68 at 9am and $105.52 at 7pm."), with a small mono line giving
 the date, Central time and the unit. One supporting line states the
 product: trade YES or NO on whether Texas power will cost more than the
 strike on a given day. The numbers come from `build_feed_data.py`'s
-`write_price_summary()` (`web/public/data/price-summary.json`), computed
+`write_price_summary()` (`web/lib/generated/price-summary.json`), computed
 from the exact hashed source files of the latest published daily price,
 held to the same 24-hour completeness check, and cross-checked against
 that day's published value. The page's one disclaimer line (X Layer

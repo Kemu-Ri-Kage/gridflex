@@ -13,7 +13,7 @@ written here.
 ## Changes from the brief, and why
 
 - **"Twelve hours" is now "nine hours".** The cheapest hour starts at 09:00
-  and the dearest at 18:00 Central (`web/public/data/price-summary.json`).
+  and the dearest at 18:00 Central (`web/lib/generated/price-summary.json`).
 - **"Nobody outside the industry" is now "without a futures broker".** ICE
   sells these contracts to anyone with a broker, so the original is a claim a
   judge can knock down.
@@ -264,7 +264,7 @@ buy the redeem is again about 199 mUSDT, because the pool starts at the same
 
 - The terminal running `create_markets.py` or `refresh_data.sh`, and any
   window that could show the keystore or its password.
-- Claude Code, and any editor with `.env` or `web/.env.local` open.
+- Coding tools, and any editor with `.env` or `web/.env.local` open.
 - Other tabs, private or incognito windows, bookmarks, history and
   autocomplete in the address bar.
 - Notifications. Turn on macOS Focus / Do Not Disturb.

@@ -197,7 +197,7 @@ export function TradePanel() {
             <TabsTrigger value="switch">Switch position</TabsTrigger>
           </TabsList>
           <TabsContent className="space-y-4 pt-2" value="buy">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-2">
               <Button
                 aria-pressed={side === 'YES'}
                 className="h-auto min-h-10 rounded-[2px] border-border bg-background py-1.5 font-mono text-up shadow-none hover:bg-muted aria-pressed:border-up aria-pressed:bg-up/10 aria-pressed:ring-0"

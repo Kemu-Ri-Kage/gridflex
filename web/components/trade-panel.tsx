@@ -200,28 +200,38 @@ export function TradePanel() {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 aria-pressed={side === 'YES'}
-                className="h-10 rounded-[2px] border-border bg-background font-mono text-up shadow-none hover:bg-muted aria-pressed:border-up aria-pressed:bg-up/10 aria-pressed:ring-0"
+                className="h-auto min-h-10 rounded-[2px] border-border bg-background py-1.5 font-mono text-up shadow-none hover:bg-muted aria-pressed:border-up aria-pressed:bg-up/10 aria-pressed:ring-0"
                 onClick={() => setSide('YES')}
                 variant="outline"
               >
                 YES
-                <span className="ml-auto font-mono text-xs">
-                  {ready
-                    ? `${yesPrice.toFixed(1)}¢ · ${Math.round(yesPrice)}% implied`
-                    : '—'}
+                <span className="ml-auto flex flex-col items-end font-mono leading-tight tabular-nums">
+                  {ready ? (
+                    <>
+                      <span className="text-sm">{yesPrice.toFixed(1)}¢</span>
+                      <span className="text-[11px] text-muted-foreground">{Math.round(yesPrice)}% implied</span>
+                    </>
+                  ) : (
+                    '—'
+                  )}
                 </span>
               </Button>
               <Button
                 aria-pressed={side === 'NO'}
-                className="h-10 rounded-[2px] border-border bg-background font-mono text-down shadow-none hover:bg-muted aria-pressed:border-down aria-pressed:bg-down/10 aria-pressed:ring-0"
+                className="h-auto min-h-10 rounded-[2px] border-border bg-background py-1.5 font-mono text-down shadow-none hover:bg-muted aria-pressed:border-down aria-pressed:bg-down/10 aria-pressed:ring-0"
                 onClick={() => setSide('NO')}
                 variant="outline"
               >
                 NO
-                <span className="ml-auto font-mono text-xs">
-                  {ready
-                    ? `${noPrice.toFixed(1)}¢ · ${Math.round(noPrice)}% implied`
-                    : '—'}
+                <span className="ml-auto flex flex-col items-end font-mono leading-tight tabular-nums">
+                  {ready ? (
+                    <>
+                      <span className="text-sm">{noPrice.toFixed(1)}¢</span>
+                      <span className="text-[11px] text-muted-foreground">{Math.round(noPrice)}% implied</span>
+                    </>
+                  ) : (
+                    '—'
+                  )}
                 </span>
               </Button>
             </div>

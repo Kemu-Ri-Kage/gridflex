@@ -1,0 +1,3023 @@
+{
+  "candles": [
+    {
+      "average": 2262,
+      "close": 2260,
+      "dayKey": 20250910,
+      "high": 5327,
+      "low": 1233,
+      "open": 2049
+    },
+    {
+      "average": 2638,
+      "close": 2353,
+      "dayKey": 20250911,
+      "high": 5920,
+      "low": 1576,
+      "open": 2204
+    },
+    {
+      "average": 2571,
+      "close": 2286,
+      "dayKey": 20250912,
+      "high": 5582,
+      "low": 1527,
+      "open": 2181
+    },
+    {
+      "average": 2548,
+      "close": 2424,
+      "dayKey": 20250913,
+      "high": 5158,
+      "low": 1357,
+      "open": 2185
+    },
+    {
+      "average": 3329,
+      "close": 3192,
+      "dayKey": 20250914,
+      "high": 9016,
+      "low": 1414,
+      "open": 2461
+    },
+    {
+      "average": 3597,
+      "close": 2516,
+      "dayKey": 20250915,
+      "high": 7697,
+      "low": 1781,
+      "open": 3062
+    },
+    {
+      "average": 3593,
+      "close": 3014,
+      "dayKey": 20250916,
+      "high": 7970,
+      "low": 1812,
+      "open": 2599
+    },
+    {
+      "average": 3050,
+      "close": 2669,
+      "dayKey": 20250917,
+      "high": 7034,
+      "low": 1677,
+      "open": 2387
+    },
+    {
+      "average": 3346,
+      "close": 3447,
+      "dayKey": 20250918,
+      "high": 7121,
+      "low": 1887,
+      "open": 2496
+    },
+    {
+      "average": 3190,
+      "close": 2452,
+      "dayKey": 20250919,
+      "high": 6072,
+      "low": 1890,
+      "open": 3052
+    },
+    {
+      "average": 2765,
+      "close": 2377,
+      "dayKey": 20250920,
+      "high": 5778,
+      "low": 1730,
+      "open": 2319
+    },
+    {
+      "average": 2777,
+      "close": 2334,
+      "dayKey": 20250921,
+      "high": 6184,
+      "low": 1432,
+      "open": 2285
+    },
+    {
+      "average": 2983,
+      "close": 2209,
+      "dayKey": 20250922,
+      "high": 8185,
+      "low": 1771,
+      "open": 2125
+    },
+    {
+      "average": 3521,
+      "close": 3690,
+      "dayKey": 20250923,
+      "high": 9598,
+      "low": 1463,
+      "open": 2208
+    },
+    {
+      "average": 2952,
+      "close": 2830,
+      "dayKey": 20250924,
+      "high": 4605,
+      "low": 2261,
+      "open": 3000
+    },
+    {
+      "average": 3546,
+      "close": 3330,
+      "dayKey": 20250925,
+      "high": 8457,
+      "low": 1985,
+      "open": 2987
+    },
+    {
+      "average": 2854,
+      "close": 1997,
+      "dayKey": 20250926,
+      "high": 6785,
+      "low": 1449,
+      "open": 3259
+    },
+    {
+      "average": 2669,
+      "close": 2427,
+      "dayKey": 20250927,
+      "high": 6098,
+      "low": 1318,
+      "open": 2179
+    },
+    {
+      "average": 2805,
+      "close": 2468,
+      "dayKey": 20250928,
+      "high": 6626,
+      "low": 1470,
+      "open": 2245
+    },
+    {
+      "average": 3315,
+      "close": 2954,
+      "dayKey": 20250929,
+      "high": 8007,
+      "low": 1859,
+      "open": 2014
+    },
+    {
+      "average": 3330,
+      "close": 2219,
+      "dayKey": 20250930,
+      "high": 8500,
+      "low": 1884,
+      "open": 2908
+    },
+    {
+      "average": 3163,
+      "close": 2160,
+      "dayKey": 20251001,
+      "high": 9432,
+      "low": 1301,
+      "open": 2119
+    },
+    {
+      "average": 3007,
+      "close": 2262,
+      "dayKey": 20251002,
+      "high": 7891,
+      "low": 1498,
+      "open": 2095
+    },
+    {
+      "average": 2920,
+      "close": 2172,
+      "dayKey": 20251003,
+      "high": 6266,
+      "low": 1791,
+      "open": 2284
+    },
+    {
+      "average": 2249,
+      "close": 2180,
+      "dayKey": 20251004,
+      "high": 4350,
+      "low": 750,
+      "open": 2735
+    },
+    {
+      "average": 2248,
+      "close": 2105,
+      "dayKey": 20251005,
+      "high": 6398,
+      "low": 300,
+      "open": 2020
+    },
+    {
+      "average": 3601,
+      "close": 3047,
+      "dayKey": 20251006,
+      "high": 9002,
+      "low": 1668,
+      "open": 1727
+    },
+    {
+      "average": 3964,
+      "close": 3240,
+      "dayKey": 20251007,
+      "high": 9090,
+      "low": 2111,
+      "open": 2784
+    },
+    {
+      "average": 3842,
+      "close": 3086,
+      "dayKey": 20251008,
+      "high": 9562,
+      "low": 2100,
+      "open": 2739
+    },
+    {
+      "average": 3304,
+      "close": 2511,
+      "dayKey": 20251009,
+      "high": 8228,
+      "low": 1686,
+      "open": 3031
+    },
+    {
+      "average": 3035,
+      "close": 2416,
+      "dayKey": 20251010,
+      "high": 8184,
+      "low": 1459,
+      "open": 2441
+    },
+    {
+      "average": 2256,
+      "close": 2162,
+      "dayKey": 20251011,
+      "high": 4984,
+      "low": 1110,
+      "open": 2623
+    },
+    {
+      "average": 2223,
+      "close": 2530,
+      "dayKey": 20251012,
+      "high": 6556,
+      "low": 100,
+      "open": 2160
+    },
+    {
+      "average": 3775,
+      "close": 2539,
+      "dayKey": 20251013,
+      "high": 9843,
+      "low": 1904,
+      "open": 2117
+    },
+    {
+      "average": 3453,
+      "close": 2325,
+      "dayKey": 20251014,
+      "high": 10206,
+      "low": 1794,
+      "open": 2338
+    },
+    {
+      "average": 3113,
+      "close": 2089,
+      "dayKey": 20251015,
+      "high": 8620,
+      "low": 1704,
+      "open": 2276
+    },
+    {
+      "average": 2237,
+      "close": 2014,
+      "dayKey": 20251016,
+      "high": 4777,
+      "low": 1285,
+      "open": 1954
+    },
+    {
+      "average": 2960,
+      "close": 2260,
+      "dayKey": 20251017,
+      "high": 8207,
+      "low": 1531,
+      "open": 1679
+    },
+    {
+      "average": 2968,
+      "close": 2200,
+      "dayKey": 20251018,
+      "high": 6680,
+      "low": 2023,
+      "open": 2377
+    },
+    {
+      "average": 1956,
+      "close": 1501,
+      "dayKey": 20251019,
+      "high": 4732,
+      "low": 910,
+      "open": 2008
+    },
+    {
+      "average": 2119,
+      "close": 2002,
+      "dayKey": 20251020,
+      "high": 7200,
+      "low": 71,
+      "open": 1600
+    },
+    {
+      "average": 3754,
+      "close": 3133,
+      "dayKey": 20251021,
+      "high": 11234,
+      "low": 1455,
+      "open": 1989
+    },
+    {
+      "average": 2412,
+      "close": 2098,
+      "dayKey": 20251022,
+      "high": 6595,
+      "low": 547,
+      "open": 3000
+    },
+    {
+      "average": 2964,
+      "close": 2663,
+      "dayKey": 20251023,
+      "high": 6764,
+      "low": 2006,
+      "open": 2143
+    },
+    {
+      "average": 3204,
+      "close": 3865,
+      "dayKey": 20251024,
+      "high": 6090,
+      "low": 2104,
+      "open": 2668
+    },
+    {
+      "average": 4544,
+      "close": 4855,
+      "dayKey": 20251025,
+      "high": 7729,
+      "low": 3023,
+      "open": 3993
+    },
+    {
+      "average": 4820,
+      "close": 3074,
+      "dayKey": 20251026,
+      "high": 9105,
+      "low": 2701,
+      "open": 8021
+    },
+    {
+      "average": 3752,
+      "close": 2693,
+      "dayKey": 20251027,
+      "high": 10295,
+      "low": 1899,
+      "open": 3256
+    },
+    {
+      "average": 2500,
+      "close": 1988,
+      "dayKey": 20251028,
+      "high": 3747,
+      "low": 1684,
+      "open": 3064
+    },
+    {
+      "average": 1916,
+      "close": 3988,
+      "dayKey": 20251029,
+      "high": 4490,
+      "low": 207,
+      "open": 1963
+    },
+    {
+      "average": 3580,
+      "close": 2744,
+      "dayKey": 20251030,
+      "high": 8500,
+      "low": 1260,
+      "open": 3647
+    },
+    {
+      "average": 2836,
+      "close": 2316,
+      "dayKey": 20251031,
+      "high": 5821,
+      "low": 1109,
+      "open": 3013
+    },
+    {
+      "average": 3564,
+      "close": 5077,
+      "dayKey": 20251101,
+      "high": 7590,
+      "low": 1549,
+      "open": 2373
+    },
+    {
+      "average": 2479,
+      "close": 2277,
+      "dayKey": 20251103,
+      "high": 6979,
+      "low": 1239,
+      "open": 1977
+    },
+    {
+      "average": 1931,
+      "close": 2218,
+      "dayKey": 20251104,
+      "high": 5636,
+      "low": 118,
+      "open": 1920
+    },
+    {
+      "average": 3400,
+      "close": 3377,
+      "dayKey": 20251105,
+      "high": 14667,
+      "low": 851,
+      "open": 1607
+    },
+    {
+      "average": 2931,
+      "close": 1948,
+      "dayKey": 20251106,
+      "high": 6206,
+      "low": 1634,
+      "open": 3198
+    },
+    {
+      "average": 4072,
+      "close": 4291,
+      "dayKey": 20251107,
+      "high": 16631,
+      "low": 511,
+      "open": 2119
+    },
+    {
+      "average": 2914,
+      "close": 2337,
+      "dayKey": 20251108,
+      "high": 4771,
+      "low": 1562,
+      "open": 4771
+    },
+    {
+      "average": 2217,
+      "close": 5193,
+      "dayKey": 20251109,
+      "high": 5193,
+      "low": 1,
+      "open": 2390
+    },
+    {
+      "average": 4221,
+      "close": 2216,
+      "dayKey": 20251110,
+      "high": 11408,
+      "low": 1098,
+      "open": 5227
+    },
+    {
+      "average": 1841,
+      "close": 2155,
+      "dayKey": 20251111,
+      "high": 3384,
+      "low": 0,
+      "open": 2382
+    },
+    {
+      "average": 3577,
+      "close": 2757,
+      "dayKey": 20251112,
+      "high": 10047,
+      "low": 1915,
+      "open": 2285
+    },
+    {
+      "average": 2674,
+      "close": 2196,
+      "dayKey": 20251113,
+      "high": 6557,
+      "low": 1385,
+      "open": 2361
+    },
+    {
+      "average": 2944,
+      "close": 2453,
+      "dayKey": 20251114,
+      "high": 7320,
+      "low": 1490,
+      "open": 2419
+    },
+    {
+      "average": 2863,
+      "close": 2889,
+      "dayKey": 20251115,
+      "high": 7997,
+      "low": 498,
+      "open": 2600
+    },
+    {
+      "average": 4540,
+      "close": 2690,
+      "dayKey": 20251116,
+      "high": 14478,
+      "low": 1833,
+      "open": 2745
+    },
+    {
+      "average": 3076,
+      "close": 2679,
+      "dayKey": 20251117,
+      "high": 7538,
+      "low": 1933,
+      "open": 2913
+    },
+    {
+      "average": 5070,
+      "close": 3448,
+      "dayKey": 20251118,
+      "high": 14363,
+      "low": 2368,
+      "open": 2500
+    },
+    {
+      "average": 5148,
+      "close": 3875,
+      "dayKey": 20251119,
+      "high": 10600,
+      "low": 3076,
+      "open": 3256
+    },
+    {
+      "average": 4009,
+      "close": 3222,
+      "dayKey": 20251120,
+      "high": 8850,
+      "low": 2753,
+      "open": 3935
+    },
+    {
+      "average": 4064,
+      "close": 4077,
+      "dayKey": 20251121,
+      "high": 9234,
+      "low": 2140,
+      "open": 3352
+    },
+    {
+      "average": 3715,
+      "close": 3750,
+      "dayKey": 20251122,
+      "high": 7558,
+      "low": 2161,
+      "open": 4267
+    },
+    {
+      "average": 3532,
+      "close": 3676,
+      "dayKey": 20251123,
+      "high": 5110,
+      "low": 2024,
+      "open": 4640
+    },
+    {
+      "average": 3964,
+      "close": 5054,
+      "dayKey": 20251124,
+      "high": 7023,
+      "low": 2037,
+      "open": 3150
+    },
+    {
+      "average": 3787,
+      "close": 2371,
+      "dayKey": 20251125,
+      "high": 7830,
+      "low": 1561,
+      "open": 5377
+    },
+    {
+      "average": 3108,
+      "close": 3201,
+      "dayKey": 20251126,
+      "high": 7054,
+      "low": 1331,
+      "open": 2068
+    },
+    {
+      "average": 3117,
+      "close": 2801,
+      "dayKey": 20251127,
+      "high": 5147,
+      "low": 1191,
+      "open": 3089
+    },
+    {
+      "average": 2095,
+      "close": 2341,
+      "dayKey": 20251128,
+      "high": 2898,
+      "low": 501,
+      "open": 2839
+    },
+    {
+      "average": 2317,
+      "close": 2683,
+      "dayKey": 20251129,
+      "high": 2783,
+      "low": 1887,
+      "open": 2126
+    },
+    {
+      "average": 4361,
+      "close": 6507,
+      "dayKey": 20251130,
+      "high": 7226,
+      "low": 2403,
+      "open": 2527
+    },
+    {
+      "average": 7741,
+      "close": 6931,
+      "dayKey": 20251201,
+      "high": 11000,
+      "low": 5474,
+      "open": 5551
+    },
+    {
+      "average": 5538,
+      "close": 2605,
+      "dayKey": 20251202,
+      "high": 15585,
+      "low": 800,
+      "open": 9705
+    },
+    {
+      "average": 3060,
+      "close": 2841,
+      "dayKey": 20251203,
+      "high": 4507,
+      "low": 2241,
+      "open": 2494
+    },
+    {
+      "average": 5936,
+      "close": 7994,
+      "dayKey": 20251204,
+      "high": 10664,
+      "low": 2241,
+      "open": 2241
+    },
+    {
+      "average": 5259,
+      "close": 4403,
+      "dayKey": 20251205,
+      "high": 7749,
+      "low": 2974,
+      "open": 6239
+    },
+    {
+      "average": 3348,
+      "close": 3161,
+      "dayKey": 20251206,
+      "high": 5616,
+      "low": 200,
+      "open": 4515
+    },
+    {
+      "average": 3043,
+      "close": 4723,
+      "dayKey": 20251207,
+      "high": 5386,
+      "low": 664,
+      "open": 3077
+    },
+    {
+      "average": 4035,
+      "close": 3422,
+      "dayKey": 20251208,
+      "high": 7603,
+      "low": 828,
+      "open": 4700
+    },
+    {
+      "average": 2918,
+      "close": 2570,
+      "dayKey": 20251209,
+      "high": 5689,
+      "low": 445,
+      "open": 3211
+    },
+    {
+      "average": 3301,
+      "close": 4138,
+      "dayKey": 20251210,
+      "high": 6818,
+      "low": 500,
+      "open": 2603
+    },
+    {
+      "average": 2756,
+      "close": 2814,
+      "dayKey": 20251211,
+      "high": 4408,
+      "low": 833,
+      "open": 3922
+    },
+    {
+      "average": 3560,
+      "close": 5221,
+      "dayKey": 20251212,
+      "high": 5785,
+      "low": 1692,
+      "open": 2765
+    },
+    {
+      "average": 4025,
+      "close": 2311,
+      "dayKey": 20251213,
+      "high": 5440,
+      "low": 2311,
+      "open": 5000
+    },
+    {
+      "average": 3884,
+      "close": 4582,
+      "dayKey": 20251214,
+      "high": 8148,
+      "low": 1946,
+      "open": 1986
+    },
+    {
+      "average": 4398,
+      "close": 2694,
+      "dayKey": 20251215,
+      "high": 10742,
+      "low": 1894,
+      "open": 4678
+    },
+    {
+      "average": 3183,
+      "close": 3075,
+      "dayKey": 20251216,
+      "high": 4604,
+      "low": 2247,
+      "open": 2836
+    },
+    {
+      "average": 3551,
+      "close": 2297,
+      "dayKey": 20251217,
+      "high": 5812,
+      "low": 2280,
+      "open": 2524
+    },
+    {
+      "average": 2504,
+      "close": 3621,
+      "dayKey": 20251218,
+      "high": 5244,
+      "low": 159,
+      "open": 2227
+    },
+    {
+      "average": 2310,
+      "close": 2537,
+      "dayKey": 20251219,
+      "high": 3617,
+      "low": 606,
+      "open": 3617
+    },
+    {
+      "average": 2043,
+      "close": 2266,
+      "dayKey": 20251220,
+      "high": 3681,
+      "low": 857,
+      "open": 2413
+    },
+    {
+      "average": 3058,
+      "close": 2715,
+      "dayKey": 20251221,
+      "high": 5372,
+      "low": 2273,
+      "open": 2273
+    },
+    {
+      "average": 2187,
+      "close": 2117,
+      "dayKey": 20251222,
+      "high": 2773,
+      "low": 1320,
+      "open": 2383
+    },
+    {
+      "average": 2273,
+      "close": 2154,
+      "dayKey": 20251223,
+      "high": 4000,
+      "low": 1760,
+      "open": 2092
+    },
+    {
+      "average": 2317,
+      "close": 2158,
+      "dayKey": 20251224,
+      "high": 3853,
+      "low": 1784,
+      "open": 2148
+    },
+    {
+      "average": 2002,
+      "close": 1900,
+      "dayKey": 20251225,
+      "high": 3612,
+      "low": 1522,
+      "open": 2014
+    },
+    {
+      "average": 2356,
+      "close": 1772,
+      "dayKey": 20251226,
+      "high": 6058,
+      "low": 1467,
+      "open": 1723
+    },
+    {
+      "average": 1575,
+      "close": 1817,
+      "dayKey": 20251227,
+      "high": 2616,
+      "low": 1051,
+      "open": 1802
+    },
+    {
+      "average": 1532,
+      "close": 1679,
+      "dayKey": 20251228,
+      "high": 2340,
+      "low": 1114,
+      "open": 1598
+    },
+    {
+      "average": 3267,
+      "close": 4562,
+      "dayKey": 20251229,
+      "high": 6946,
+      "low": 1652,
+      "open": 1840
+    },
+    {
+      "average": 3788,
+      "close": 2667,
+      "dayKey": 20251230,
+      "high": 8457,
+      "low": 1019,
+      "open": 4876
+    },
+    {
+      "average": 2824,
+      "close": 2267,
+      "dayKey": 20251231,
+      "high": 4884,
+      "low": 1036,
+      "open": 2789
+    },
+    {
+      "average": 2063,
+      "close": 1653,
+      "dayKey": 20260101,
+      "high": 3283,
+      "low": 1035,
+      "open": 2077
+    },
+    {
+      "average": 1684,
+      "close": 1932,
+      "dayKey": 20260102,
+      "high": 4179,
+      "low": 481,
+      "open": 1839
+    },
+    {
+      "average": 2289,
+      "close": 2551,
+      "dayKey": 20260103,
+      "high": 4988,
+      "low": 1465,
+      "open": 1577
+    },
+    {
+      "average": 1487,
+      "close": 1755,
+      "dayKey": 20260104,
+      "high": 2329,
+      "low": 44,
+      "open": 2223
+    },
+    {
+      "average": 1710,
+      "close": 1644,
+      "dayKey": 20260105,
+      "high": 3121,
+      "low": 690,
+      "open": 1328
+    },
+    {
+      "average": 2460,
+      "close": 2181,
+      "dayKey": 20260106,
+      "high": 5229,
+      "low": 1394,
+      "open": 1565
+    },
+    {
+      "average": 1892,
+      "close": 1623,
+      "dayKey": 20260107,
+      "high": 3179,
+      "low": 931,
+      "open": 2199
+    },
+    {
+      "average": 1875,
+      "close": 2224,
+      "dayKey": 20260108,
+      "high": 3500,
+      "low": 1048,
+      "open": 1545
+    },
+    {
+      "average": 2577,
+      "close": 2088,
+      "dayKey": 20260109,
+      "high": 3922,
+      "low": 1690,
+      "open": 2513
+    },
+    {
+      "average": 2189,
+      "close": 4482,
+      "dayKey": 20260110,
+      "high": 5000,
+      "low": 475,
+      "open": 1913
+    },
+    {
+      "average": 2560,
+      "close": 3102,
+      "dayKey": 20260111,
+      "high": 4647,
+      "low": 1101,
+      "open": 2954
+    },
+    {
+      "average": 2786,
+      "close": 2270,
+      "dayKey": 20260112,
+      "high": 4464,
+      "low": 1471,
+      "open": 3005
+    },
+    {
+      "average": 2295,
+      "close": 2046,
+      "dayKey": 20260113,
+      "high": 3869,
+      "low": 1583,
+      "open": 1884
+    },
+    {
+      "average": 1792,
+      "close": 3482,
+      "dayKey": 20260114,
+      "high": 3530,
+      "low": 300,
+      "open": 1924
+    },
+    {
+      "average": 2583,
+      "close": 2154,
+      "dayKey": 20260115,
+      "high": 5425,
+      "low": 189,
+      "open": 4067
+    },
+    {
+      "average": 1803,
+      "close": 2747,
+      "dayKey": 20260116,
+      "high": 3226,
+      "low": 357,
+      "open": 1835
+    },
+    {
+      "average": 2441,
+      "close": 4175,
+      "dayKey": 20260117,
+      "high": 5377,
+      "low": 350,
+      "open": 2177
+    },
+    {
+      "average": 2634,
+      "close": 2052,
+      "dayKey": 20260118,
+      "high": 5158,
+      "low": 100,
+      "open": 5158
+    },
+    {
+      "average": 2472,
+      "close": 3655,
+      "dayKey": 20260119,
+      "high": 4198,
+      "low": 567,
+      "open": 2389
+    },
+    {
+      "average": 3389,
+      "close": 1866,
+      "dayKey": 20260120,
+      "high": 8060,
+      "low": 1611,
+      "open": 3770
+    },
+    {
+      "average": 2703,
+      "close": 2880,
+      "dayKey": 20260121,
+      "high": 4708,
+      "low": 1672,
+      "open": 1694
+    },
+    {
+      "average": 3154,
+      "close": 2521,
+      "dayKey": 20260122,
+      "high": 5149,
+      "low": 2285,
+      "open": 2984
+    },
+    {
+      "average": 3886,
+      "close": 4761,
+      "dayKey": 20260123,
+      "high": 5352,
+      "low": 2992,
+      "open": 3424
+    },
+    {
+      "average": 18037,
+      "close": 32507,
+      "dayKey": 20260124,
+      "high": 41468,
+      "low": 5144,
+      "open": 5144
+    },
+    {
+      "average": 68254,
+      "close": 150000,
+      "dayKey": 20260125,
+      "high": 153741,
+      "low": 32972,
+      "open": 42882
+    },
+    {
+      "average": 69403,
+      "close": 29548,
+      "dayKey": 20260126,
+      "high": 189919,
+      "low": 9066,
+      "open": 119578
+    },
+    {
+      "average": 13547,
+      "close": 14181,
+      "dayKey": 20260127,
+      "high": 27184,
+      "low": 3991,
+      "open": 15417
+    },
+    {
+      "average": 7665,
+      "close": 6056,
+      "dayKey": 20260128,
+      "high": 17500,
+      "low": 2023,
+      "open": 9391
+    },
+    {
+      "average": 4457,
+      "close": 8793,
+      "dayKey": 20260129,
+      "high": 8911,
+      "low": 1142,
+      "open": 3849
+    },
+    {
+      "average": 6247,
+      "close": 4505,
+      "dayKey": 20260130,
+      "high": 14436,
+      "low": 1667,
+      "open": 6044
+    },
+    {
+      "average": 6492,
+      "close": 7299,
+      "dayKey": 20260131,
+      "high": 12106,
+      "low": 2536,
+      "open": 5732
+    },
+    {
+      "average": 4031,
+      "close": 2413,
+      "dayKey": 20260201,
+      "high": 8160,
+      "low": 838,
+      "open": 6005
+    },
+    {
+      "average": 1830,
+      "close": 1832,
+      "dayKey": 20260202,
+      "high": 3396,
+      "low": 100,
+      "open": 2336
+    },
+    {
+      "average": 2648,
+      "close": 4131,
+      "dayKey": 20260203,
+      "high": 5531,
+      "low": 987,
+      "open": 1880
+    },
+    {
+      "average": 2910,
+      "close": 5075,
+      "dayKey": 20260204,
+      "high": 5947,
+      "low": 47,
+      "open": 2886
+    },
+    {
+      "average": 2348,
+      "close": 2404,
+      "dayKey": 20260205,
+      "high": 5333,
+      "low": 1,
+      "open": 5333
+    },
+    {
+      "average": 2133,
+      "close": 2272,
+      "dayKey": 20260206,
+      "high": 4256,
+      "low": 500,
+      "open": 2145
+    },
+    {
+      "average": 1649,
+      "close": 1731,
+      "dayKey": 20260207,
+      "high": 3086,
+      "low": 49,
+      "open": 2400
+    },
+    {
+      "average": 2252,
+      "close": 2467,
+      "dayKey": 20260208,
+      "high": 4264,
+      "low": 1442,
+      "open": 1533
+    },
+    {
+      "average": 2481,
+      "close": 1748,
+      "dayKey": 20260209,
+      "high": 4198,
+      "low": 1413,
+      "open": 2785
+    },
+    {
+      "average": 2400,
+      "close": 2628,
+      "dayKey": 20260210,
+      "high": 3588,
+      "low": 1249,
+      "open": 1666
+    },
+    {
+      "average": 2519,
+      "close": 2310,
+      "dayKey": 20260211,
+      "high": 4344,
+      "low": 1499,
+      "open": 2232
+    },
+    {
+      "average": 1876,
+      "close": 1834,
+      "dayKey": 20260212,
+      "high": 3730,
+      "low": 623,
+      "open": 2104
+    },
+    {
+      "average": 2046,
+      "close": 1925,
+      "dayKey": 20260213,
+      "high": 2687,
+      "low": 1613,
+      "open": 1849
+    },
+    {
+      "average": 1983,
+      "close": 1931,
+      "dayKey": 20260214,
+      "high": 2415,
+      "low": 1540,
+      "open": 2069
+    },
+    {
+      "average": 1772,
+      "close": 1998,
+      "dayKey": 20260215,
+      "high": 4183,
+      "low": 279,
+      "open": 2077
+    },
+    {
+      "average": 1291,
+      "close": 1815,
+      "dayKey": 20260216,
+      "high": 2500,
+      "low": -74,
+      "open": 2000
+    },
+    {
+      "average": 1207,
+      "close": 1846,
+      "dayKey": 20260217,
+      "high": 2526,
+      "low": -115,
+      "open": 1486
+    },
+    {
+      "average": 1703,
+      "close": 1614,
+      "dayKey": 20260218,
+      "high": 2872,
+      "low": 444,
+      "open": 1732
+    },
+    {
+      "average": 1592,
+      "close": 2118,
+      "dayKey": 20260219,
+      "high": 3847,
+      "low": 100,
+      "open": 1731
+    },
+    {
+      "average": 1817,
+      "close": 1961,
+      "dayKey": 20260220,
+      "high": 2816,
+      "low": 761,
+      "open": 1782
+    },
+    {
+      "average": 1220,
+      "close": 2559,
+      "dayKey": 20260221,
+      "high": 2559,
+      "low": -300,
+      "open": 1996
+    },
+    {
+      "average": 2224,
+      "close": 2247,
+      "dayKey": 20260222,
+      "high": 3899,
+      "low": 150,
+      "open": 2680
+    },
+    {
+      "average": 1684,
+      "close": 1704,
+      "dayKey": 20260223,
+      "high": 3972,
+      "low": -174,
+      "open": 2401
+    },
+    {
+      "average": 1079,
+      "close": 1500,
+      "dayKey": 20260224,
+      "high": 2868,
+      "low": -600,
+      "open": 1713
+    },
+    {
+      "average": 1616,
+      "close": 2400,
+      "dayKey": 20260225,
+      "high": 4836,
+      "low": 100,
+      "open": 1297
+    },
+    {
+      "average": 1874,
+      "close": 2008,
+      "dayKey": 20260226,
+      "high": 4749,
+      "low": 362,
+      "open": 2378
+    },
+    {
+      "average": 1978,
+      "close": 1766,
+      "dayKey": 20260227,
+      "high": 5061,
+      "low": 476,
+      "open": 1880
+    },
+    {
+      "average": 1148,
+      "close": 1755,
+      "dayKey": 20260228,
+      "high": 3763,
+      "low": -397,
+      "open": 1612
+    },
+    {
+      "average": 1420,
+      "close": 1839,
+      "dayKey": 20260301,
+      "high": 2987,
+      "low": -98,
+      "open": 2039
+    },
+    {
+      "average": 2092,
+      "close": 1754,
+      "dayKey": 20260302,
+      "high": 3552,
+      "low": 1069,
+      "open": 1968
+    },
+    {
+      "average": 1997,
+      "close": 2248,
+      "dayKey": 20260303,
+      "high": 4525,
+      "low": 282,
+      "open": 2015
+    },
+    {
+      "average": 3222,
+      "close": 2810,
+      "dayKey": 20260304,
+      "high": 6397,
+      "low": 1820,
+      "open": 1984
+    },
+    {
+      "average": 2196,
+      "close": 2188,
+      "dayKey": 20260305,
+      "high": 3424,
+      "low": 1365,
+      "open": 2566
+    },
+    {
+      "average": 2259,
+      "close": 2674,
+      "dayKey": 20260306,
+      "high": 3444,
+      "low": 1490,
+      "open": 1997
+    },
+    {
+      "average": 2198,
+      "close": 3420,
+      "dayKey": 20260307,
+      "high": 4178,
+      "low": 804,
+      "open": 2484
+    },
+    {
+      "average": 2243,
+      "close": 2405,
+      "dayKey": 20260309,
+      "high": 4187,
+      "low": 1500,
+      "open": 2058
+    },
+    {
+      "average": 2507,
+      "close": 2738,
+      "dayKey": 20260310,
+      "high": 4110,
+      "low": 1839,
+      "open": 2135
+    },
+    {
+      "average": 2132,
+      "close": 2123,
+      "dayKey": 20260311,
+      "high": 3094,
+      "low": 1289,
+      "open": 2342
+    },
+    {
+      "average": 2012,
+      "close": 2177,
+      "dayKey": 20260312,
+      "high": 5251,
+      "low": 0,
+      "open": 1900
+    },
+    {
+      "average": 1903,
+      "close": 2415,
+      "dayKey": 20260313,
+      "high": 5767,
+      "low": 110,
+      "open": 2054
+    },
+    {
+      "average": 1731,
+      "close": 2045,
+      "dayKey": 20260314,
+      "high": 3970,
+      "low": 118,
+      "open": 2873
+    },
+    {
+      "average": 1689,
+      "close": 2069,
+      "dayKey": 20260315,
+      "high": 3724,
+      "low": 118,
+      "open": 2092
+    },
+    {
+      "average": 3973,
+      "close": 4195,
+      "dayKey": 20260316,
+      "high": 11500,
+      "low": 1444,
+      "open": 1549
+    },
+    {
+      "average": 2025,
+      "close": 1733,
+      "dayKey": 20260317,
+      "high": 5384,
+      "low": -542,
+      "open": 4083
+    },
+    {
+      "average": 2050,
+      "close": 1829,
+      "dayKey": 20260318,
+      "high": 6800,
+      "low": 233,
+      "open": 1617
+    },
+    {
+      "average": 2358,
+      "close": 2066,
+      "dayKey": 20260319,
+      "high": 8690,
+      "low": 280,
+      "open": 1415
+    },
+    {
+      "average": 2796,
+      "close": 2433,
+      "dayKey": 20260320,
+      "high": 9667,
+      "low": 799,
+      "open": 1505
+    },
+    {
+      "average": 2192,
+      "close": 1872,
+      "dayKey": 20260321,
+      "high": 6551,
+      "low": 601,
+      "open": 1934
+    },
+    {
+      "average": 1495,
+      "close": 2056,
+      "dayKey": 20260322,
+      "high": 4094,
+      "low": -124,
+      "open": 1930
+    },
+    {
+      "average": 3751,
+      "close": 4438,
+      "dayKey": 20260323,
+      "high": 12933,
+      "low": 584,
+      "open": 1714
+    },
+    {
+      "average": 2419,
+      "close": 1954,
+      "dayKey": 20260324,
+      "high": 5160,
+      "low": 269,
+      "open": 3967
+    },
+    {
+      "average": 2063,
+      "close": 2229,
+      "dayKey": 20260325,
+      "high": 5451,
+      "low": 349,
+      "open": 1874
+    },
+    {
+      "average": 1562,
+      "close": 2140,
+      "dayKey": 20260326,
+      "high": 3859,
+      "low": 0,
+      "open": 1705
+    },
+    {
+      "average": 1739,
+      "close": 1989,
+      "dayKey": 20260327,
+      "high": 2757,
+      "low": 727,
+      "open": 1693
+    },
+    {
+      "average": 3035,
+      "close": 1856,
+      "dayKey": 20260328,
+      "high": 4926,
+      "low": 1841,
+      "open": 2014
+    },
+    {
+      "average": 1074,
+      "close": 1423,
+      "dayKey": 20260329,
+      "high": 2741,
+      "low": -436,
+      "open": 2115
+    },
+    {
+      "average": 1349,
+      "close": 1573,
+      "dayKey": 20260330,
+      "high": 3140,
+      "low": 100,
+      "open": 1495
+    },
+    {
+      "average": 1776,
+      "close": 2083,
+      "dayKey": 20260331,
+      "high": 4320,
+      "low": 667,
+      "open": 1666
+    },
+    {
+      "average": 2424,
+      "close": 3127,
+      "dayKey": 20260401,
+      "high": 4769,
+      "low": 1131,
+      "open": 2162
+    },
+    {
+      "average": 2896,
+      "close": 2463,
+      "dayKey": 20260402,
+      "high": 4955,
+      "low": 2127,
+      "open": 2858
+    },
+    {
+      "average": 3130,
+      "close": 3920,
+      "dayKey": 20260403,
+      "high": 6821,
+      "low": 1665,
+      "open": 2119
+    },
+    {
+      "average": 3083,
+      "close": 6538,
+      "dayKey": 20260404,
+      "high": 8463,
+      "low": 1500,
+      "open": 3520
+    },
+    {
+      "average": 3215,
+      "close": 4598,
+      "dayKey": 20260405,
+      "high": 6002,
+      "low": 835,
+      "open": 6002
+    },
+    {
+      "average": 3073,
+      "close": 2654,
+      "dayKey": 20260406,
+      "high": 7284,
+      "low": 795,
+      "open": 3360
+    },
+    {
+      "average": 1841,
+      "close": 2775,
+      "dayKey": 20260407,
+      "high": 4237,
+      "low": 69,
+      "open": 1923
+    },
+    {
+      "average": 2010,
+      "close": 1694,
+      "dayKey": 20260408,
+      "high": 4516,
+      "low": 20,
+      "open": 2436
+    },
+    {
+      "average": 1688,
+      "close": 2142,
+      "dayKey": 20260409,
+      "high": 3756,
+      "low": 15,
+      "open": 1652
+    },
+    {
+      "average": 2258,
+      "close": 2240,
+      "dayKey": 20260410,
+      "high": 3695,
+      "low": 1308,
+      "open": 1705
+    },
+    {
+      "average": 3066,
+      "close": 4000,
+      "dayKey": 20260411,
+      "high": 6074,
+      "low": 1260,
+      "open": 2974
+    },
+    {
+      "average": 2766,
+      "close": 2504,
+      "dayKey": 20260412,
+      "high": 5032,
+      "low": 1566,
+      "open": 5032
+    },
+    {
+      "average": 3189,
+      "close": 3500,
+      "dayKey": 20260413,
+      "high": 6483,
+      "low": 1965,
+      "open": 2506
+    },
+    {
+      "average": 3104,
+      "close": 3385,
+      "dayKey": 20260414,
+      "high": 5367,
+      "low": 1903,
+      "open": 2609
+    },
+    {
+      "average": 3653,
+      "close": 3702,
+      "dayKey": 20260415,
+      "high": 7022,
+      "low": 2387,
+      "open": 3334
+    },
+    {
+      "average": 2917,
+      "close": 2500,
+      "dayKey": 20260416,
+      "high": 6533,
+      "low": 1267,
+      "open": 3430
+    },
+    {
+      "average": 2169,
+      "close": 3756,
+      "dayKey": 20260417,
+      "high": 4857,
+      "low": 869,
+      "open": 1846
+    },
+    {
+      "average": 1924,
+      "close": 3809,
+      "dayKey": 20260418,
+      "high": 4060,
+      "low": 903,
+      "open": 2617
+    },
+    {
+      "average": 1921,
+      "close": 2344,
+      "dayKey": 20260419,
+      "high": 3911,
+      "low": 0,
+      "open": 2886
+    },
+    {
+      "average": 2895,
+      "close": 3074,
+      "dayKey": 20260420,
+      "high": 4919,
+      "low": 1395,
+      "open": 2200
+    },
+    {
+      "average": 3529,
+      "close": 1952,
+      "dayKey": 20260421,
+      "high": 7412,
+      "low": 1952,
+      "open": 2784
+    },
+    {
+      "average": 2591,
+      "close": 1872,
+      "dayKey": 20260422,
+      "high": 4330,
+      "low": 1244,
+      "open": 2332
+    },
+    {
+      "average": 2106,
+      "close": 2503,
+      "dayKey": 20260423,
+      "high": 3930,
+      "low": 1308,
+      "open": 1927
+    },
+    {
+      "average": 6630,
+      "close": 5605,
+      "dayKey": 20260424,
+      "high": 26433,
+      "low": 1822,
+      "open": 2051
+    },
+    {
+      "average": 2576,
+      "close": 2643,
+      "dayKey": 20260425,
+      "high": 7000,
+      "low": 1100,
+      "open": 3278
+    },
+    {
+      "average": 2108,
+      "close": 2274,
+      "dayKey": 20260426,
+      "high": 4220,
+      "low": 1056,
+      "open": 2701
+    },
+    {
+      "average": 10890,
+      "close": 12603,
+      "dayKey": 20260427,
+      "high": 49511,
+      "low": 1438,
+      "open": 2511
+    },
+    {
+      "average": 6440,
+      "close": 5251,
+      "dayKey": 20260428,
+      "high": 24585,
+      "low": 1893,
+      "open": 5345
+    },
+    {
+      "average": 3991,
+      "close": 3567,
+      "dayKey": 20260429,
+      "high": 7786,
+      "low": 2555,
+      "open": 3694
+    },
+    {
+      "average": 4098,
+      "close": 3251,
+      "dayKey": 20260430,
+      "high": 6041,
+      "low": 3251,
+      "open": 3500
+    },
+    {
+      "average": 3130,
+      "close": 4594,
+      "dayKey": 20260501,
+      "high": 5590,
+      "low": 1933,
+      "open": 5057
+    },
+    {
+      "average": 2822,
+      "close": 2781,
+      "dayKey": 20260502,
+      "high": 7307,
+      "low": 181,
+      "open": 5638
+    },
+    {
+      "average": 1252,
+      "close": 1748,
+      "dayKey": 20260503,
+      "high": 3600,
+      "low": -307,
+      "open": 1964
+    },
+    {
+      "average": 1541,
+      "close": 2217,
+      "dayKey": 20260504,
+      "high": 3349,
+      "low": -130,
+      "open": 1957
+    },
+    {
+      "average": 3482,
+      "close": 4543,
+      "dayKey": 20260505,
+      "high": 9368,
+      "low": 1856,
+      "open": 2047
+    },
+    {
+      "average": 3780,
+      "close": 2073,
+      "dayKey": 20260506,
+      "high": 6735,
+      "low": 2073,
+      "open": 4278
+    },
+    {
+      "average": 2490,
+      "close": 2028,
+      "dayKey": 20260507,
+      "high": 5070,
+      "low": 1314,
+      "open": 2326
+    },
+    {
+      "average": 2636,
+      "close": 3079,
+      "dayKey": 20260508,
+      "high": 5103,
+      "low": 1607,
+      "open": 2181
+    },
+    {
+      "average": 2853,
+      "close": 2065,
+      "dayKey": 20260509,
+      "high": 5199,
+      "low": 1533,
+      "open": 3618
+    },
+    {
+      "average": 2039,
+      "close": 3109,
+      "dayKey": 20260510,
+      "high": 4557,
+      "low": 1210,
+      "open": 1833
+    },
+    {
+      "average": 3831,
+      "close": 3020,
+      "dayKey": 20260511,
+      "high": 12448,
+      "low": 1649,
+      "open": 3428
+    },
+    {
+      "average": 1993,
+      "close": 1701,
+      "dayKey": 20260512,
+      "high": 6612,
+      "low": 258,
+      "open": 2033
+    },
+    {
+      "average": 2056,
+      "close": 1800,
+      "dayKey": 20260513,
+      "high": 5724,
+      "low": 599,
+      "open": 1869
+    },
+    {
+      "average": 2299,
+      "close": 2485,
+      "dayKey": 20260514,
+      "high": 4970,
+      "low": 502,
+      "open": 2098
+    },
+    {
+      "average": 2270,
+      "close": 2274,
+      "dayKey": 20260515,
+      "high": 3520,
+      "low": 1407,
+      "open": 2213
+    },
+    {
+      "average": 1981,
+      "close": 2444,
+      "dayKey": 20260516,
+      "high": 3301,
+      "low": 674,
+      "open": 2385
+    },
+    {
+      "average": 2390,
+      "close": 2979,
+      "dayKey": 20260517,
+      "high": 3681,
+      "low": 1722,
+      "open": 2459
+    },
+    {
+      "average": 2666,
+      "close": 2900,
+      "dayKey": 20260518,
+      "high": 3991,
+      "low": 2018,
+      "open": 2329
+    },
+    {
+      "average": 2842,
+      "close": 3784,
+      "dayKey": 20260519,
+      "high": 5398,
+      "low": 1996,
+      "open": 2147
+    },
+    {
+      "average": 3613,
+      "close": 4036,
+      "dayKey": 20260520,
+      "high": 7084,
+      "low": 2273,
+      "open": 3134
+    },
+    {
+      "average": 3157,
+      "close": 3108,
+      "dayKey": 20260521,
+      "high": 4601,
+      "low": 2441,
+      "open": 3481
+    },
+    {
+      "average": 2873,
+      "close": 3112,
+      "dayKey": 20260522,
+      "high": 4798,
+      "low": 1772,
+      "open": 2885
+    },
+    {
+      "average": 2426,
+      "close": 3454,
+      "dayKey": 20260523,
+      "high": 3753,
+      "low": 1720,
+      "open": 2435
+    },
+    {
+      "average": 2600,
+      "close": 3025,
+      "dayKey": 20260524,
+      "high": 5179,
+      "low": 1555,
+      "open": 2935
+    },
+    {
+      "average": 2314,
+      "close": 2533,
+      "dayKey": 20260525,
+      "high": 4983,
+      "low": 1308,
+      "open": 2403
+    },
+    {
+      "average": 3000,
+      "close": 4852,
+      "dayKey": 20260526,
+      "high": 6460,
+      "low": 1693,
+      "open": 2700
+    },
+    {
+      "average": 3631,
+      "close": 3500,
+      "dayKey": 20260527,
+      "high": 6317,
+      "low": 2158,
+      "open": 4382
+    },
+    {
+      "average": 4152,
+      "close": 3604,
+      "dayKey": 20260528,
+      "high": 11055,
+      "low": 2028,
+      "open": 3515
+    },
+    {
+      "average": 2942,
+      "close": 2614,
+      "dayKey": 20260529,
+      "high": 6506,
+      "low": 1413,
+      "open": 3071
+    },
+    {
+      "average": 2301,
+      "close": 2366,
+      "dayKey": 20260530,
+      "high": 4099,
+      "low": 1502,
+      "open": 2367
+    },
+    {
+      "average": 2530,
+      "close": 2677,
+      "dayKey": 20260531,
+      "high": 5126,
+      "low": 735,
+      "open": 2208
+    },
+    {
+      "average": 3177,
+      "close": 3202,
+      "dayKey": 20260601,
+      "high": 7388,
+      "low": 1511,
+      "open": 2624
+    },
+    {
+      "average": 2982,
+      "close": 3162,
+      "dayKey": 20260602,
+      "high": 4568,
+      "low": 1939,
+      "open": 2489
+    },
+    {
+      "average": 3412,
+      "close": 3682,
+      "dayKey": 20260603,
+      "high": 5632,
+      "low": 2363,
+      "open": 3092
+    },
+    {
+      "average": 2788,
+      "close": 2393,
+      "dayKey": 20260604,
+      "high": 4183,
+      "low": 2100,
+      "open": 2589
+    },
+    {
+      "average": 2956,
+      "close": 3153,
+      "dayKey": 20260605,
+      "high": 4056,
+      "low": 2077,
+      "open": 2077
+    },
+    {
+      "average": 3346,
+      "close": 3409,
+      "dayKey": 20260606,
+      "high": 5300,
+      "low": 2412,
+      "open": 3241
+    },
+    {
+      "average": 2695,
+      "close": 2588,
+      "dayKey": 20260607,
+      "high": 3793,
+      "low": 1849,
+      "open": 3362
+    },
+    {
+      "average": 2622,
+      "close": 2694,
+      "dayKey": 20260608,
+      "high": 4434,
+      "low": 1891,
+      "open": 2498
+    },
+    {
+      "average": 2705,
+      "close": 2637,
+      "dayKey": 20260609,
+      "high": 4894,
+      "low": 1632,
+      "open": 2549
+    },
+    {
+      "average": 2737,
+      "close": 2921,
+      "dayKey": 20260610,
+      "high": 4764,
+      "low": 1781,
+      "open": 2643
+    },
+    {
+      "average": 3151,
+      "close": 4385,
+      "dayKey": 20260611,
+      "high": 5868,
+      "low": 1782,
+      "open": 2858
+    },
+    {
+      "average": 3359,
+      "close": 2925,
+      "dayKey": 20260612,
+      "high": 5225,
+      "low": 2450,
+      "open": 3506
+    },
+    {
+      "average": 2417,
+      "close": 2912,
+      "dayKey": 20260613,
+      "high": 3914,
+      "low": 1472,
+      "open": 2498
+    },
+    {
+      "average": 2795,
+      "close": 3761,
+      "dayKey": 20260614,
+      "high": 4535,
+      "low": 2072,
+      "open": 2554
+    },
+    {
+      "average": 3669,
+      "close": 3732,
+      "dayKey": 20260615,
+      "high": 5732,
+      "low": 2782,
+      "open": 3638
+    },
+    {
+      "average": 3447,
+      "close": 2345,
+      "dayKey": 20260616,
+      "high": 5038,
+      "low": 2345,
+      "open": 4013
+    },
+    {
+      "average": 2491,
+      "close": 2570,
+      "dayKey": 20260617,
+      "high": 4560,
+      "low": 1793,
+      "open": 2346
+    },
+    {
+      "average": 3013,
+      "close": 3895,
+      "dayKey": 20260618,
+      "high": 6143,
+      "low": 1773,
+      "open": 2319
+    },
+    {
+      "average": 4093,
+      "close": 5104,
+      "dayKey": 20260619,
+      "high": 7000,
+      "low": 2908,
+      "open": 4500
+    },
+    {
+      "average": 2837,
+      "close": 2288,
+      "dayKey": 20260620,
+      "high": 4165,
+      "low": 2145,
+      "open": 4165
+    },
+    {
+      "average": 2176,
+      "close": 2711,
+      "dayKey": 20260621,
+      "high": 4144,
+      "low": 863,
+      "open": 2325
+    },
+    {
+      "average": 2877,
+      "close": 4177,
+      "dayKey": 20260622,
+      "high": 5806,
+      "low": 1908,
+      "open": 2488
+    },
+    {
+      "average": 2909,
+      "close": 2761,
+      "dayKey": 20260623,
+      "high": 4388,
+      "low": 2152,
+      "open": 4062
+    },
+    {
+      "average": 2790,
+      "close": 2805,
+      "dayKey": 20260624,
+      "high": 5023,
+      "low": 1839,
+      "open": 2564
+    },
+    {
+      "average": 2872,
+      "close": 3500,
+      "dayKey": 20260625,
+      "high": 4743,
+      "low": 1934,
+      "open": 2753
+    },
+    {
+      "average": 2758,
+      "close": 2968,
+      "dayKey": 20260626,
+      "high": 4369,
+      "low": 1983,
+      "open": 2613
+    },
+    {
+      "average": 2306,
+      "close": 2717,
+      "dayKey": 20260627,
+      "high": 3714,
+      "low": 1490,
+      "open": 2435
+    },
+    {
+      "average": 2376,
+      "close": 2635,
+      "dayKey": 20260628,
+      "high": 3941,
+      "low": 1506,
+      "open": 2392
+    },
+    {
+      "average": 2666,
+      "close": 2798,
+      "dayKey": 20260629,
+      "high": 4575,
+      "low": 1964,
+      "open": 2500
+    },
+    {
+      "average": 2531,
+      "close": 2702,
+      "dayKey": 20260630,
+      "high": 4376,
+      "low": 1723,
+      "open": 2456
+    },
+    {
+      "average": 2689,
+      "close": 3116,
+      "dayKey": 20260701,
+      "high": 4658,
+      "low": 1583,
+      "open": 2680
+    },
+    {
+      "average": 2691,
+      "close": 2919,
+      "dayKey": 20260702,
+      "high": 4950,
+      "low": 1630,
+      "open": 2758
+    },
+    {
+      "average": 2555,
+      "close": 2712,
+      "dayKey": 20260703,
+      "high": 4506,
+      "low": 1426,
+      "open": 2406
+    },
+    {
+      "average": 2674,
+      "close": 3118,
+      "dayKey": 20260704,
+      "high": 5050,
+      "low": 1211,
+      "open": 2390
+    },
+    {
+      "average": 3398,
+      "close": 4058,
+      "dayKey": 20260705,
+      "high": 7288,
+      "low": 1870,
+      "open": 2653
+    },
+    {
+      "average": 3777,
+      "close": 3490,
+      "dayKey": 20260706,
+      "high": 7390,
+      "low": 2320,
+      "open": 3718
+    },
+    {
+      "average": 3127,
+      "close": 2879,
+      "dayKey": 20260707,
+      "high": 5536,
+      "low": 1822,
+      "open": 3114
+    },
+    {
+      "average": 2623,
+      "close": 2681,
+      "dayKey": 20260708,
+      "high": 4313,
+      "low": 1504,
+      "open": 2810
+    },
+    {
+      "average": 2500,
+      "close": 2923,
+      "dayKey": 20260709,
+      "high": 4138,
+      "low": 1591,
+      "open": 2600
+    },
+    {
+      "average": 2585,
+      "close": 3000,
+      "dayKey": 20260710,
+      "high": 4220,
+      "low": 1531,
+      "open": 2548
+    },
+    {
+      "average": 3010,
+      "close": 3658,
+      "dayKey": 20260711,
+      "high": 4400,
+      "low": 1873,
+      "open": 2712
+    },
+    {
+      "average": 3089,
+      "close": 4376,
+      "dayKey": 20260712,
+      "high": 4830,
+      "low": 1906,
+      "open": 3488
+    },
+    {
+      "average": 3490,
+      "close": 3600,
+      "dayKey": 20260713,
+      "high": 4583,
+      "low": 2772,
+      "open": 3693
+    },
+    {
+      "average": 2870,
+      "close": 3627,
+      "dayKey": 20260714,
+      "high": 3800,
+      "low": 2092,
+      "open": 3538
+    },
+    {
+      "average": 2707,
+      "close": 2915,
+      "dayKey": 20260715,
+      "high": 3270,
+      "low": 2110,
+      "open": 3034
+    },
+    {
+      "average": 2714,
+      "close": 2855,
+      "dayKey": 20260716,
+      "high": 3760,
+      "low": 2053,
+      "open": 3000
+    },
+    {
+      "average": 2535,
+      "close": 2979,
+      "dayKey": 20260717,
+      "high": 3822,
+      "low": 1854,
+      "open": 2798
+    },
+    {
+      "average": 2539,
+      "close": 3194,
+      "dayKey": 20260718,
+      "high": 4211,
+      "low": 1547,
+      "open": 2875
+    },
+    {
+      "average": 2885,
+      "close": 3766,
+      "dayKey": 20260719,
+      "high": 4849,
+      "low": 1635,
+      "open": 3311
+    },
+    {
+      "average": 3339,
+      "close": 3494,
+      "dayKey": 20260720,
+      "high": 7736,
+      "low": 1731,
+      "open": 3257
+    },
+    {
+      "average": 5664,
+      "close": 4135,
+      "dayKey": 20260721,
+      "high": 22448,
+      "low": 1941,
+      "open": 2873
+    },
+    {
+      "average": 6579,
+      "close": 5491,
+      "dayKey": 20260722,
+      "high": 23783,
+      "low": 2284,
+      "open": 4333
+    },
+    {
+      "average": 3623,
+      "close": 3487,
+      "dayKey": 20260723,
+      "high": 5900,
+      "low": 2286,
+      "open": 5001
+    },
+    {
+      "average": 3263,
+      "close": 3041,
+      "dayKey": 20260724,
+      "high": 4484,
+      "low": 2370,
+      "open": 3333
+    },
+    {
+      "average": 2610,
+      "close": 3000,
+      "dayKey": 20260725,
+      "high": 4761,
+      "low": 1517,
+      "open": 2759
+    },
+    {
+      "average": 2439,
+      "close": 2925,
+      "dayKey": 20260726,
+      "high": 4533,
+      "low": 1121,
+      "open": 2539
+    },
+    {
+      "average": 2920,
+      "close": 3138,
+      "dayKey": 20260727,
+      "high": 6441,
+      "low": 1581,
+      "open": 2437
+    },
+    {
+      "average": 2995,
+      "close": 3229,
+      "dayKey": 20260728,
+      "high": 6584,
+      "low": 1675,
+      "open": 2524
+    },
+    {
+      "average": 3446,
+      "close": 3419,
+      "dayKey": 20260729,
+      "high": 7373,
+      "low": 2060,
+      "open": 2786
+    },
+    {
+      "average": 3358,
+      "close": 3100,
+      "dayKey": 20260730,
+      "high": 6450,
+      "low": 2000,
+      "open": 2957
+    },
+    {
+      "average": 3935,
+      "close": 4789,
+      "dayKey": 20260731,
+      "high": 9975,
+      "low": 1563,
+      "open": 2590
+    },
+    {
+      "average": 3669,
+      "close": 5188,
+      "dayKey": 20260801,
+      "high": 7847,
+      "low": 2033,
+      "open": 3514
+    },
+    {
+      "average": 3461,
+      "close": 3111,
+      "dayKey": 20260802,
+      "high": 8441,
+      "low": 1749,
+      "open": 4015
+    },
+    {
+      "average": 2456,
+      "close": 2620,
+      "dayKey": 20260803,
+      "high": 4774,
+      "low": 1358,
+      "open": 2493
+    },
+    {
+      "average": 2554,
+      "close": 2976,
+      "dayKey": 20260804,
+      "high": 4861,
+      "low": 1226,
+      "open": 2011
+    },
+    {
+      "average": 2563,
+      "close": 2862,
+      "dayKey": 20260805,
+      "high": 4253,
+      "low": 1451,
+      "open": 2402
+    },
+    {
+      "average": 2471,
+      "close": 2642,
+      "dayKey": 20260806,
+      "high": 4148,
+      "low": 1433,
+      "open": 2214
+    },
+    {
+      "average": 2722,
+      "close": 3086,
+      "dayKey": 20260807,
+      "high": 4535,
+      "low": 1400,
+      "open": 2662
+    },
+    {
+      "average": 2605,
+      "close": 2674,
+      "dayKey": 20260808,
+      "high": 4138,
+      "low": 1684,
+      "open": 2781
+    },
+    {
+      "average": 2603,
+      "close": 2831,
+      "dayKey": 20260809,
+      "high": 4548,
+      "low": 1425,
+      "open": 2767
+    },
+    {
+      "average": 2805,
+      "close": 2835,
+      "dayKey": 20260810,
+      "high": 4500,
+      "low": 1615,
+      "open": 2404
+    },
+    {
+      "average": 2558,
+      "close": 2659,
+      "dayKey": 20260811,
+      "high": 4333,
+      "low": 1400,
+      "open": 2384
+    },
+    {
+      "average": 2410,
+      "close": 2537,
+      "dayKey": 20260812,
+      "high": 3878,
+      "low": 1503,
+      "open": 2312
+    },
+    {
+      "average": 2503,
+      "close": 2760,
+      "dayKey": 20260813,
+      "high": 4097,
+      "low": 1500,
+      "open": 2356
+    },
+    {
+      "average": 2594,
+      "close": 2990,
+      "dayKey": 20260814,
+      "high": 4283,
+      "low": 1462,
+      "open": 2423
+    },
+    {
+      "average": 2588,
+      "close": 3178,
+      "dayKey": 20260815,
+      "high": 4547,
+      "low": 1332,
+      "open": 2457
+    },
+    {
+      "average": 3055,
+      "close": 3196,
+      "dayKey": 20260816,
+      "high": 6917,
+      "low": 1308,
+      "open": 2469
+    },
+    {
+      "average": 4537,
+      "close": 3794,
+      "dayKey": 20260817,
+      "high": 12683,
+      "low": 1979,
+      "open": 2873
+    },
+    {
+      "average": 3337,
+      "close": 2962,
+      "dayKey": 20260818,
+      "high": 7767,
+      "low": 1616,
+      "open": 2900
+    },
+    {
+      "average": 3570,
+      "close": 3149,
+      "dayKey": 20260819,
+      "high": 10352,
+      "low": 1455,
+      "open": 2461
+    },
+    {
+      "average": 4806,
+      "close": 3630,
+      "dayKey": 20260820,
+      "high": 16291,
+      "low": 1823,
+      "open": 2366
+    },
+    {
+      "average": 4549,
+      "close": 3100,
+      "dayKey": 20260821,
+      "high": 13676,
+      "low": 1911,
+      "open": 2709
+    },
+    {
+      "average": 3972,
+      "close": 3112,
+      "dayKey": 20260822,
+      "high": 11085,
+      "low": 1784,
+      "open": 2546
+    },
+    {
+      "average": 3300,
+      "close": 2871,
+      "dayKey": 20260823,
+      "high": 8479,
+      "low": 1605,
+      "open": 3098
+    },
+    {
+      "average": 3444,
+      "close": 3020,
+      "dayKey": 20260824,
+      "high": 8448,
+      "low": 1515,
+      "open": 2879
+    },
+    {
+      "average": 3826,
+      "close": 3337,
+      "dayKey": 20260825,
+      "high": 11037,
+      "low": 1910,
+      "open": 2439
+    },
+    {
+      "average": 5590,
+      "close": 6044,
+      "dayKey": 20260826,
+      "high": 15422,
+      "low": 2482,
+      "open": 2807
+    },
+    {
+      "average": 5341,
+      "close": 5024,
+      "dayKey": 20260827,
+      "high": 10730,
+      "low": 2640,
+      "open": 6810
+    },
+    {
+      "average": 4007,
+      "close": 3275,
+      "dayKey": 20260828,
+      "high": 8501,
+      "low": 2100,
+      "open": 4374
+    },
+    {
+      "average": 3069,
+      "close": 2845,
+      "dayKey": 20260829,
+      "high": 6642,
+      "low": 1583,
+      "open": 3229
+    },
+    {
+      "average": 2611,
+      "close": 2443,
+      "dayKey": 20260830,
+      "high": 5876,
+      "low": 1046,
+      "open": 2311
+    },
+    {
+      "average": 3139,
+      "close": 2886,
+      "dayKey": 20260831,
+      "high": 7333,
+      "low": 1430,
+      "open": 2371
+    },
+    {
+      "average": 3492,
+      "close": 3047,
+      "dayKey": 20260901,
+      "high": 6680,
+      "low": 1942,
+      "open": 2553
+    },
+    {
+      "average": 3627,
+      "close": 2787,
+      "dayKey": 20260902,
+      "high": 6740,
+      "low": 2284,
+      "open": 2661
+    },
+    {
+      "average": 3473,
+      "close": 2675,
+      "dayKey": 20260903,
+      "high": 5799,
+      "low": 2459,
+      "open": 2600
+    },
+    {
+      "average": 3195,
+      "close": 3150,
+      "dayKey": 20260904,
+      "high": 5089,
+      "low": 2225,
+      "open": 2864
+    },
+    {
+      "average": 3493,
+      "close": 3515,
+      "dayKey": 20260905,
+      "high": 6348,
+      "low": 2020,
+      "open": 2977
+    },
+    {
+      "average": 3679,
+      "close": 3785,
+      "dayKey": 20260906,
+      "high": 6502,
+      "low": 2023,
+      "open": 3148
+    },
+    {
+      "average": 4373,
+      "close": 4144,
+      "dayKey": 20260907,
+      "high": 8834,
+      "low": 2172,
+      "open": 4433
+    },
+    {
+      "average": 3957,
+      "close": 3724,
+      "dayKey": 20260908,
+      "high": 8746,
+      "low": 2010,
+      "open": 3315
+    },
+    {
+      "average": 4518,
+      "close": 4009,
+      "dayKey": 20260909,
+      "high": 10552,
+      "low": 2168,
+      "open": 3262
+    },
+    {
+      "average": 4502,
+      "close": 4019,
+      "dayKey": 20260910,
+      "high": 9777,
+      "low": 2260,
+      "open": 3245
+    },
+    {
+      "average": 3335,
+      "close": 2362,
+      "dayKey": 20260911,
+      "high": 5600,
+      "low": 2287,
+      "open": 3480
+    },
+    {
+      "average": 2856,
+      "close": 2791,
+      "dayKey": 20260912,
+      "high": 5518,
+      "low": 1363,
+      "open": 2397
+    },
+    {
+      "average": 2985,
+      "close": 3029,
+      "dayKey": 20260913,
+      "high": 5711,
+      "low": 1555,
+      "open": 2801
+    },
+    {
+      "average": 2831,
+      "close": 2722,
+      "dayKey": 20260914,
+      "high": 5049,
+      "low": 1593,
+      "open": 2834
+    },
+    {
+      "average": 3004,
+      "close": 4000,
+      "dayKey": 20260915,
+      "high": 6051,
+      "low": 1546,
+      "open": 2681
+    },
+    {
+      "average": 3976,
+      "close": 3697,
+      "dayKey": 20260916,
+      "high": 8059,
+      "low": 1911,
+      "open": 3457
+    },
+    {
+      "average": 4293,
+      "close": 3640,
+      "dayKey": 20260917,
+      "high": 7567,
+      "low": 2500,
+      "open": 3501
+    },
+    {
+      "average": 4410,
+      "close": 3200,
+      "dayKey": 20260918,
+      "high": 10934,
+      "low": 2128,
+      "open": 3394
+    },
+    {
+      "average": 4378,
+      "close": 3400,
+      "dayKey": 20260919,
+      "high": 11975,
+      "low": 1885,
+      "open": 3365
+    },
+    {
+      "average": 5037,
+      "close": 4447,
+      "dayKey": 20260920,
+      "high": 12539,
+      "low": 2225,
+      "open": 3362
+    },
+    {
+      "average": 5524,
+      "close": 6186,
+      "dayKey": 20260921,
+      "high": 11443,
+      "low": 2628,
+      "open": 4006
+    },
+    {
+      "average": 4648,
+      "close": 4251,
+      "dayKey": 20260922,
+      "high": 9703,
+      "low": 2308,
+      "open": 3982
+    }
+  ],
+  "metricId": "ERCOT_HBNORTH_DA_AVG",
+  "skipped": [
+    {
+      "dayKey": 20251102,
+      "reason": "2025-11-02: 25/24 hours (no published price)"
+    },
+    {
+      "dayKey": 20260308,
+      "reason": "2026-03-08: 23/24 hours (no published price)"
+    }
+  ]
+}

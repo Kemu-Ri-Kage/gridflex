@@ -189,7 +189,7 @@ verify*, shown verbatim because they are the hash inputs anyone needs to
 reproduce the hash (they contain the dataset and hub codes).
 
 The Texas power price is a daily figure: the average of the day's 24
-hourly day-ahead prices. The terminal's candlestick chart shows the live
+hourly day-ahead prices. The terminal's live-price chart shows the live
 real-time price, which is not the same number — its caption says so in
 one line: "Live prices, for reference · markets settle on the verified
 daily Texas power price" (§6).
@@ -276,7 +276,7 @@ a worse failure mode here than almost any UI bug elsewhere in the product.
   Wrong in every state: "SETTLED · YES" before `resolved()` says so, or any
   line asserting that no market is deployed.
 - **Live ERCOT prices are labelled market data, visually and textually
-  distinct from on-chain verified readings.** The candlestick chart (real
+  distinct from on-chain verified readings.** The live-price chart (real
   `ercot_spp_real_time_15_min` prices, not yet submitted to the oracle) and
   the feed page's verified-readings table (a committed file plus a live
   `getReading()` check) are two different trust levels and must never be
@@ -404,12 +404,33 @@ it shows the number markets settle on.
 
 The verified daily Texas power price from the committed metric files
 (`/data/ERCOT_HBNORTH_DA_AVG.json`, built from `data/metrics` by
-`build_feed_data.py`), so a viewer can judge whether the selected question
-is genuinely uncertain. See `web/components/settlement-price-chart.tsx`.
+`build_feed_data.py`), with each day's range of hourly prices behind it,
+so a viewer can judge whether the selected question is genuinely
+uncertain. See `web/components/settlement-price-chart.tsx`.
 
-- **The daily line with its points**, one point per published day, drawn
-  straight between points (never smoothed, so no curve crosses a strike
-  the prices never crossed), in `--chart-1`. **No candles on this view.**
+- **One candle per published day**, built from that day's 24 hourly
+  day-ahead prices: open at hour 0 (Central), close at hour 23, high and
+  low across the day, in `--up` when the close is above the open and
+  `--down` when below. They come from `/data/price-candles.json`, which
+  `build_feed_data.py` builds from each day's own metric-file
+  `sourceFiles` in `data/raw/` (the same bytes its `sourceHash` covers,
+  never a fresh fetch), and only when the day has exactly 24 hours that
+  average to the published value. A day without 24 hours (the two DST
+  days) is skipped, never drawn from the hours present, and the caption
+  counts the skipped days in the range on screen.
+- **The daily average over the candles**, a thin `--chart-1` line drawn
+  straight between days (never smoothed, so no curve crosses a strike the
+  prices never crossed). It is the value markets settle on. A legend above
+  the plot labels both marks, and the tooltip gives the day's open, high,
+  low, close and average.
+- **Capped price scale.** The scale reaches the highest high only while it
+  is within 1.5× the highest daily average or listed strike in view; past
+  that it stops there, because one afternoon spike can be many times the
+  day's average and scaling to it presses the strike ladder into the
+  bottom of the chart. A wick above the cap stops short of the top edge
+  under a filled caret in its candle's colour, its tooltip still gives the
+  real high, and a line under the chart states the cap and how many spikes
+  are marked. With no wick above the cap, neither caret nor line appears.
 - **Range toggle:** `90 days` (the default) and `Full year`, the same two
   ranges as the landing page's chart (§7).
 - **Every listed market's strike** as a dashed horizontal line. The
@@ -615,9 +636,13 @@ only when every item is a pass.
     "sourceHash", no "dayKey", no basis, hub, dispute window or finalize.
     Contract names beside addresses and the verbatim source file names in
     *How we verify* are data and don't count.
-42. The terminal's chart defaults to the settlement-price view: the daily
-    line with its points (no candles), `90 days` by default with a
-    `Full year` toggle, and the region above the selected strike shaded
+42. The terminal's chart defaults to the settlement-price view: one
+    `--up`/`--down` candle per day from its 24 hourly day-ahead prices
+    (days without 24 hours skipped and counted), the daily average markets
+    settle on as a thin line over them, both labelled; a price scale capped
+    at 1.5× the highest average or strike, with any higher wick marked by a
+    caret and the cap stated under the chart; `90 days` by default with a
+    `Full year` toggle; and the region above the selected strike shaded
     very lightly (§9).
 43. Past frequency is computed from the committed metric files with the
     contract's strictly-greater-than test, over days before the market's

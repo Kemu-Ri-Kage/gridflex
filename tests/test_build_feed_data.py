@@ -220,6 +220,62 @@ class TestHourlySwing(unittest.TestCase):
             build_feed_data.hourly_swing(make_hourly_day(self.PRICES), "2026-09-09", 3001)
 
 
+class TestDailyCandle(unittest.TestCase):
+    # open at hour 0 (Central), close at hour 23, spike at 18:00; mean 30.00
+    PRICES = [30.0] * 24
+    PRICES[0] = 25.0
+    PRICES[23] = 35.0
+    PRICES[4] = 10.0
+    PRICES[18] = 50.0
+
+    def test_open_high_low_close_in_hour_order(self):
+        # rows shuffled: open and close come from the hour, not the row order
+        hourly = make_hourly_day(self.PRICES).sample(frac=1, random_state=1)
+        candle = build_feed_data.daily_candle(hourly, "2026-09-09", 3000)
+        self.assertEqual(candle, {"open": 2500, "high": 5000, "low": 1000, "close": 3500})
+
+    def test_incomplete_day_gets_no_candle(self):
+        with self.assertRaisesRegex(ValueError, "23/24 hours"):
+            build_feed_data.daily_candle(make_hourly_day(self.PRICES[:23]), "2026-09-09", 3000)
+
+    def test_hours_that_do_not_average_to_the_published_value_get_no_candle(self):
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            build_feed_data.daily_candle(make_hourly_day(self.PRICES), "2026-09-09", 3001)
+
+
+class TestWritePriceCandles(unittest.TestCase):
+    def test_candles_from_each_days_own_source_files_and_gap_days_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            raw, metrics, out = root / "raw", root / "metrics", root / "out"
+            for d in (raw, metrics, out):
+                d.mkdir()
+            prices = [30.0] * 24
+            records = []
+            # the 9th and 11th are published; the 10th has only 23 hours cached
+            for day, hours in (("2026-09-09", 24), ("2026-09-10", 23), ("2026-09-11", 24)):
+                start = pd.Timestamp(day + "T05:00:00Z").strftime("%Y-%m-%dT%H:%M:%SZ")
+                name = f"ercot_spp_day_ahead_hourly__HB_NORTH__{day}.json"
+                make_hourly_day(prices[:hours], start).to_json(raw / name, orient="records")
+                if hours == 24:
+                    (metrics / f"ERCOT_HBNORTH_DA_AVG__{day}.json").write_text(
+                        json.dumps({"sourceFiles": [name]})
+                    )
+                    records.append({"dayKey": int(day.replace("-", "")), "marketDay": day, "value": 3000})
+            originals = build_feed_data.RAW_DIR, build_feed_data.METRICS_DIR
+            build_feed_data.RAW_DIR, build_feed_data.METRICS_DIR = raw, metrics
+            try:
+                counts = build_feed_data.write_price_candles(out, records)
+            finally:
+                build_feed_data.RAW_DIR, build_feed_data.METRICS_DIR = originals
+            written = json.loads((out / "price-candles.json").read_text())
+        self.assertEqual(counts, {"candles": 2, "skipped": 1})
+        self.assertEqual([c["dayKey"] for c in written["candles"]], [20260909, 20260911])
+        self.assertEqual(written["candles"][0]["average"], 3000)
+        self.assertEqual(written["skipped"][0]["dayKey"], 20260910)
+        self.assertIn("23/24 hours", written["skipped"][0]["reason"])
+
+
 class TestPriceRange(unittest.TestCase):
     def test_middle_eighty_percent_median_and_peak(self):
         # 1..10 dollars plus one 1000-dollar spike, as cents

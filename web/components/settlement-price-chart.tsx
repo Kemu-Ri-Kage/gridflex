@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, usePlotArea, useYAxisScale } from 'recharts';
+import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis, usePlotArea, useYAxisScale } from 'recharts';
 
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart';
 import { formatPrice } from '@/lib/format';
 import { dayLabel, useMarkets, type Market } from '@/lib/markets';
-import { useCommittedRecords } from '@/lib/site-data';
+import { bodyEdges, candleDirection, scaleTop, skippedInRange, type PriceCandle } from '@/lib/price-candles';
+import { useCommittedRecords, usePriceCandles } from '@/lib/site-data';
 import { niceScale, pastFrequency, spreadLabels, strikeLines, type StrikeLine } from '@/lib/strike-ladder';
 
 type Range = '90d' | 'year';
@@ -29,8 +30,49 @@ const LABEL_GAP = 14;
 const AXIS_WIDTH = 50;
 
 const chartConfig = {
-  value: { label: 'Texas power price', color: 'var(--chart-1)' },
+  value: { label: 'Daily average', color: 'var(--chart-1)' },
 } satisfies ChartConfig;
+
+/** The caret marking a high above the scale, in px. */
+const CARET_WIDTH = 9;
+const CARET_HEIGHT = 7;
+
+/**
+ * An upward caret with its tip at (x, y): marks a wick whose high is above
+ * the top of the scale. A halo in the background colour keeps neighbouring
+ * wicks from running into it.
+ */
+function SpikeCaret({ color, x, y }: { color: string; x: number; y: number }) {
+  const half = CARET_WIDTH / 2;
+  return (
+    <path
+      d={`M${x - half} ${y + CARET_HEIGHT}L${x} ${y}L${x + half} ${y + CARET_HEIGHT}Z`}
+      fill={color}
+      paintOrder="stroke"
+      stroke="var(--background)"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+    />
+  );
+}
+
+/** A candle's colour: --up when the day closed above its open, --down below. */
+const DIRECTION_COLOR = {
+  up: 'var(--up)',
+  down: 'var(--down)',
+  flat: 'var(--muted-foreground)',
+} as const;
+
+interface ChartPoint {
+  dayKey: number;
+  day: string;
+  /** The daily average in cents, the value markets settle on. */
+  cents: number;
+  value: number;
+  candle: PriceCandle | null;
+  /** [low, high] in dollars, the candle's wick; null with no candle. */
+  range: [number, number] | null;
+}
 
 /** The in-pane label: which listed days settle at this strike. */
 function strikeDays(line: StrikeLine): string {
@@ -77,7 +119,7 @@ function PriceTick({
   if (geometry?.tagYs.some((tagY) => Math.abs(tagY - y) < LABEL_GAP)) return null;
   return (
     <text x={x} y={y} dy="0.32em" fill="var(--muted-foreground)" fontSize={11}>
-      ${payload.value}
+      {payload.value < 0 ? `-$${-payload.value}` : `$${payload.value}`}
     </text>
   );
 }
@@ -174,13 +216,101 @@ function StrikeLadder({ lines, layer }: { lines: StrikeLine[]; layer: 'shade' | 
   );
 }
 
-function Tooltip({ active, payload }: { active?: boolean; payload?: { payload?: { dayKey: number; cents: number } }[] }) {
+/**
+ * One day's candle, drawn in the box recharts gives its [low, high] bar: a
+ * 1px wick from high to low and a body from open to close, both in the
+ * day's --up/--down colour. A high past the top of the scale is drawn to
+ * the top edge and marked with a small caret there.
+ */
+function CandleShape({
+  x = 0,
+  y = 0,
+  width = 0,
+  height = 0,
+  payload,
+}: {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: ChartPoint;
+}) {
+  const plot = usePlotArea();
+  const candle = payload?.candle;
+  if (!candle || !plot) return null;
+  const top = Math.min(y, y + height);
+  const bottom = top + Math.abs(height);
+  const edges = bodyEdges(candle, top, Math.abs(height));
+  const color = DIRECTION_COLOR[candleDirection(candle)];
+  const mid = x + width / 2;
+  const bodyWidth = Math.max(1, width);
+  const clipped = top < plot.y;
+  // A clipped wick stops short of its caret, so the break reads as "this
+  // goes higher" rather than as a line that happens to touch the edge.
+  const wickTop = clipped ? plot.y + CARET_HEIGHT + 2 : Math.max(top, plot.y);
+  return (
+    <g pointerEvents="none">
+      <line x1={mid} x2={mid} y1={wickTop} y2={bottom} stroke={color} strokeWidth={1} />
+      {clipped && <SpikeCaret color={color} x={mid} y={plot.y} />}
+      <rect
+        x={mid - bodyWidth / 2}
+        y={Math.max(edges.top, plot.y)}
+        width={bodyWidth}
+        height={Math.max(1, edges.bottom - Math.max(edges.top, plot.y))}
+        fill={color}
+      />
+    </g>
+  );
+}
+
+function Tooltip({ active, payload }: { active?: boolean; payload?: { payload?: ChartPoint }[] }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
+  const { candle } = point;
+  const rows: [string, number][] = candle
+    ? [
+        ['Open', candle.open],
+        ['High', candle.high],
+        ['Low', candle.low],
+        ['Close', candle.close],
+      ]
+    : [];
   return (
     <div className="border border-border bg-card px-2 py-1 font-mono text-xs tabular-nums">
       <div className="text-muted-foreground">{dayLabel(point.dayKey, true)}</div>
-      <div className="text-foreground">{formatPrice(point.cents, 'MWh')}</div>
+      <dl className="mt-0.5 grid grid-cols-[auto_auto] gap-x-3">
+        {rows.map(([label, cents]) => (
+          <React.Fragment key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-right text-foreground">{formatPrice(cents)}</dd>
+          </React.Fragment>
+        ))}
+        <dt className="text-[var(--color-value)]">Average</dt>
+        <dd className="text-right text-foreground">{formatPrice(point.cents, 'MWh')}</dd>
+      </dl>
+    </div>
+  );
+}
+
+/** What the two marks are: the day's hourly range, and the price it settles on. */
+function Legend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 pb-1 font-mono text-[11px] text-muted-foreground">
+      <span className="flex items-center gap-1.5">
+        <svg aria-hidden="true" height="12" width="9">
+          <line stroke="var(--up)" x1="2" x2="2" y1="0" y2="12" />
+          <rect fill="var(--up)" height="6" width="3" x="0.5" y="3" />
+          <line stroke="var(--down)" x1="7" x2="7" y1="1" y2="11" />
+          <rect fill="var(--down)" height="5" width="3" x="5.5" y="4" />
+        </svg>
+        Candle · 24 hourly prices: open, high, low, close
+      </span>
+      <span className="flex items-center gap-1.5">
+        <svg aria-hidden="true" height="12" width="14">
+          <line stroke="var(--chart-1)" strokeWidth="1.5" x1="0" x2="14" y1="6" y2="6" />
+        </svg>
+        Line · daily average, the settlement price
+      </span>
     </div>
   );
 }
@@ -243,12 +373,14 @@ function PastFrequencyPanel({
 }
 
 /**
- * The default /trade chart: the verified daily Texas power price markets
- * settle on, one point per published day, with every listed strike drawn
- * across it (design-brief.md §9).
+ * The default /trade chart: one candle per published day from its 24
+ * hourly prices, with the verified daily average markets settle on drawn
+ * over them as a line, and every listed strike across both
+ * (design-brief.md §9).
  */
 export function SettlementPriceChart({ range }: { range: Range }) {
   const allRecords = useCommittedRecords('ERCOT_HBNORTH_DA_AVG');
+  const priceCandles = usePriceCandles();
   const { markets, selected } = useMarkets();
 
   const lines = React.useMemo(
@@ -256,27 +388,49 @@ export function SettlementPriceChart({ range }: { range: Range }) {
     [markets, selected?.address],
   );
   const records = range === '90d' ? allRecords?.slice(-RECENT_DAYS) : allRecords;
+  const candleByDay = React.useMemo(
+    () => new Map((priceCandles?.candles ?? []).map((candle) => [candle.dayKey, candle])),
+    [priceCandles],
+  );
+  const skipped =
+    records && records.length > 0 && priceCandles
+      ? skippedInRange(priceCandles.skipped, records[0].dayKey, records[records.length - 1].dayKey)
+      : 0;
 
   let plot: React.ReactNode;
-  if (!records) {
+  // Highs above the top of the scale, and that top in dollars.
+  let spikes = 0;
+  let scaleCap = 0;
+  if (!records || !priceCandles) {
     plot = <p className="p-3 text-xs text-muted-foreground">Loading…</p>;
   } else if (records.length === 0) {
     plot = <p className="p-3 text-xs text-muted-foreground">No prices published yet.</p>;
   } else {
-    const data = records.map((record) => ({
-      dayKey: record.dayKey,
-      day: dayLabel(record.dayKey),
-      cents: record.value,
-      value: record.value / 100,
-    }));
-    // The y range always takes in every listed strike, so no line is
-    // clipped off the chart.
+    const data: ChartPoint[] = records.map((record) => {
+      const candle = candleByDay.get(record.dayKey) ?? null;
+      return {
+        dayKey: record.dayKey,
+        day: dayLabel(record.dayKey),
+        cents: record.value,
+        value: record.value / 100,
+        candle,
+        range: candle ? [candle.low / 100, candle.high / 100] : null,
+      };
+    });
+    // The y range always takes in every daily average, every low and every
+    // listed strike, so no line is clipped off the chart. Highs count up to
+    // scaleTop(): a spike far above them runs off the top, marked.
     const strikes = lines.map((line) => line.threshold / 100);
-    const values = [...data.map((d) => d.value), ...strikes];
+    const averages = data.map((d) => d.value);
+    const lows = data.flatMap((d) => (d.range ? [d.range[0]] : []));
+    const top = scaleTop([...averages, ...strikes], data.flatMap((d) => (d.range ? [d.range[1]] : [])));
+    const values = [...averages, ...lows, ...strikes, top];
     const { domain, ticks } = niceScale(values);
+    spikes = data.filter((d) => d.range && d.range[1] > domain[1]).length;
+    scaleCap = domain[1];
     plot = (
       <ChartContainer config={chartConfig} className="aspect-auto h-full min-h-[300px] w-full font-mono tabular-nums">
-        <LineChart data={data} margin={{ left: 4, right: 0, top: 12, bottom: 0 }}>
+        <ComposedChart barCategoryGap="25%" data={data} margin={{ left: 4, right: 0, top: 12, bottom: 0 }}>
           <CartesianGrid vertical={false} strokeOpacity={0.08} />
           <XAxis dataKey="day" tickLine={false} axisLine={false} minTickGap={40} tick={{ fontSize: 11 }} />
           <YAxis
@@ -291,18 +445,19 @@ export function SettlementPriceChart({ range }: { range: Range }) {
             tick={<PriceTick lines={lines} />}
           />
           <StrikeLadder layer="shade" lines={lines} />
-          <ChartTooltip content={<Tooltip />} cursor={{ stroke: 'var(--muted-foreground)', strokeOpacity: 0.4 }} />
+          <ChartTooltip content={<Tooltip />} cursor={{ fill: 'var(--muted-foreground)', fillOpacity: 0.1 }} />
+          <Bar dataKey="range" shape={<CandleShape />} isAnimationActive={false} />
           <Line
             type="linear"
             dataKey="value"
             stroke="var(--color-value)"
-            strokeWidth={1.5}
-            dot={{ r: 1.75, fill: 'var(--color-value)', strokeWidth: 0 }}
-            activeDot={{ r: 3, fill: 'var(--color-value)', stroke: 'var(--background)', strokeWidth: 1.5 }}
+            strokeWidth={1.25}
+            dot={false}
+            activeDot={{ r: 2.5, fill: 'var(--color-value)', stroke: 'var(--background)', strokeWidth: 1 }}
             isAnimationActive={false}
           />
           <StrikeLadder layer="lines" lines={lines} />
-        </LineChart>
+        </ComposedChart>
       </ChartContainer>
     );
   }
@@ -311,10 +466,23 @@ export function SettlementPriceChart({ range }: { range: Range }) {
     <div className="flex h-full flex-col">
       <div className="flex min-h-[360px] flex-1 flex-col lg:flex-row">
         <PastFrequencyPanel marketsLoading={markets === null} records={allRecords} selected={selected} />
-        <div className="relative min-h-[300px] min-w-0 flex-1 px-1 pt-2">{plot}</div>
+        <div className="flex min-h-[300px] min-w-0 flex-1 flex-col pt-2">
+          <Legend />
+          <div className="relative min-h-[300px] flex-1 px-1">{plot}</div>
+        </div>
       </div>
       <div className="border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
         Daily Texas power price, $/MWh · the verified price markets settle on
+        {skipped > 0 && ` · ${skipped} ${skipped === 1 ? 'day' : 'days'} without 24 hours not drawn`}
+        {spikes > 0 && (
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <svg aria-hidden="true" className="shrink-0" height={CARET_HEIGHT + 2} width={CARET_WIDTH + 2}>
+              <SpikeCaret color="var(--foreground)" x={CARET_WIDTH / 2 + 1} y={1} />
+            </svg>
+            Scale capped at ${scaleCap} so the strikes stay readable · {spikes} higher{' '}
+            {spikes === 1 ? 'spike' : 'spikes'} marked, real high on hover
+          </div>
+        )}
       </div>
     </div>
   );

@@ -179,24 +179,32 @@ def write_evidence(output_dir: Path) -> None:
     path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def hourly_swing(hourly: pd.DataFrame, market_day: str, expected_value: int) -> dict[str, Any]:
-    """Cheapest and dearest hour of one market day, from its hourly prices.
+def market_day_hours(hourly: pd.DataFrame, market_day: str, expected_value: int) -> pd.DataFrame:
+    """The hourly rows of one market day, in hour order, held to the same bar
+    as the daily price they come from.
 
-    Held to the same bar as the daily price it sits next to on the landing
-    page: exactly EXPECTED_ROWS hours on the Central market day (grouped by
+    Exactly EXPECTED_ROWS hours on the Central market day (grouped by
     fetch_ercot's own to_central_day, so the day boundary can't drift from
     the metric's), and those hours must average to the published value -
     if they don't, these aren't the rows that produced it. Either failure
-    raises rather than returning a swing for the wrong hours.
+    raises rather than returning the wrong hours.
     """
     df = to_central_day(hourly)
     day = df[df["market_day"].astype(str) == market_day]
     expected_rows = EXPECTED_ROWS[DAY_AHEAD["dataset"]]
     if len(day) != expected_rows:
         raise ValueError(f"{market_day}: {len(day)}/{expected_rows} hours (incomplete day)")
-    prices = day[DAY_AHEAD["price_column"]]
-    if int(round(prices.mean() * 100)) != expected_value:
+    if int(round(day[DAY_AHEAD["price_column"]].mean() * 100)) != expected_value:
         raise ValueError(f"{market_day}: hourly mean does not match the published value {expected_value}")
+    order = pd.to_datetime(day["interval_start_utc"], utc=True).sort_values().index
+    return day.loc[order]
+
+
+def hourly_swing(hourly: pd.DataFrame, market_day: str, expected_value: int) -> dict[str, Any]:
+    """Cheapest and dearest hour of one market day, from its hourly prices
+    (see market_day_hours for the rows it accepts)."""
+    day = market_day_hours(hourly, market_day, expected_value)
+    prices = day[DAY_AHEAD["price_column"]]
 
     def hour(label: Any) -> dict[str, Any]:
         start = pd.to_datetime(day.loc[label, "interval_start_utc"], utc=True)
@@ -207,6 +215,74 @@ def hourly_swing(hourly: pd.DataFrame, market_day: str, expected_value: int) -> 
         }
 
     return {"cheapest": hour(prices.idxmin()), "dearest": hour(prices.idxmax())}
+
+
+def daily_candle(hourly: pd.DataFrame, market_day: str, expected_value: int) -> dict[str, int]:
+    """One day's candle from its 24 hourly day-ahead prices, in cents: open
+    at hour 0 (Central), close at hour 23, high and low across the day.
+    Refused, like hourly_swing, unless the day is complete and its hours
+    average to the published value."""
+    prices = market_day_hours(hourly, market_day, expected_value)[DAY_AHEAD["price_column"]]
+    cents = [int(round(price * 100)) for price in prices]
+    return {"open": cents[0], "high": max(cents), "low": min(cents), "close": cents[-1]}
+
+
+def hours_per_day(hourly: pd.DataFrame) -> dict[str, int]:
+    """Distinct hourly intervals per Central market day, across every cached
+    chunk (chunks overlap, so each interval is counted once)."""
+    df = to_central_day(hourly.drop_duplicates(subset="interval_start_utc"))
+    return {str(day): int(count) for day, count in df.groupby("market_day").size().items()}
+
+
+def write_price_candles(output_dir: Path, records: list[dict[str, Any]]) -> dict[str, int]:
+    """Publish one candle per published day for /trade's settlement-price
+    chart, next to the daily price markets settle on.
+
+    Each candle is built from the exact sourceFiles of that day's own metric
+    file, read from the data/raw/ cache - the bytes its sourceHash covers,
+    never a fresh fetch. A day that can't be reproduced from them, and any
+    day between the first and last published day with no published price
+    (the DST changeover days, which never have 24 hours), is listed under
+    `skipped` with the hours the cache holds for it - never drawn from the
+    hours present.
+    """
+    frames: dict[str, pd.DataFrame] = {}
+
+    def raw(name: str) -> pd.DataFrame:
+        if name not in frames:
+            frames[name] = pd.read_json(RAW_DIR / name, orient="records")
+        return frames[name]
+
+    candles, skipped = [], []
+    for record in records:
+        try:
+            metric_path = METRICS_DIR / f"{PRICE_METRIC_ID}__{record['marketDay']}.json"
+            metric = json.loads(metric_path.read_text(encoding="utf-8"))
+            hourly = pd.concat([raw(name) for name in metric["sourceFiles"]], ignore_index=True)
+            candle = daily_candle(hourly, record["marketDay"], record["value"])
+        except (OSError, KeyError, ValueError) as exc:
+            print(f"SKIPPED candle: {exc}", file=sys.stderr)
+            skipped.append({"dayKey": record["dayKey"], "reason": str(exc)})
+            continue
+        candles.append({"dayKey": record["dayKey"], "average": record["value"], **candle})
+
+    if records:
+        published = {record["marketDay"] for record in records}
+        cached = sorted(RAW_DIR.glob(f"{DAY_AHEAD['dataset']}__{DAY_AHEAD['location']}__*.json"))
+        hours = hours_per_day(pd.concat([raw(path.name) for path in cached], ignore_index=True)) if cached else {}
+        expected_rows = EXPECTED_ROWS[DAY_AHEAD["dataset"]]
+        for day in pd.date_range(records[0]["marketDay"], records[-1]["marketDay"], freq="D"):
+            market_day = day.strftime("%Y-%m-%d")
+            if market_day not in published:
+                reason = f"{market_day}: {hours.get(market_day, 0)}/{expected_rows} hours (no published price)"
+                print(f"SKIPPED candle: {reason}", file=sys.stderr)
+                skipped.append({"dayKey": int(day.strftime("%Y%m%d")), "reason": reason})
+    skipped.sort(key=lambda entry: entry["dayKey"])
+
+    output = {"metricId": PRICE_METRIC_ID, "candles": candles, "skipped": skipped}
+    path = output_dir / "price-candles.json"
+    path.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {"candles": len(candles), "skipped": len(skipped)}
 
 
 def price_range(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -289,11 +365,13 @@ def main(argv: list[str] | None = None) -> int:
     write_feed_meta(args.out)
     write_evidence(args.out)
     summary_written = write_price_summary(args.out, by_metric.get(PRICE_METRIC_ID, []))
+    candle_counts = write_price_candles(args.out, by_metric.get(PRICE_METRIC_ID, []))
 
     total = sum(len(records) for records in by_metric.values())
     submitted = sum(1 for records in by_metric.values() for record in records if record["txHash"])
     print(f"Wrote {len(by_metric)} metric file(s) to {args.out}")
     print(f"  {submitted} of {total} metric-days have a ledger txHash")
+    print(f"  {candle_counts['candles']} daily price candles, {candle_counts['skipped']} day(s) skipped")
     if invalid:
         print(f"  {len(invalid)} local file(s) skipped as invalid", file=sys.stderr)
     return 1 if invalid or not summary_written else 0

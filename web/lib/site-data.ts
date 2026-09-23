@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import type { CommittedRecord, FeedMetricId } from '@/lib/feed-data';
+import type { PriceCandles } from '@/lib/price-candles';
 
 /**
  * Generic per-metric committed-record fetch, shared by the landing page's
@@ -107,4 +108,31 @@ export function useAddresses(): PublicAddresses | null {
   }, []);
 
   return addresses;
+}
+
+/**
+ * The settlement-price chart's daily candles, published by
+ * build_feed_data.py's write_price_candles(). An empty file (no candles, no
+ * skipped days) when it can't be read, so the chart falls back to the line.
+ */
+export function usePriceCandles(): PriceCandles | null {
+  const [candles, setCandles] = React.useState<PriceCandles | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const empty: PriceCandles = { metricId: 'ERCOT_HBNORTH_DA_AVG', candles: [], skipped: [] };
+    void fetch('/data/price-candles.json')
+      .then((response) => (response.ok ? (response.json() as Promise<PriceCandles>) : empty))
+      .then((data) => {
+        if (!cancelled) setCandles(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCandles(empty);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return candles;
 }

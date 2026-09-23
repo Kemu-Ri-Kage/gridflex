@@ -469,7 +469,10 @@ and `web/lib/settlement-chart-drawing.ts`.
   lines. Each line has its price as a tag on the right price scale (the
   selected one filled `--warning`) and its listed days at the left edge of
   the plot, the selected one prefixed `Strike`. Labels are spread apart so
-  strikes $2 apart stay readable, and never cover the latest prices. The y
+  strikes $2 apart stay readable, and never cover the latest prices. A
+  label level with the TradingView attribution mark (bottom-left, which
+  stays, §9 Live price) starts just right of it instead, so the two never
+  collide. The y
   range always includes every listed strike.
 - **The region above the selected strike is shaded very lightly** in
   `--warning` (5% opacity), so "above the line" reads instantly. It marks

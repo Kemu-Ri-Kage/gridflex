@@ -25,7 +25,7 @@ import {
   type WhitespaceData,
 } from 'lightweight-charts';
 
-import { spreadLabels } from '@/lib/strike-ladder';
+import { labelLeft, spreadLabels } from '@/lib/strike-ladder';
 
 type DrawTarget = Parameters<ICustomSeriesPaneRenderer['draw']>[0];
 
@@ -318,9 +318,11 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
             // over the candles without a box hiding them.
             context.lineWidth = 3;
             context.strokeStyle = palette.background;
-            context.strokeText(text, 4, labelYs[i]);
+            // Clear of the attribution mark in the bottom-left corner.
+            const x = labelLeft(labelYs[i], LABEL_GAP, mediaSize.height);
+            context.strokeText(text, x, labelYs[i]);
             context.fillStyle = lines[i].selected ? palette.warning : palette.muted;
-            context.fillText(text, 4, labelYs[i]);
+            context.fillText(text, x, labelYs[i]);
           }
           context.globalAlpha = 1;
         }),

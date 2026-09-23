@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { niceScale, pastFrequency, spreadLabels, strikeLines } from './strike-ladder.ts';
+import { labelLeft, niceScale, pastFrequency, spreadLabels, strikeLines } from './strike-ladder.ts';
 
 void test('one line per strike, highest first, with every day at that strike', () => {
   const markets = [
@@ -74,4 +74,14 @@ void test('the y range takes in every value on round ticks', () => {
     domain: [0, 700],
     ticks: [0, 100, 200, 300, 400, 500, 600, 700],
   });
+});
+
+void test('a strike label moves right of the attribution mark only where it would overlap it', () => {
+  // 300px pane: the mark covers y 271-290 and x 10-45
+  assert.equal(labelLeft(100, 14, 300), 4);
+  assert.equal(labelLeft(280, 14, 300), 51);
+  // a label whose line only touches the mark's top edge still moves
+  assert.equal(labelLeft(265, 14, 300), 51);
+  // clear above the mark
+  assert.equal(labelLeft(263, 14, 300), 4);
 });

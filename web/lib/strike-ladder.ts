@@ -127,3 +127,21 @@ export function niceScale(values: readonly number[], maxTicks = 8): { domain: [n
   for (let t = low; t <= high; t += step) ticks.push(t);
   return { domain: [low, high], ticks };
 }
+
+/**
+ * Lightweight Charts' attribution mark, which its licence requires: 35x19px,
+ * 10px in from the pane's left and bottom edges.
+ */
+export const ATTRIBUTION_MARK = { left: 10, bottom: 10, width: 35, height: 19 } as const;
+
+/**
+ * Where a strike label starts, in px from the pane's left edge: at the left
+ * edge, or just right of the attribution mark when the label's line (its
+ * centre `y`, `height` tall) would overlap the mark, so the two never collide.
+ */
+export function labelLeft(y: number, height: number, paneHeight: number, edge = 4, gap = 6): number {
+  const markTop = paneHeight - ATTRIBUTION_MARK.bottom - ATTRIBUTION_MARK.height;
+  const markBottom = paneHeight - ATTRIBUTION_MARK.bottom;
+  const overlaps = y + height / 2 > markTop && y - height / 2 < markBottom;
+  return overlaps ? ATTRIBUTION_MARK.left + ATTRIBUTION_MARK.width + gap : edge;
+}

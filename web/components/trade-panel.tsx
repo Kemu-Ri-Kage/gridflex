@@ -143,6 +143,10 @@ export function TradePanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 px-3 py-4">
+        {/* First in the ticket: until the wallet's RPC answers, nothing
+            below can be sent. */}
+        {walletRpcFailed && <ConnectionHelp />}
+
         {!configured && (
           <div className="rounded-[2px] border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">
             Contracts not configured.
@@ -425,8 +429,6 @@ export function TradePanel() {
             </a>
           )}
         </div>
-
-        {walletRpcFailed && <ConnectionHelp />}
 
         {/* The cancellation payout is stated as fact only once cancel() has
             run; before settlement it is conditional, and after resolution

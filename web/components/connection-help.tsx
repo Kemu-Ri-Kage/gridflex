@@ -30,18 +30,27 @@ function CopyableUrl({ url, label }: { url: string; label: string }) {
 }
 
 /**
- * Shown when a wallet request fails in a way that points at the wallet's
- * own saved RPC for X Layer (lib/wallet-errors.ts). A wallet sends
+ * Shown when the wallet's own saved RPC for X Layer looks unreachable: its
+ * health check failed (lib/wallet-health.ts) or a wallet request failed in
+ * a way that points at it (lib/wallet-errors.ts). A wallet sends
  * transactions through the network it already has saved, which this site
  * can neither see nor change, so this only explains how to replace the RPC
- * by hand.
+ * by hand. Opens expanded by default, since until the RPC is fixed nothing
+ * can be sent.
  */
-export function ConnectionHelp() {
-  const [open, setOpen] = React.useState(false);
+export function ConnectionHelp({
+  defaultOpen = true,
+}: {
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = React.useState(defaultOpen);
   const [primary, backup] = XLAYER_TESTNET_RPC_URLS;
 
   return (
-    <div className="rounded-[2px] border border-warning/40 bg-warning/10 text-xs">
+    <div
+      className="rounded-[2px] border border-warning/40 bg-warning/10 text-xs"
+      role="alert"
+    >
       <button
         aria-controls="xlayer-connection-help"
         aria-expanded={open}

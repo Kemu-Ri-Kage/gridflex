@@ -41,6 +41,7 @@ import {
   TransactionRevertedError,
 } from '@/lib/transaction-outcome';
 import { isWalletRpcFailure } from '@/lib/wallet-errors';
+import { probeWalletRpc, watchSlowRequest } from '@/lib/wallet-health';
 
 declare global {
   interface Window {
@@ -119,9 +120,11 @@ type Web3ContextValue = {
   /** Wallet connection errors only, shown under the Connect button. */
   connectError?: string;
   /**
-   * The last wallet request failed in a way that points at the wallet's own
-   * saved RPC for X Layer (lib/wallet-errors.ts). Cleared by the next
-   * request the wallet completes.
+   * The wallet's own saved RPC for X Layer looks unreachable: a health
+   * check through it failed (lib/wallet-health.ts), or a wallet request
+   * failed in a way that points at it (lib/wallet-errors.ts). Checked on
+   * connect, on a chain change and before every transaction; cleared by the
+   * next check or request that succeeds.
    */
   walletRpcFailed: boolean;
   lastTransaction?: Hash;
@@ -183,6 +186,25 @@ const emptySnapshot: MarketSnapshot = {
  */
 const WALLET_RPC_MESSAGE =
   "Your wallet couldn't reach X Layer through the RPC address it has saved for this network.";
+
+/** The health check failed before a transaction, so nothing was sent. */
+const WALLET_RPC_NOT_SENT_MESSAGE = `${WALLET_RPC_MESSAGE} Nothing was sent.`;
+
+/** The health check failed while a wallet request was still pending. */
+const WALLET_RPC_STALLED_MESSAGE = `${WALLET_RPC_MESSAGE} The request is still open in the wallet; if a prompt appears, you can confirm or reject it there.`;
+
+/**
+ * Probe the injected wallet's saved RPC, or report healthy when there is
+ * no wallet (every wallet action already refuses that case).
+ */
+async function walletRpcReachable(): Promise<boolean> {
+  const ethereum = window.ethereum;
+  if (!ethereum) return true;
+  const health = await probeWalletRpc((args) =>
+    ethereum.request(args as Parameters<EIP1193Provider['request']>[0]),
+  );
+  return health === 'ok';
+}
 
 export const NO_WALLET_MESSAGE =
   'No wallet found in this browser. Install OKX Wallet or MetaMask, then reload.';
@@ -340,7 +362,11 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       }
 
       setAccount(getAddress(accounts[0]));
-      setWalletRpcFailed(false);
+      // Connecting and switching are answered by the wallet itself; this is
+      // the first request that needs its RPC.
+      void walletRpcReachable().then((reachable) =>
+        setWalletRpcFailed(!reachable),
+      );
     } catch (walletError) {
       if (isWalletRpcFailure(walletError)) {
         setWalletRpcFailed(true);
@@ -467,14 +493,21 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       const next = Array.isArray(nextAccounts) ? nextAccounts[0] : undefined;
       setAccount(typeof next === 'string' ? getAddress(next) : undefined);
     };
-    const handleChain = () => void refresh();
+    const handleChain = () => {
+      void refresh();
+      if (account) {
+        void walletRpcReachable().then((reachable) =>
+          setWalletRpcFailed(!reachable),
+        );
+      }
+    };
     ethereum.on('accountsChanged', handleAccounts);
     ethereum.on('chainChanged', handleChain);
     return () => {
       ethereum.removeListener?.('accountsChanged', handleAccounts);
       ethereum.removeListener?.('chainChanged', handleChain);
     };
-  }, [refresh]);
+  }, [account, refresh]);
 
   // Restore the connected wallet's unfinished order (after a reload, or on
   // switching wallets), and follow changes made in other tabs.
@@ -512,6 +545,11 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       setError(undefined);
       setFailedTransaction(undefined);
       try {
+        // A wallet with a dead RPC never shows its prompt: check first.
+        if (!(await walletRpcReachable())) {
+          setWalletRpcFailed(true);
+          throw new Error(WALLET_RPC_NOT_SENT_MESSAGE);
+        }
         const walletClient = createWalletClient({
           account,
           chain: xLayerTestnet,
@@ -521,18 +559,32 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         // receipt and refresh below use the app's own endpoints.
         let hash: Hash;
         try {
-          hash = await walletClient.writeContract({
-            address: request.address,
-            abi: request.abi,
-            functionName: request.functionName,
-            args: request.args,
-          });
+          // Not timed out: a slow answer may be the user reading the prompt.
+          // While it waits, re-check the RPC, and if that fails swap the
+          // spinner for the connection help without dropping the request.
+          hash = await watchSlowRequest(
+            walletClient.writeContract({
+              address: request.address,
+              abi: request.abi,
+              functionName: request.functionName,
+              args: request.args,
+            }),
+            async () => {
+              if (await walletRpcReachable()) return true;
+              setWalletRpcFailed(true);
+              setPendingAction(undefined);
+              setError(WALLET_RPC_STALLED_MESSAGE);
+              return false;
+            },
+          );
         } catch (walletError) {
           if (!isWalletRpcFailure(walletError)) throw walletError;
           setWalletRpcFailed(true);
           throw new Error(WALLET_RPC_MESSAGE, { cause: walletError });
         }
         setWalletRpcFailed(false);
+        setPendingAction(label);
+        setError(undefined);
         setLastTransaction(hash);
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
         // A reverted transaction is mined too: replay it against the state

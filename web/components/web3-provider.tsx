@@ -40,7 +40,11 @@ import {
   assertTransactionSucceeded,
   TransactionRevertedError,
 } from '@/lib/transaction-outcome';
-import { isWalletRpcFailure } from '@/lib/wallet-errors';
+import { singleFlight } from '@/lib/single-flight';
+import {
+  isWalletRpcFailure,
+  walletRequestAlreadyPending,
+} from '@/lib/wallet-errors';
 import { probeWalletRpc, watchSlowRequest } from '@/lib/wallet-health';
 
 declare global {
@@ -119,6 +123,8 @@ type Web3ContextValue = {
   error?: string;
   /** Wallet connection errors only, shown under the Connect button. */
   connectError?: string;
+  /** A connect() is waiting on the wallet; Connect stays disabled. */
+  connecting: boolean;
   /**
    * The wallet's own saved RPC for X Layer looks unreachable: a health
    * check through it failed (lib/wallet-health.ts), or a wallet request
@@ -294,6 +300,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [pendingAction, setPendingAction] = React.useState<string>();
   const [error, setError] = React.useState<string>();
   const [connectError, setConnectError] = React.useState<string>();
+  const [connecting, setConnecting] = React.useState(false);
   const [walletRpcFailed, setWalletRpcFailed] = React.useState(false);
   const [lastTransaction, setLastTransaction] = React.useState<Hash>();
   const [failedTransaction, setFailedTransaction] = React.useState<Hash>();
@@ -318,7 +325,21 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     setFailedTransaction(undefined);
   }, []);
 
-  const connect = React.useCallback(async () => {
+  // One connect at a time: a second click while the wallet prompt is open
+  // would send another eth_requestAccounts, which MetaMask refuses with
+  // -32002. The lock is released in singleFlight's finally.
+  const [connectFlight] = React.useState(() =>
+    singleFlight(async () => {
+      setConnecting(true);
+      try {
+        await connectWallet();
+      } finally {
+        setConnecting(false);
+      }
+    }),
+  );
+
+  async function connectWallet() {
     setConnectError(undefined);
     const ethereum = window.ethereum;
     if (!ethereum) {
@@ -368,14 +389,20 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         setWalletRpcFailed(!reachable),
       );
     } catch (walletError) {
-      if (isWalletRpcFailure(walletError)) {
+      // Checked first: an unanswered prompt shares -32002 with a dead RPC.
+      const alreadyPending = walletRequestAlreadyPending(walletError);
+      if (alreadyPending) {
+        setConnectError(alreadyPending);
+      } else if (isWalletRpcFailure(walletError)) {
         setWalletRpcFailed(true);
         setConnectError(WALLET_RPC_MESSAGE);
       } else {
         setConnectError(errorMessage(walletError));
       }
     }
-  }, []);
+  }
+
+  const connect = React.useCallback(() => connectFlight.run(), [connectFlight]);
 
   const disconnect = React.useCallback(() => {
     setAccount(undefined);
@@ -578,6 +605,10 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
             },
           );
         } catch (walletError) {
+          const alreadyPending = walletRequestAlreadyPending(walletError);
+          if (alreadyPending) {
+            throw new Error(alreadyPending, { cause: walletError });
+          }
           if (!isWalletRpcFailure(walletError)) throw walletError;
           setWalletRpcFailed(true);
           throw new Error(WALLET_RPC_MESSAGE, { cause: walletError });
@@ -973,6 +1004,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       pendingAction,
       error,
       connectError,
+      connecting,
       walletRpcFailed,
       lastTransaction,
       failedTransaction,
@@ -1001,6 +1033,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       pendingAction,
       error,
       connectError,
+      connecting,
       walletRpcFailed,
       lastTransaction,
       failedTransaction,

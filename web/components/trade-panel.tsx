@@ -51,6 +51,7 @@ export function TradePanel() {
     pendingAction,
     error,
     connectError,
+    connecting,
     walletRpcFailed,
     lastTransaction,
     failedTransaction,
@@ -350,9 +351,11 @@ export function TradePanel() {
         {!account ? (
           <Button
             className="h-10 w-full rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
+            disabled={connecting}
             onClick={() => void connect()}
           >
-            Connect wallet to trade <ArrowUpRight data-icon="inline-end" />
+            {connecting ? 'Check your wallet…' : 'Connect wallet to trade'}{' '}
+            <ArrowUpRight data-icon="inline-end" />
           </Button>
         ) : (
           <div className="grid gap-2">

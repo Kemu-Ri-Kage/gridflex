@@ -24,6 +24,7 @@ export function WalletButton() {
     disconnect,
     pendingAction,
     connectError,
+    connecting,
     walletDetected,
   } = useWeb3();
 
@@ -46,11 +47,11 @@ export function WalletButton() {
     <div className="relative">
       <Button
         className="h-8 rounded-[2px] bg-primary px-4 text-primary-foreground shadow-none hover:bg-primary/85"
-        disabled={Boolean(pendingAction)}
+        disabled={Boolean(pendingAction) || connecting}
         onClick={() => void connect()}
       >
         <Wallet data-icon="inline-start" />
-        Connect wallet
+        {connecting ? 'Check your wallet…' : 'Connect wallet'}
       </Button>
       {connectError && (
         <div

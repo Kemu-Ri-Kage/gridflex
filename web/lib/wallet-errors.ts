@@ -60,9 +60,52 @@ function text(record: Record<string, unknown>): string {
     .join(' ');
 }
 
+/**
+ * MetaMask's -32002 for a prompt already open for this site, which shares
+ * its code with a failing RPC and differs only in wording. Two forms:
+ * "Request of type '<type>' already pending for origin <origin>. Please
+ * wait." (@metamask/approval-controller, any prompt type) and "Already
+ * processing eth_requestAccounts. Please wait." (older extension builds).
+ */
+const ALREADY_PENDING =
+  /request of type '([^']+)' already pending for origin|already processing (\w+)/i;
+
+/** Prompt types that belong to connecting the wallet to the site. */
+const CONNECTION_REQUESTS = new Set([
+  'wallet_requestPermissions',
+  'eth_requestAccounts',
+]);
+
+export const CONNECTION_ALREADY_PENDING_MESSAGE =
+  'A wallet connection request is already open. Open MetaMask and complete or reject it.';
+
+export const REQUEST_ALREADY_PENDING_MESSAGE =
+  'A wallet request is already open. Open MetaMask and complete or reject it.';
+
+/**
+ * What to tell the user when `error` is the wallet refusing a request
+ * because an earlier prompt from this site is still unanswered, or
+ * undefined when it is anything else. The wallet and its RPC are fine in
+ * this case: the user only has to answer the open prompt.
+ */
+export function walletRequestAlreadyPending(
+  error: unknown,
+): string | undefined {
+  for (const record of errorChain(error)) {
+    const match = ALREADY_PENDING.exec(text(record));
+    if (!match) continue;
+    const type = match[1] ?? match[2];
+    return CONNECTION_REQUESTS.has(type)
+      ? CONNECTION_ALREADY_PENDING_MESSAGE
+      : REQUEST_ALREADY_PENDING_MESSAGE;
+  }
+  return undefined;
+}
+
 export function isWalletRpcFailure(error: unknown): boolean {
   const chain = errorChain(error);
   if (chain.some((record) => Number(record.code) === 4001)) return false;
+  if (walletRequestAlreadyPending(error)) return false;
   const messages = chain.map(text).join(' ');
   if (NOT_RPC_FAILURE.test(messages) || chain.some(hasRevertData)) return false;
   return (

@@ -521,8 +521,11 @@ The candle file records which dataset built each timeframe (`sources`);
 the caption's tooltip carries the hash of the one on screen.
 
 - **Japanese candlesticks**, up/down coloured with `--up` / `--down` (§4) —
-  body, wick, and border all use the same up/down pair, no separate chart
-  palette for candles.
+  solid bodies with no outline and 1px wicks in the same up/down pair, no
+  separate chart palette for candles. Drawn by the settlement view's
+  candle renderer (`web/lib/settlement-chart-drawing.ts`), so the bodies
+  are the same thin, spaced width at every zoom and both views read as one
+  product.
 - **Timeframe row:** `15m`, `1H`, `4H`, `1D`, `1W`, in that order.
 - **No hub switcher.** The chart shows the Texas power price's hub only;
   hubs are never shown (§5).

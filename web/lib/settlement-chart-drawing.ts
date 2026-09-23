@@ -1,8 +1,8 @@
 /**
- * What the settlement-price chart draws on Lightweight Charts' canvas, in
- * the chart's own coordinates, so it stays anchored at any zoom: the daily
- * candles (a custom series, for the thin bodies, hollow or light up
- * candles and the caret on a capped wick), and the strike ladder (a series
+ * What the /trade charts draw on Lightweight Charts' canvas, in the
+ * chart's own coordinates, so it stays anchored at any zoom: the candles (a
+ * custom series, for the thin spaced bodies both views share and the caret
+ * on a capped wick), and the settlement view's strike ladder (a series
  * primitive: the shade above the selected strike, every strike's dashed
  * line and its listed days, and its price tag on the axis).
  */
@@ -29,13 +29,17 @@ import { labelLeft, spreadLabels } from '@/lib/strike-ladder';
 
 type DrawTarget = Parameters<ICustomSeriesPaneRenderer['draw']>[0];
 
-/** One day, in dollars: its hourly open, high, low and close, and the daily average. */
-export interface CandlePoint extends CustomData<Time> {
-  dayKey: number;
+/** One candle, in dollars. */
+export interface OhlcPoint extends CustomData<Time> {
   open: number;
   high: number;
   low: number;
   close: number;
+}
+
+/** One day, in dollars: its hourly open, high, low and close, and the daily average. */
+export interface CandlePoint extends OhlcPoint {
+  dayKey: number;
   average: number;
 }
 
@@ -89,8 +93,8 @@ export const TOP_MARGIN = CARET_GAP + CARET_HEIGHT + 6;
  */
 export const MANUAL_CLIP = CARET_GAP + CARET_HEIGHT + 2;
 
-class CandleRenderer implements ICustomSeriesPaneRenderer {
-  data: PaneRendererCustomData<Time, CandlePoint> | null = null;
+class CandleRenderer<T extends OhlcPoint> implements ICustomSeriesPaneRenderer {
+  data: PaneRendererCustomData<Time, T> | null = null;
 
   constructor(
     private readonly style: CandleStyle,
@@ -171,28 +175,30 @@ class CandleRenderer implements ICustomSeriesPaneRenderer {
   }
 }
 
-/** The daily candles as a Lightweight Charts custom series. */
-export class CandleSeriesView implements ICustomSeriesPaneView<Time, CandlePoint, CustomSeriesOptions> {
-  private readonly paneRenderer: CandleRenderer;
+/** Candles as a Lightweight Charts custom series, shared by both /trade views. */
+export class CandleSeriesView<T extends OhlcPoint = CandlePoint>
+  implements ICustomSeriesPaneView<Time, T, CustomSeriesOptions>
+{
+  private readonly paneRenderer: CandleRenderer<T>;
 
   constructor(style: CandleStyle, palette: CandlePalette, scale: ScaleState) {
-    this.paneRenderer = new CandleRenderer(style, palette, scale);
+    this.paneRenderer = new CandleRenderer<T>(style, palette, scale);
   }
 
   renderer(): ICustomSeriesPaneRenderer {
     return this.paneRenderer;
   }
 
-  update(data: PaneRendererCustomData<Time, CandlePoint>): void {
+  update(data: PaneRendererCustomData<Time, T>): void {
     this.paneRenderer.data = data;
   }
 
-  priceValueBuilder(point: CandlePoint): number[] {
+  priceValueBuilder(point: T): number[] {
     return [point.low, point.high, point.close];
   }
 
-  isWhitespace(point: CandlePoint | WhitespaceData<Time>): point is WhitespaceData<Time> {
-    return (point as Partial<CandlePoint>).close === undefined;
+  isWhitespace(point: T | WhitespaceData<Time>): point is WhitespaceData<Time> {
+    return (point as Partial<OhlcPoint>).close === undefined;
   }
 
   defaultOptions(): CustomSeriesOptions {

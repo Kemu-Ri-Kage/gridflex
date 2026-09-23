@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import {
-  CandlestickSeries,
   ColorType,
   createChart,
   LineStyle,
@@ -10,10 +9,13 @@ import {
   type IChartApi,
   type ISeriesApi,
   type MouseEventParams,
+  type Time,
   type UTCTimestamp,
+  type WhitespaceData,
 } from 'lightweight-charts';
 
 import { formatUpdated } from '@/lib/format';
+import { CandleSeriesView, type OhlcPoint } from '@/lib/settlement-chart-drawing';
 
 type Hub = 'HB_NORTH' | 'HB_WEST';
 type Timeframe = '15m' | '1h' | '4h' | '1d' | '1w';
@@ -71,7 +73,7 @@ function loadCandles(hub: Hub): Promise<CandleFile> {
 export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const chartRef = React.useRef<IChartApi | null>(null);
-  const seriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const seriesRef = React.useRef<ISeriesApi<'Custom', Time, OhlcPoint | WhitespaceData<Time>> | null>(null);
   const [timeframe, setTimeframe] = React.useState<Timeframe>('1d');
   const [source, setSource] = React.useState<SourceMeta | null>(null);
   const [updatedAt, setUpdatedAt] = React.useState<string | null>(null);
@@ -161,27 +163,33 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
       },
     });
 
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: up,
-      downColor: down,
-      borderVisible: false,
-      wickUpColor: up,
-      wickDownColor: down,
-      // The full high and low of the visible candles, with no cap, widened
-      // only to take in the strike.
-      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
-        const info = original();
-        const strike = strikeRef.current;
-        if (!info?.priceRange || strike === undefined) return info;
-        return {
-          ...info,
-          priceRange: {
-            minValue: Math.min(info.priceRange.minValue, strike),
-            maxValue: Math.max(info.priceRange.maxValue, strike),
-          },
-        };
+    // The settlement view's candle renderer, filled: the same thin, spaced
+    // bodies and 1px wicks in --up/--down on both views. Its scale never
+    // caps, so no wick is ever cut (the settlement view's caret is its own).
+    const background = styles.getPropertyValue('--background').trim() || '#0a0b0d';
+    const series = chart.addCustomSeries(
+      new CandleSeriesView<OhlcPoint>(
+        'filled',
+        { up, upLight: up, down, flat: muted, background },
+        { cap: null, autoScale: () => true },
+      ),
+      {
+        // The full high and low of the visible candles, with no cap, widened
+        // only to take in the strike.
+        autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+          const info = original();
+          const strike = strikeRef.current;
+          if (!info?.priceRange || strike === undefined) return info;
+          return {
+            ...info,
+            priceRange: {
+              minValue: Math.min(info.priceRange.minValue, strike),
+              maxValue: Math.max(info.priceRange.maxValue, strike),
+            },
+          };
+        },
       },
-    });
+    );
 
     chartRef.current = chart;
     seriesRef.current = series;
@@ -248,6 +256,8 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
         high: c.high,
         low: c.low,
         close: c.close,
+        // Colours the last-price tag by the candle's direction.
+        color: c.close >= c.open ? colorsRef.current.up : colorsRef.current.down,
       }));
       series.setData(data);
       // A timeframe switch always returns a fitted view, even after the

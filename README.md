@@ -1,419 +1,231 @@
-# GRIDFLEX — verifiable ERCOT outcome markets on X Layer
+# GRIDFLEX
 
-GRIDFLEX publishes verifiable ERCOT electricity-market metrics on X Layer and
-uses them to settle fully collateralised YES/NO markets. It is a cash-settled
-derivatives demo: no electricity or other physical asset is tokenised or
-delivered.
+**A YES/NO market on whether Texas power will cost more than a strike price on
+a given day, settled automatically against the official published price.**
 
-| Part | Location | State in this handoff |
+Live on X Layer testnet, settled in MockUSDT.
+
+- **Live site:** <https://gridflex-web.teslenko-platon.workers.dev>
+- **Demo video:** `[DEMO VIDEO LINK — TO ADD]`
+
+---
+
+## The problem
+
+Texas power swings several-fold within a single day. On 22 September 2026,
+the latest day in our data, the cheapest hour cost **$23.08/MWh** (9:00 Texas
+time) and the dearest cost **$97.03/MWh** (18:00), 4.2 times as much
+([`price-summary.json`](web/public/data/price-summary.json)). A MWh is roughly
+what a thousand homes use in an hour.
+
+Some days are far worse. On **26 January 2026** the Texas power price
+averaged **$694.03/MWh** across the day
+([metric file](data/metrics/ERCOT_HBNORTH_DA_AVG__2026-01-26.json)), against
+a typical $20–45: the median day over the last 376 is $28.55, so that day
+cost 24 times a normal one.
+
+Institutions already trade this risk. ICE lists futures and options on the
+same price point, ERCOT North Hub. Its
+[monthly future](https://www.ice.com/products/6590337/ERCOT-North-345KV-Real-Time-Peak-Fixed-Price-Future)
+is 1 MW for every peak hour of the month, around 350 MWh per contract, with
+[options on it](https://www.ice.com/products/6590519/Option-on-ERCOT-North-345KV-Real-Time-Peak-Fixed-Price-Future);
+the closest thing to a one-day bet is an
+[option on an 80 MWh daily day-ahead future](https://www.ice.com/products/53169033/Option-on-ERCOT-North-345KV-Day-Ahead-Peak-Daily-80-MWh-Fixed-Price-Future).
+All of them are reached through a futures broker.
+
+**GRIDFLEX makes the same bet small and open to anyone with a wallet.** One
+YES pays 1 MockUSDT if the day's price settles above the strike. The first
+live trade was 10 MockUSDT.
+
+## Who uses it
+
+- **Traders who want exposure unrelated to crypto.** The Texas power price
+  moves on weather, gas prices and grid demand, not on token markets.
+- **Anyone whose costs depend on Texas power**, such as bitcoin miners and
+  data centres. A YES on a high-price day pays out on the day their power
+  bill hurts most.
+
+## What works today
+
+Everything below is on X Layer testnet (chain `1952`) and can be checked on
+the [OKLink explorer](https://www.oklink.com/x-layer-testnet). Full detail,
+with blocks and raw values, is in
+[`shared/demo-evidence.md`](shared/demo-evidence.md).
+
+### Core contracts
+
+| Contract | Address |
+|---|---|
+| Oracle (`GridOracle`) | [`0x970cefFC0e75bCa245F3337715992ad520A4D561`](https://www.oklink.com/x-layer-testnet/address/0x970cefFC0e75bCa245F3337715992ad520A4D561) |
+| Market factory (`MarketFactory`) | [`0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9`](https://www.oklink.com/x-layer-testnet/address/0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9) |
+| Collateral (`MockUSDT`) | [`0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A`](https://www.oklink.com/x-layer-testnet/address/0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A) |
+
+### Every market
+
+The factory has created five markets (`marketCount()` reads `5`).
+
+| Question | Status | Market |
 |---|---|---|
-| ERCOT pipeline and 2,168 metric files | repository root + `data/metrics/` | working |
-| Frozen pipeline/oracle boundary | `shared/oracle-interface.md` | implemented |
-| Oracle and collateral | `contracts/` | deployed and verified on X Layer testnet |
-| Trade-safe market factory, binary market, and outcome tokens | `contracts/` | tested locally; replacement factory deployment is next |
-| Wallet-connected interface | `web/` | builds; demo mode until testnet addresses are configured |
-| Feed page (verified readings, live on-chain check) | `web/` + `build_feed_data.py` | working; 8 confirmed on-chain readings shown today |
+| Will Texas power cost more than $45 on 26 Sep 2026? | trading | [`0xb1FaDd61…2F94`](https://www.oklink.com/x-layer-testnet/address/0xb1FaDd618FFC37E26bf75143E6C852d6D3992F94) |
+| Will Texas power cost more than $45 on 30 Sep 2026? | trading | [`0x204Ef087…73af`](https://www.oklink.com/x-layer-testnet/address/0x204Ef0871892c52b7Abf00AC4755333c5e7F73af) |
+| Will Texas power cost more than $45 on 2 Oct 2026? | trading, first live trade | [`0xb22A449c…E604`](https://www.oklink.com/x-layer-testnet/address/0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604) |
+| Will Texas power cost more than $30 on 8 Sep 2026? | **resolved YES** | [`0x1b89e1dC…B8c1`](https://www.oklink.com/x-layer-testnet/address/0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1) |
+| Will West Texas power cost more than North Texas power on 12 Aug 2026? | **resolved NO** | [`0x62D65F4e…BE07`](https://www.oklink.com/x-layer-testnet/address/0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07) |
 
-The architecture has no application backend: the Python publisher writes to
-the oracle, the market reads the oracle, and the frontend reads and transacts
-with the contracts through the user's wallet.
+The machine-readable list, with each market's YES and NO tokens and creation
+transaction, is [`shared/addresses.json`](shared/addresses.json).
 
-For the current implementation status and remaining testnet steps, read
-[`docs/HANDOFF.md`](docs/HANDOFF.md). To verify the complete project:
+### The first live trade
 
-```bash
-./scripts/check_all.sh
+A wallet bought YES on the 2 October market, 22 September 2026:
+
+1. [Got 1,000 demo MockUSDT](https://www.oklink.com/x-layer-testnet/tx/0x9109a3834c9db092bbe76d5ad4ae5039865009381756c71d52ae0d922a83d099)
+2. [Paid 10 MockUSDT for 10 YES + 10 NO](https://www.oklink.com/x-layer-testnet/tx/0x32aa67ca132bf362d910a1cdaea334b36bd4d7e9238b450a3692fe87e7a7255d)
+3. [Swapped the 10 NO for 9.990009 YES](https://www.oklink.com/x-layer-testnet/tx/0x9bed4e23049c7ce5262a913b4b1152f90bfa3db10811d4531f38b193b1808a2a),
+   nine seconds later
+
+After it the wallet held 19.990009 YES (read at block `41658789`), which
+pays 19.99 MockUSDT if the Texas power price for 2 October settles above
+$45.00/MWh. On the site steps 2 and 3 are one button: **Buy YES**.
+
+### Both resolved markets
+
+| Market | Price published | Result |
+|---|---|---|
+| Texas power above $30 on 8 Sep 2026 | $39.57/MWh ([reading](https://www.oklink.com/x-layer-testnet/tx/0xf6bdfc4e4c775eca150fff4d380f915411d6bf4e5389d8e3228dfbeff00cb44f)) | **YES** ([resolve tx](https://www.oklink.com/x-layer-testnet/tx/0x004e9ae0e4fa95f5519d3f9ad274b695bedefd21af2bdcafeff3cc47dc97b216)) |
+| West above North Texas on 12 Aug 2026 | −$10.32/MWh ([reading](https://www.oklink.com/x-layer-testnet/tx/0x9931b0c453c4de0367027e7024b3fd1832fa11dd02832701b00049194fecfc37)) | **NO** ([resolve tx](https://www.oklink.com/x-layer-testnet/tx/0xd83a6e14b88f5d6ad57d4b48af6da93464b27ebe04695f3b20b67ac6d3a82104)) |
+
+Nobody chose these outcomes. Each market read the price from the oracle and
+compared it to its own strike.
+
+### Tests
+
+**402 automated tests, all passing** on 23 September 2026:
+
+| Suite | Tests | Run it |
+|---|---|---|
+| Data pipeline, publisher, finalizer (Python) | 277 | `python3 -m unittest discover -s tests` |
+| Contracts (Solidity, Foundry) | 54 | `cd contracts && forge test` |
+| Web app logic (TypeScript) | 71 | `cd web && node --test lib/*.test.ts` |
+
+`./scripts/check_all.sh` runs all three plus data validation, lint and the
+production build.
+
+### Check it yourself
+
+```sh
+RPC=https://testrpc.xlayer.tech/terigon
+ORACLE=0x970cefFC0e75bCa245F3337715992ad520A4D561
+
+# Is the 8 Sep price final onchain?  -> true
+cast call $ORACLE 'isFinal(bytes32,uint32)(bool)' $(cast keccak ERCOT_HBNORTH_DA_AVG) 20260908 --rpc-url $RPC
+
+# Did YES win on 8 Sep?  -> true.   On 12 Aug?  -> false
+cast call 0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1 'yesWon()(bool)' --rpc-url $RPC
+cast call 0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07 'yesWon()(bool)' --rpc-url $RPC
 ```
 
-## ERCOT data pipeline
+---
 
-Turns public ERCOT market data into the numbers our contracts settle on.
+## How settlement works
 
-## Setup (once)
+1. **Fetch.** Each day's 24 hourly day-ahead prices at ERCOT North Hub are
+   fetched and the raw responses cached untouched. The Texas power price is
+   their average. A day missing any hour is skipped and logged, never
+   averaged over what's there.
+2. **Publish with a fingerprint.** The price is written to the oracle
+   together with a SHA-256 hash of the exact source files it was computed
+   from. The metric file in [`data/metrics/`](data/metrics/) lists those
+   files by name and order, so anyone holding them can recompute the hash
+   with `shasum -a 256`.
+3. **Finalize.** After a one-hour dispute window, anyone can finalize the
+   reading. Until then no market can use it.
+4. **Resolve.** Anyone can call `resolve()` on a market once trading has
+   closed and its reading is final. YES wins if the price is strictly above
+   the strike. Winners redeem 1 MockUSDT per token.
+5. **Fallback.** If no reading ever arrives, the market cancels and every
+   YES and NO redeems for 0.5 MockUSDT, so no position is trapped.
 
-    python3 --version              # Python 3.10 or newer
-    python3 -m pip install -r requirements.txt
-    cp .env.example .env
-    # open .env and paste your GridStatus API key
+**Trading closes an hour before the answer exists.** ERCOT publishes the
+next day's day-ahead prices at 13:30 Texas time. Every market stops trading
+at 12:30 Texas time on the day before, and the contract enforces it: buying
+and swapping revert with `TradingClosed()` from that moment. Nobody can buy
+a known answer ([`shared/demo-markets.md`](shared/demo-markets.md)).
 
-## Run
-
-    export $(cat .env | xargs)        # mac / linux
-    python fetch_ercot.py                 # yesterday and today
-    python fetch_ercot.py --days 30       # last 30 days and today
-    python fetch_ercot.py --fill-gaps     # also any day missing since the
-                                          # latest complete day
-    python fetch_ercot.py --feed-metrics  # also the feed-only metrics
-    python fetch_ercot.py --fuel-mix      # also the fuel mix
-
-On Windows PowerShell, set the key with:
-
-    $env:GRIDSTATUS_API_KEY = "your_key_here"
-
-By default only the Texas power price (North Hub day-ahead) is fetched, in
-one request covering every day the cache can't answer. Today and the last 3
-days before it (UTC) are re-fetched each run.
-Everything older comes from the `data/raw/` cache, because settled prices
-don't change. The current month is cached one file per day, so its earlier
-days are never re-read. Past months keep their whole-month files. If a
-re-fetched chunk's bytes changed upstream, the old version moves to
-`data/raw/superseded/`, because published hashes cite those files. A reading
-already published onchain is never rewritten.
-
-To refresh everything the site shows and redeploy it in one go:
-
-    ./refresh_data.sh              # fetch, rebuild feed + candles, build, deploy
-    ./refresh_data.sh --no-deploy  # same, without the deploy
-
-A routine refresh is three GridStatus requests, one per dataset, and about
-1,300 rows (North Hub day-ahead prices for the last 3 days and today, about
-100; 15-minute prices for the last 3 days, about 300; 5-minute prices for
-the last 3 days, about 900), the same on any day of the month. Before
-fetching, `refresh_budget.py` plans that cost from the raw cache, asks
-GridStatus's `get_api_usage()` what is left of the month's allowance, and
-stops the refresh if it wouldn't fit. `python refresh_budget.py --plan`
-prints the plan without calling GridStatus. The script prints the requests
-and rows it actually used at the end.
-
-## What it produces
-
-    data/raw/       raw API responses, cached. NOT committed.
-    data/metrics/   one JSON per metric per day. Committed.
-
-Each metric file is what `publish.py` will hand to the oracle contract:
-
-    {
-      "metricId":          "ERCOT_HBNORTH_DA_AVG",
-      "dayKey":             20260908,
-      "marketDay":          "2026-09-08",
-      "marketDayStartUtc":  1788843600,
-      "marketDayEndUtc":    1788930000,
-      "value":              3957,
-      "sourceHash":         "75999d01...",
-      "sourceFiles":        ["ercot_spp_day_ahead_hourly__HB_NORTH__..."],
-      "hashAlgorithm":      "sha256"
-    }
-
-`dayKey` is the identifier the oracle stores and markets look up — a plain
-`YYYYMMDD` integer, not a timestamp, so there is no timezone conversion that
-can shift it by a day. `marketDayStartUtc`/`marketDayEndUtc` are the true
-UTC instants of Central midnight to Central midnight for that day, computed
-from the actual data. There is no `periodStart`/`periodEnd` field — see
-`shared/metrics.md` for why that scheme was replaced.
-
-## Metrics
-
-**MVP contract metrics — the only two things markets settle against:**
-
-| metricId | Meaning | Unit |
-|---|---|---|
-| `ERCOT_HBNORTH_DA_AVG` | mean of 24 hourly day-ahead prices at HB_NORTH | USD/MWh x 100 |
-| `ERCOT_WEST_NORTH_DA_BASIS` | daily mean HB_WEST day-ahead minus mean HB_NORTH day-ahead | USD/MWh x 100 |
-
-**Feed metrics — published, shown on the site, never settled against:**
-
-| metricId | Meaning | Unit |
-|---|---|---|
-| `ERCOT_LOAD_WEIGHTED_DA_INDEX` | statewide load-weighted day-ahead price (see below). A contract on this is the next listing after the hackathon, not part of the MVP. | USD/MWh x 100 |
-| `ERCOT_HBWEST_NEG_INTERVALS` | 15-min real-time intervals below zero at HB_WEST. Rejected as a contract metric — see "Metric decision" below. | count, 0-96 |
-| `ERCOT_FUELMIX_<FUEL>` | share of daily generation by fuel | percent x 100 |
-
-A "day" is a Central Prevailing Time calendar day, because that is how ERCOT
-defines a market day. `dayKey` encodes it directly; `marketDayStartUtc`/
-`marketDayEndUtc` are UTC unix seconds.
-
-Queries pass `timezone="US/Central"` so that start/end mean Central midnights.
-Without this, a UTC-day query straddles two market days and produces averages
-over partial days. Any day that does not have its full row count (24 hourly,
-96 quarter-hourly, 288 five-minute) is skipped and reported, never written —
-which permanently excludes the two DST transition days each year from both
-contract metrics. See `shared/metrics.md` for the full writeup.
-
-## Verification
-
-Fetches are chunked by calendar month, and by day while a month is still in
-progress, so a long range produces several files in `data/raw/`. Every metric record lists the exact files it depends on, in
-hash order, under `sourceFiles`. `sourceHash` is the SHA-256 of those files
-concatenated in that order:
-
-    cd data/raw && cat <the sourceFiles list, in order> | shasum -a 256
-
-Use the listed files, not a glob. `data/raw/` accumulates overlapping chunks
-from runs with different `--days` values, so `<dataset>__<location>__*.json`
-matches more files than the metric actually used.
-
-**Derived metrics hash every leg.** `ERCOT_WEST_NORTH_DA_BASIS` is West minus
-North, so its hash covers both legs: `sha256(hash_west + hash_north)`.
-`ERCOT_LOAD_WEIGHTED_DA_INDEX` covers all four zone price series plus the load
-series, in fixed order. Hashing only some inputs to a number would let someone
-verify half of it and believe they had verified all of it — worse than
-publishing no hash at all.
-
-Month chunking exists for three reasons: a year of 15-minute prices in one
-response trips a brotli decode bug in the HTTP stack (reproduced, not a
-fluke); a failure costs one month rather than the whole pull; and each chunk
-caches separately so a re-run only fetches what is missing. The client also
-sends `Accept-Encoding: gzip, deflate` to stay off the brotli path entirely.
-
-SHA-256 rather than keccak256 so that anyone can verify with standard command
-line tools rather than an Ethereum library. The contract stores it as bytes32
-either way.
+On the site's verification view, each published reading is re-read from the
+oracle live and compared with the committed file. A disagreement is shown as
+`MISMATCH`, never retried away as a network error
+([`shared/feed-spec.md`](shared/feed-spec.md)).
 
 ## Data source
 
-GridStatus.io hosted API, which redistributes public ERCOT market data.
-Direct ERCOT API access (api.ercot.com) is the production path; it is
-geo-blocked from the UK, which is why we source via GridStatus for now.
+Prices come from the [GridStatus](https://www.gridstatus.io) hosted API,
+which redistributes ERCOT's public market data. Thanks to GridStatus for
+making it available on a free plan.
 
-Datasets used:
-- `ercot_spp_day_ahead_hourly` — coverage from 2010-12-01, hourly
-- `ercot_spp_real_time_15_min` — 15-minute
-- `ercot_fuel_mix` — 5-minute
+The production path is direct access to ERCOT's own
+[public API](https://apiexplorer.ercot.com/). It's geo-blocked from the UK,
+where we build, which is why the hackathon build goes through GridStatus.
+Only the fetch layer changes; the metric files, hashes and oracle stay the
+same.
 
-Free plan allows 500,000 rows/month and 1 request per second. Always filter
-by location. The cache in `data/raw/` means re-runs only re-read the last 3
-days.
+## Architecture
 
-## Adding another zone
+- **Data pipeline** (Python, repo root): `fetch_ercot.py` fetches and caches
+  ERCOT prices, checks each day is complete, and writes one metric file per
+  day with its source hash. `refresh_budget.py` keeps every refresh inside
+  the free plan's row allowance.
+- **Publisher and finalizer**: `publish.py` submits readings to the oracle;
+  `finalize.py` finalizes them after the dispute window. Both dry-run unless
+  given `--live`, and both check the chain before sending.
+- **Contracts** (Solidity, [`contracts/`](contracts/)): `GridOracle` stores
+  one reading per metric per day; `MarketFactory` creates markets;
+  `BinaryMarket` holds fully collateralised YES/NO pairs, a zero-fee
+  constant-product pool for swapping between them, and resolution;
+  `OutcomeToken` and `MockUSDT` are ERC-20s.
+- **Web app** ([`web/`](web/)): a landing page and a trading terminal that
+  reads markets straight from the chain and trades through the user's
+  wallet, deployed on Cloudflare Workers. No application backend.
+- **Shared specs** ([`shared/`](shared/)): the frozen oracle interface,
+  metric methodology, deployed addresses and demo evidence.
 
-Change the `DAY_AHEAD` and `REAL_TIME` blocks at the top of `fetch_ercot.py`.
-GridStatus carries PJM, CAISO, MISO, NYISO, ISONE and SPP through the same
-client, so a new zone is a dataset id, a location, and a metricId prefix.
-
-## Metric decision, 10 September — settled
-
-A year of data settled the open question. `ERCOT_HBWEST_NEG_INTERVALS` sits at
-exactly zero on ~61% of days, so every candidate threshold collapses to the
-same split and the question has no uncertain answer. It stays as a feed
-statistic, not a contract.
-
-The second contract metric is `ERCOT_WEST_NORTH_DA_BASIS` — the West-to-North
-day-ahead spread. It measures the same West Texas congestion, splits close to
-50/50 at a sensible threshold, and moves meaningfully day to day. Congestion
-rights trade on exactly this spread in the real market.
-
-**The MVP ships with exactly these two contract metrics** —
-`ERCOT_HBNORTH_DA_AVG` and `ERCOT_WEST_NORTH_DA_BASIS` — and nothing else
-settles against. `ERCOT_LOAD_WEIGHTED_DA_INDEX` (added after this decision;
-see below) is feed data for the hackathon build. A contract on the
-statewide index is the next listing after the hackathon.
-
-Run `python analyse_metrics.py` to reproduce the comparison.
-
-## The statewide index
-
-**Feed metric, not a contract in the MVP.** `ERCOT_LOAD_WEIGHTED_DA_INDEX`
-is published and shown on the site; it doesn't settle anything yet. A
-contract on it is the next listing after the hackathon.
-
-`ERCOT_LOAD_WEIGHTED_DA_INDEX` answers "what did Texas actually pay for power
-today". Total cost divided by total volume:
-
-    index = SUM over hours,zones ( price[h,z] * load[h,z] )
-            ---------------------------------------------
-            SUM over hours,zones ( load[h,z] )
-
-Four load zones — LZ_NORTH, LZ_SOUTH, LZ_WEST, LZ_HOUSTON — priced from
-`ercot_spp_day_ahead_hourly`, weighted by actual hourly consumption from
-`ercot_load_by_forecast_zone`.
-
-Three choices worth defending:
-
-**Weights are never hardcoded.** They come from ERCOT's published hourly load,
-so they track real shifts in demand — Houston's summer afternoon peak, West
-Texas's data-centre growth — with nobody maintaining a table. Each stored
-reading carries that day's realised `loadWeights` so the calculation can be
-checked after the fact.
-
-**Load zones, not trading hubs.** Hubs (HB_*) are pricing reference points;
-load zones (LZ_*) are where consumption is metred and where load settles. If
-you are weighting by consumption, those are the prices the weights belong to.
-
-**Cost over volume, not an average of hourly averages.** Summing cost and
-volume across the whole day weights peak hours more heavily, which is correct:
-more megawatt-hours changed hands at 3pm than at 4am.
-
-An hour is only counted if all four zones have both a price and a load figure.
-A missing zone is dropped rather than reweighted across the rest, because
-silently reweighting biases the index toward whoever is left.
-
-### Resolution floor
-
-There is no 1-minute Texas power price, and this is not a data limitation.
-ERCOT's dispatch engine clears roughly every 5 minutes and settles on 15-minute
-intervals, so prices are constructed at those intervals and no finer.
-
-| Series | Finest resolution |
-|---|---|
-| SCED locational prices | 5 minutes |
-| Real-time settlement prices | 15 minutes |
-| Day-ahead prices | 1 hour |
-| Load by zone | 1 hour |
-| Fuel mix | 5 minutes |
-
-Interpolating to a finer grid is fine for a chart and never acceptable for
-settlement: settling on an interpolated price means settling on a number ERCOT
-never published, which destroys the verification argument.
-
-## Solidity MVP
-
-The Foundry project in `contracts/` contains:
-
-- `GridOracle`: a single authorised testnet reporter submits a signed `int256`
-  value under `(metricId, dayKey)` and anyone can finalise it after the oracle
-  dispute window;
-- `BinaryMarket`: mints a fully collateralised YES+NO set, swaps outcomes in a
-  zero-fee constant-product pool, resolves strictly above a signed threshold,
-  and redeems the winner one-for-one;
-- a mandatory cancellation path: if no oracle reading was submitted after the
-  market grace period, each YES and NO redeems for 0.5 collateral (rounded
-  down), so a complete set returns one full unit and no user's position is
-  permanently trapped; any submitted reading can instead be finalised by anyone;
-- `MarketFactory`, `OutcomeToken`, and public-mint `MockUSDT` for the testnet
-  demonstration.
-
-Only `ERCOT_HBNORTH_DA_AVG` and `ERCOT_WEST_NORTH_DA_BASIS` may be used to
-construct MVP markets. The market's `threshold` and the oracle's `value` are
-both `int256`, because the West–North basis is frequently negative. The demo
-pool seed defaults to 10,000 MockUSDT and the swap fee is zero.
-
-Run the contract suite and regenerate the committed ABIs:
-
-```bash
-cd contracts
-forge fmt --check
-forge test
-python3 scripts/export_abi.py
-```
-
-## Web interface
-
-`web/` is a Vinext/React application using viem. It needs no environment to
-run: contract addresses and the list of markets come from
-`web/public/data/addresses.json`, written from `shared/addresses.json` by
-`build_feed_data.py`. The order ticket trades whichever listed market is
-selected. With a wallet on X Layer testnet it can get demo collateral, buy YES
-or NO (a complete set is minted and the other side swapped in, in one action),
-resolve or cancel after trading closes, and redeem. Switch position swaps
-YES for NO or NO for YES with the same slippage protection and deadline; it
-changes side and is not a sale, because the markets have no exit into mUSDT
-before settlement. `web/.env.example` lists the optional overrides.
-
-```bash
-cd web
-pnpm install --frozen-lockfile
-pnpm lint
-pnpm build
-pnpm dev
-```
-
-### Feed page
-
-A read-only section of the app (no wallet required) built to prove the pitch's core claim: every
-number shown is provably on-chain. It never depends on a live RPC call to render — two committed
-sources drive it. `build_feed_data.py` reads `data/metrics/*.json` (value, `sourceHash`) and
-`data/publish-ledger.json` (`txHash`) and writes small per-metric files into `web/public/data/`;
-run it after any `publish.py`/`finalize.py` run to refresh what the page shows:
-
-```bash
-python3 build_feed_data.py
-```
-
-The West–North basis chart and the verified-readings table both render from those committed
-files. The only thing that touches the chain live is a per-row verification check — a fresh
-`getReading()` call compared against the committed value and `sourceHash` — which drives a single
-indicator per row, always exactly one of four states:
-
-| State | Meaning |
-|---|---|
-| `VERIFIED` | the live check matched the committed file |
-| `UNVERIFIED` | no live check has succeeded yet this session |
-| `LAST VERIFIED {t} ago` | an earlier check matched; the most recent one failed to *reach* the chain |
-| `MISMATCH` | the chain responded but disagrees with the committed file |
-
-`MISMATCH` is a distinct outcome from a transport failure, not a variant of one: it is never
-retried and never degrades into `LAST VERIFIED`, because doing so would launder the one finding
-this page exists to surface into an ordinary network blip. See `shared/feed-spec.md` for the full
-design and the reasoning behind each of these decisions.
-
-## X Layer testnet
-
-- Chain ID: `1952` (mainnet `196` is rejected by the deployment scripts)
-- RPC: `https://testrpc.xlayer.tech/terigon`, with
-  `https://xlayertestrpc.okx.com/terigon` as the backup. The web app tries
-  them in that order (`XLAYER_TESTNET_RPC_URLS` in `web/lib/contracts.ts`).
-- Explorer: OKLink, `https://www.oklink.com/x-layer-testnet` (`/tx/<hash>`,
-  `/address/<address>`)
-- Faucet: `https://web3.okx.com/xlayer/faucet`
-- Deployment instructions: [`shared/deployment.md`](shared/deployment.md)
-
-Core deployment from `0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902`:
-
-| Contract | Address | Deployment transaction |
-|---|---|---|
-| `GridOracle` | [`0x970cefFC0e75bCa245F3337715992ad520A4D561`](https://www.oklink.com/x-layer-testnet/address/0x970cefFC0e75bCa245F3337715992ad520A4D561) | [`0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf`](https://www.oklink.com/x-layer-testnet/tx/0xf77f4f55d80dc42a0ad657c8c94af21bea395ea462e8727c1941444d93a9abdf) |
-| `MockUSDT` | [`0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A`](https://www.oklink.com/x-layer-testnet/address/0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A) | [`0xcacbb52fcf1e37d5582b16e78a954d985b1ba4b1ceb453301ad4962f5f1df891`](https://www.oklink.com/x-layer-testnet/tx/0xcacbb52fcf1e37d5582b16e78a954d985b1ba4b1ceb453301ad4962f5f1df891) |
-| `MarketFactory` | [`0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9`](https://www.oklink.com/x-layer-testnet/address/0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9) | [`0x4cbea7ff136d99d17c21055af295d2c78f9ba0b55df789184e8a11ccad04e37c`](https://www.oklink.com/x-layer-testnet/tx/0x4cbea7ff136d99d17c21055af295d2c78f9ba0b55df789184e8a11ccad04e37c) |
-
-The onchain checks confirm that all three addresses contain bytecode, the oracle reporter is the
-deployer above, the oracle dispute window is `3600`, collateral decimals are `6`, and the
-trade-safe factory starts with zero markets. Its runtime bytecode exactly matches the committed
-source build. Machine-readable values and the superseded factory record live in
-`shared/addresses.json`.
-
-Use a dedicated testnet wallet. Never commit `.env`, place a private key in a
-command, or include it in a ZIP. Private keys are stored outside this repository in an encrypted
-keystore; only public addresses and transaction hashes are shared.
-
-### Publish oracle readings safely
-
-`publish.py` is dry-run-only unless `--live` is supplied. For the reporter wallet, prefer the
-encrypted keystore already used for deployment:
-
-```bash
-export REPORTER_KEYSTORE_PATH=/absolute/path/to/gridflex-deployer
-python3 publish.py --check
-python3 publish.py --limit 3
-python3 publish.py --live --limit 3
-```
-
-Both commands that access the key request its password without echoing it. Live mode checks chain
-ID `1952`, contract bytecode, and the oracle's immutable reporter before showing a second explicit
-`yes` confirmation. The committed `data/publish-ledger.json` makes normal reruns idempotent. Because
-multiple operators may publish from separate working copies, live mode additionally checks every
-candidate reading on-chain and recovers missing ledger rows before sending; stale local state therefore
-cannot silently reset an existing reading's one-hour dispute window. Local human-readable logs are written
-under gitignored `logs/`.
-
-### Finalize oracle readings
-
-`finalize()` is permissionless — no reporter key, no `onlyReporter` check. Anyone holding testnet
-OKB for gas can finalize a reading once its one-hour dispute window has passed, using their own
-wallet (`FINALIZER_KEYSTORE_PATH` or `FINALIZER_PRIVATE_KEY`, same pluggable model as the reporter
-key, never the reporter key itself):
-
-```bash
-python3 finalize.py --check
-python3 finalize.py --verify
-python3 finalize.py --limit 3
-python3 finalize.py --live --limit 3
-```
-
-`--check` confirms chain ID `1952`, contract bytecode, and the finalizer wallet's balance.
-`--verify` is read-only and needs no key or wallet at all: with no flags it checks the six demo
-markets in `shared/demo-markets.md` and reports `PUBLISHED, FINALIZED`, `PUBLISHED, not finalized
-(time remaining)`, or `NOT PUBLISHED` for each; `--metric NAME --day-key YYYYMMDD` checks any single
-reading instead. It exits non-zero unless every checked reading is already finalized, so it works
-as a pre-demo gate, not just a report. A bare run (no `--live`) is always a dry run, printing what
-would finalize. `--live` finalizes everything currently eligible, checked fresh against the chain
-every time (never against the ledger's cached state) and isolates each reading independently — one
-revert never blocks the rest of the batch. See `shared/finalize-spec.md` for the full design.
+X Layer carries the whole settlement path: the oracle, every market and
+every trade, with OKLink as the public record.
 
 ## What's next
 
-- **Cash out before settlement.** Today's markets can't return mUSDT before
-  settlement: `swap()` only trades YES for NO, and `redeem()` needs a
-  resolved or cancelled market. A `mergeSet()` that burns equal YES and NO
-  to release the collateral they lock would add a genuine exit. It changes
-  the contract, so it ships only after review, on newly created markets.
-  Existing markets can't gain it.
+- **Cash out before settlement.** Today a position can switch sides but not
+  return to MockUSDT before the day settles. Burning a matched YES and NO
+  to release their collateral adds a real exit.
+- **Stop loss and take profit** orders on open positions.
+- **More markets**: more days and strikes on the Texas power price.
+- **A statewide price index**: what Texas as a whole paid for power each
+  day, weighted by where it was used. It's already computed and published to
+  the oracle; a market on it is the next listing.
+- **Dated futures**: contracts on a week or month of prices, not just one
+  day.
+- **More US grids.** GridStatus already carries PJM, CAISO, MISO, NYISO,
+  ISO-NE and SPP through the same client, so each is a new data source for
+  the same pipeline.
+- **Listing on exchange infrastructure.** The markets are self-contained
+  contracts with no dependency on a host venue, so listing them on an
+  exchange's own infrastructure is a deployment decision rather than a
+  rewrite.
+
+---
+
+## For developers
+
+- [`docs/technical-reference.md`](docs/technical-reference.md): running the
+  pipeline, the metric definitions, hash verification, contract and web app
+  setup, publishing and finalizing.
+- [`shared/metrics.md`](shared/metrics.md): full methodology for every
+  metric, including why the two daylight-saving changeover days can't
+  settle.
+- [`shared/oracle-interface.md`](shared/oracle-interface.md): the oracle's
+  structs, functions and events.
+- [`shared/deployment.md`](shared/deployment.md): deploying the contracts.
+- [`docs/HANDOFF.md`](docs/HANDOFF.md): implementation status.
+
+GRIDFLEX lists cash-settled contracts on a published price. Nothing on it is
+redeemable for electricity.

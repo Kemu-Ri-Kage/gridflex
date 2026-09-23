@@ -44,10 +44,11 @@ const RANGES: { id: RangePreset; label: string }[] = [
 ];
 
 /**
- * Up candles hollow, down candles filled (design-brief.md §9). 'light'
- * fills up candles at reduced opacity instead.
+ * Up and down candles both filled solid, with no outline
+ * (design-brief.md §9). 'hollow' outlines up candles instead; 'light'
+ * fills them at reduced opacity.
  */
-const CANDLE_STYLE: CandleStyle = 'hollow';
+const CANDLE_STYLE: CandleStyle = 'filled';
 
 /** The two past-frequency windows, in published days. */
 const WINDOWS = [30, 90] as const;
@@ -161,7 +162,14 @@ function Legend() {
           {CANDLE_STYLE === 'hollow' ? (
             <rect fill="none" height="5" stroke="var(--up)" width="2" x="1.5" y="3.5" />
           ) : (
-            <rect fill="var(--up)" fillOpacity={0.45} height="6" width="3" x="1" y="3" />
+            <rect
+              fill="var(--up)"
+              fillOpacity={CANDLE_STYLE === 'light' ? 0.45 : 1}
+              height="6"
+              width="3"
+              x="1"
+              y="3"
+            />
           )}
           <line stroke="var(--down)" x1="8.5" x2="8.5" y1="1" y2="11" />
           <rect fill="var(--down)" height="5" width="3" x="7" y="4" />

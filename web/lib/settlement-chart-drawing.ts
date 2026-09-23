@@ -39,8 +39,11 @@ export interface CandlePoint extends CustomData<Time> {
   average: number;
 }
 
-/** Up days drawn as an outline, or filled lighter than down days. */
-export type CandleStyle = 'hollow' | 'light';
+/**
+ * Up days filled solid like down days, drawn as an outline, or filled
+ * lighter than down days.
+ */
+export type CandleStyle = 'filled' | 'hollow' | 'light';
 
 export interface CandlePalette {
   up: string;

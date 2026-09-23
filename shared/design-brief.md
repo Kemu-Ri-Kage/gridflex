@@ -421,15 +421,13 @@ and `web/lib/settlement-chart-drawing.ts`.
   average to the published value. A day without 24 hours (the two DST
   days) is skipped, never drawn from the hours present, and the caption
   counts the skipped days in the range on screen.
-- **Candle style — minimal.** Down candles filled `--down`; up candles
-  hollow, a 1px `--up` outline with nothing inside (the one outline on
-  this chart: it is what makes an up body read as up, and it lets the
-  average and strike lines show through). No border on any filled body,
-  no other colours. Wicks 1px, broken around the body. A body is about
-  half the space its day gets when days are packed tight, and grows more
-  slowly than that space as the chart zooms in, so the gaps widen with
-  it and a zoomed candle stays a candle, not a block. A body too narrow to
-  hollow (under 3 device pixels) is filled.
+- **Candle style — minimal, filled.** Up candles solid `--up`, down
+  candles solid `--down`, no outline or border on any body, no other
+  colours — the same filled style as the live-price view. Wicks 1px,
+  broken around the body. A body is about half the space its day gets
+  when days are packed tight, and grows more slowly than that space as
+  the chart zooms in, so the gaps widen with it and a zoomed candle stays
+  a candle, not a block.
 - **The daily average over the candles**, a 1px `--chart-1` line at 80%
   opacity drawn straight between days (never smoothed, so no curve
   crosses a strike the prices never crossed), quieter than the candles. It
@@ -689,9 +687,9 @@ only when every item is a pass.
     *How we verify* are data and don't count.
 42. The terminal's chart defaults to the settlement-price view: one
     candle per day from its 24 hourly day-ahead prices (days without 24
-    hours skipped and counted), down filled `--down`, up hollow `--up`,
-    1px wicks, no other colours, bodies narrow with clear gaps at every
-    zoom; the daily average markets settle on as a quiet 1px line over
+    hours skipped and counted), up solid `--up` and down solid `--down`
+    with no outline, 1px wicks, no other colours, bodies narrow with clear
+    gaps at every zoom; the daily average markets settle on as a quiet 1px line over
     them, both labelled; faint horizontal gridlines only; wheel/pinch zoom,
     drag pan and double-click fit over every published day, a vertical
     touch swipe scrolling the page; a price axis that stretches when

@@ -6,6 +6,7 @@ import { CandlestickChart } from '@/components/candlestick-chart';
 import {
   SETTLEMENT_RANGES,
   SettlementPriceChart,
+  type PresetRequest,
   type SettlementRange,
 } from '@/components/settlement-price-chart';
 import { chartStrikeDollars, useMarkets } from '@/lib/markets';
@@ -23,7 +24,8 @@ function Toggle<T extends string>({
   onChange,
 }: {
   options: { id: T; label: string }[];
-  value: T;
+  /** The pressed option, or null when none is. */
+  value: T | null;
   onChange: (value: T) => void;
 }) {
   return (
@@ -57,17 +59,24 @@ function Toggle<T extends string>({
 export function MarketChart() {
   const { selected } = useMarkets();
   const [view, setView] = React.useState<View>('settlement');
-  const [range, setRange] = React.useState<SettlementRange>('90d');
+  // The preset the settlement view shows, or null once the viewer has
+  // zoomed or panned off it; `request` re-applies a preset on every click.
+  const [range, setRange] = React.useState<SettlementRange | null>('90d');
+  const [request, setRequest] = React.useState<PresetRequest>({ range: '90d', nonce: 0 });
+  const choosePreset = (preset: SettlementRange) => {
+    setRange(preset);
+    setRequest((previous) => ({ range: preset, nonce: previous.nonce + 1 }));
+  };
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2">
         <Toggle onChange={setView} options={VIEWS} value={view} />
-        {view === 'settlement' && <Toggle onChange={setRange} options={SETTLEMENT_RANGES} value={range} />}
+        {view === 'settlement' && <Toggle onChange={choosePreset} options={SETTLEMENT_RANGES} value={range} />}
       </div>
       <div className="flex flex-1 flex-col">
         {view === 'settlement' ? (
-          <SettlementPriceChart range={range} />
+          <SettlementPriceChart onViewChange={setRange} request={request} />
         ) : selected ? (
           <CandlestickChart key={selected.address} strikeDollars={chartStrikeDollars(selected)} />
         ) : (

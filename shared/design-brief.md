@@ -406,7 +406,10 @@ The verified daily Texas power price from the committed metric files
 (`/data/ERCOT_HBNORTH_DA_AVG.json`, built from `data/metrics` by
 `build_feed_data.py`), with each day's range of hourly prices behind it,
 so a viewer can judge whether the selected question is genuinely
-uncertain. See `web/components/settlement-price-chart.tsx`.
+uncertain. Drawn with Lightweight Charts, like the live view, with the
+candles, strikes and shade painted in the chart's own coordinates so they
+stay anchored at any zoom. See `web/components/settlement-price-chart.tsx`
+and `web/lib/settlement-chart-drawing.ts`.
 
 - **One candle per published day**, built from that day's 24 hourly
   day-ahead prices: open at hour 0 (Central), close at hour 23, high and
@@ -418,21 +421,47 @@ uncertain. See `web/components/settlement-price-chart.tsx`.
   average to the published value. A day without 24 hours (the two DST
   days) is skipped, never drawn from the hours present, and the caption
   counts the skipped days in the range on screen.
-- **The daily average over the candles**, a thin `--chart-1` line drawn
-  straight between days (never smoothed, so no curve crosses a strike the
-  prices never crossed). It is the value markets settle on. A legend above
-  the plot labels both marks, and the tooltip gives the day's open, high,
-  low, close and average.
-- **Capped price scale.** The scale reaches the highest high only while it
-  is within 1.5× the highest daily average or listed strike in view; past
-  that it stops there, because one afternoon spike can be many times the
+- **Candle style — minimal.** Down candles filled `--down`; up candles
+  hollow, a 1px `--up` outline with nothing inside (the one outline on
+  this chart: it is what makes an up body read as up, and it lets the
+  average and strike lines show through). No border on any filled body,
+  no other colours. Wicks 1px, broken around the body. A body is about
+  half the space its day gets when days are packed tight, and grows more
+  slowly than that space as the chart zooms in, so the gaps widen with
+  it and a zoomed candle stays a candle, not a block. A body too narrow to
+  hollow (under 3 device pixels) is filled.
+- **The daily average over the candles**, a 1px `--chart-1` line at 80%
+  opacity drawn straight between days (never smoothed, so no curve
+  crosses a strike the prices never crossed), quieter than the candles. It
+  is the value markets settle on. A legend above the plot labels both
+  marks, and a readout under it gives the hovered day's open, high, low,
+  close and average (the latest day when nothing is hovered).
+- **Grid and axes:** horizontal gridlines only, in `--border` at 45%
+  opacity and spaced wider than the library default; no vertical
+  gridlines. Axis labels 10px Geist Mono, `--muted-foreground`, no axis
+  border lines.
+- **The price scale fits the days on screen**, so zooming into a calm
+  week fills the height instead of staying squashed by a spike elsewhere.
+  It always takes in every listed strike.
+- **Capped price scale.** The scale reaches the highest high on screen only
+  while it is within 1.5× the highest daily average or listed strike on
+  screen; past that it stops at that figure rounded up to a plain step
+  (`$100`, `$1,100`), because one afternoon spike can be many times the
   day's average and scaling to it presses the strike ladder into the
   bottom of the chart. A wick above the cap stops short of the top edge
-  under a filled caret in its candle's colour, its tooltip still gives the
+  under a filled caret in its candle's colour, the readout still gives the
   real high, and a line under the chart states the cap and how many spikes
-  are marked. With no wick above the cap, neither caret nor line appears.
-- **Range toggle:** `90 days` (the default) and `Full year`, the same two
-  ranges as the landing page's chart (§7).
+  on screen are marked. With no wick above the cap, neither caret nor line appears.
+- **Zoom and pan.** Every published day is loaded; nothing is filtered.
+  The mouse wheel or a pinch zooms the time axis, a drag or a horizontal
+  swipe pans back through history, and a double-click fits every day
+  (the `Full year` view). The price axis can't be dragged: it always fits
+  what is on screen. On a touch screen a vertical swipe scrolls the page,
+  never the chart.
+- **Range presets:** `90 days` (the default) and `Full year`, the same two
+  ranges as the landing page's chart (§7). They set the visible range and
+  nothing else; once the viewer zooms or pans off one, neither is shown
+  pressed.
 - **Every listed market's strike** as a dashed horizontal line. The
   selected market's strike is in `--warning` at full strength; the others
   are faint `--muted-foreground`. Markets on the same strike share one
@@ -637,13 +666,18 @@ only when every item is a pass.
     Contract names beside addresses and the verbatim source file names in
     *How we verify* are data and don't count.
 42. The terminal's chart defaults to the settlement-price view: one
-    `--up`/`--down` candle per day from its 24 hourly day-ahead prices
-    (days without 24 hours skipped and counted), the daily average markets
-    settle on as a thin line over them, both labelled; a price scale capped
-    at 1.5× the highest average or strike, with any higher wick marked by a
-    caret and the cap stated under the chart; `90 days` by default with a
-    `Full year` toggle; and the region above the selected strike shaded
-    very lightly (§9).
+    candle per day from its 24 hourly day-ahead prices (days without 24
+    hours skipped and counted), down filled `--down`, up hollow `--up`,
+    1px wicks, no other colours, bodies narrow with clear gaps at every
+    zoom; the daily average markets settle on as a quiet 1px line over
+    them, both labelled; faint horizontal gridlines only; wheel/pinch zoom,
+    drag pan and double-click fit over every published day, a vertical
+    touch swipe scrolling the page; a price scale fitted to the days on
+    screen and capped at 1.5× the highest average or strike, with any
+    higher wick marked by a caret and the cap stated under the chart;
+    `90 days` by default and `Full year` as presets that set the visible
+    range; and the region above the selected strike shaded very lightly
+    (§9).
 43. Past frequency is computed from the committed metric files with the
     contract's strictly-greater-than test, over days before the market's
     own day; it is labelled past frequency, shown as a count of days (never

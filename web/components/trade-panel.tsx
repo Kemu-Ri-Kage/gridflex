@@ -20,14 +20,18 @@ import { marketName, useMarkets } from '@/lib/markets';
 import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
 import { ticketState } from '@/lib/ticket-state';
 import { parsePositiveTokenAmount } from '@/lib/trade';
+import { collateralShortfall } from '@/lib/transaction-outcome';
+
+function tokenUnits(value: string): bigint | undefined {
+  try {
+    return parsePositiveTokenAmount(value);
+  } catch {
+    return undefined;
+  }
+}
 
 function validTokenAmount(value: string): boolean {
-  try {
-    parsePositiveTokenAmount(value);
-    return true;
-  } catch {
-    return false;
-  }
+  return tokenUnits(value) !== undefined;
 }
 
 /**
@@ -49,6 +53,7 @@ export function TradePanel() {
     connectError,
     walletRpcFailed,
     lastTransaction,
+    failedTransaction,
     connect,
     mintCollateral,
     quoteBuy,
@@ -100,6 +105,13 @@ export function TradePanel() {
   }, [tradingOpen, quoteKey, quoteBuy, side, amount, snapshot.priceE18]);
 
   const validAmount = validTokenAmount(amount);
+  const units = tokenUnits(amount);
+  // Checked again in buy(); here it keeps a mint the balance can't cover
+  // from being offered at all.
+  const shortfall =
+    account && ready && units !== undefined
+      ? collateralShortfall(units, snapshot.collateralBalance)
+      : undefined;
   const quote = quoteState.key === quoteKey ? quoteState.quote : undefined;
   const quoteUnavailable =
     quoteState.key === quoteKey && quoteState.unavailable;
@@ -112,7 +124,13 @@ export function TradePanel() {
       )
     : undefined;
   const canBuy = Boolean(
-    account && tradingOpen && validAmount && quote && !busy && !gate.blocked,
+    account &&
+      tradingOpen &&
+      validAmount &&
+      !shortfall &&
+      quote &&
+      !busy &&
+      !gate.blocked,
   );
   const yesPrice = Number(snapshot.priceE18) / 1e16;
   const noPrice = 100 - yesPrice;
@@ -260,6 +278,19 @@ export function TradePanel() {
                   mUSDT
                 </span>
               </div>
+              {tradingOpen && shortfall && (
+                <p className="mt-2 text-xs leading-5 text-warning">
+                  {shortfall}{' '}
+                  <button
+                    className="font-semibold text-foreground underline underline-offset-4 disabled:opacity-50"
+                    disabled={!configured || busy}
+                    onClick={() => void mintCollateral()}
+                    type="button"
+                  >
+                    Get 1,000 demo mUSDT
+                  </button>
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
@@ -369,7 +400,19 @@ export function TradePanel() {
           )}
           {!pendingAction &&
             (error ?? (!account ? connectError : undefined)) && (
-              <span className="text-down">{error ?? connectError}</span>
+              <span className="text-down">
+                {error ?? connectError}
+                {error && failedTransaction && (
+                  <a
+                    className="ml-1.5 inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+                    href={explorerTxUrl(failedTransaction)}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    View on OKLink <ExternalLink className="size-3" />
+                  </a>
+                )}
+              </span>
             )}
           {!pendingAction && !error && lastTransaction && (
             <a

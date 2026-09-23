@@ -167,12 +167,17 @@ as they are in code and on chain.
 |---|---|
 | North Hub day-ahead average (`ERCOT_HBNORTH_DA_AVG`) | **Texas power price** |
 | ERCOT | Only in the landing page's *How we verify* section, as "ERCOT, Texas's official grid price" |
-| $/MWh | Kept as the unit on every figure; explained once on the landing page as roughly what a thousand homes use in an hour |
+| $/MWh | Kept as the unit on every figure; explained once on the landing page as roughly what 650 Texas homes use in an hour (basis below the table) |
 | Digital option, binary market, `BinaryMarket` | **YES/NO question** (the contract itself: "Contract") |
 | Mint set, swap | **Buy YES**, **Buy NO** |
 | `sourceHash`, verification | **Verified** |
 | `dayKey` | The date, e.g. `8 Sep 2026` |
 | Basis, hub, dispute window, finalize | **Never shown** |
+
+**Why 650 homes.** EIA data puts average Texas household use at about
+1,096 kWh a month, which is roughly 1.5 kW continuous (1,096 kWh ÷ ~730
+hours), so 1 MWh covers about 650 homes for an hour. Don't change the
+figure without a newer source for household use.
 
 **Kept exactly as they are:** Strike, YES and NO price in cents, resolve,
 settle, redeem, oracle, MockUSDT, collateral, X Layer testnet.
@@ -302,8 +307,8 @@ held to the same 24-hour completeness check, and cross-checked against
 that day's published value. The page's one disclaimer line (X Layer
 testnet · MockUSDT, §5) is the hero eyebrow, not a footnote.
 
-**01 / Normal range.** One sentence explains $/MWh (roughly what a
-thousand homes use in an hour) — the only place it's explained. Two
+**01 / Normal range.** One sentence explains $/MWh (roughly what 650
+Texas homes use in an hour) — the only place it's explained. Two
 stats: the normal range (the middle 80% of published days, 10th to 90th
 percentile) and the exception — **26 January 2026, $694.03/MWh**, about
 **25×** the median day. Below them, the page's main chart: the daily

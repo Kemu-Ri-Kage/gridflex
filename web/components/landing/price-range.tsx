@@ -116,7 +116,7 @@ export function PriceRange() {
         <Reveal>
           <SectionHeading index="01" title="Normal range" />
           <p className="mb-10 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Prices are per megawatt-hour (MWh), roughly what a thousand homes use in an hour.
+            Prices are per megawatt-hour (MWh), roughly what 650 Texas homes use in an hour.
           </p>
           <div className="mb-5 grid gap-5 sm:grid-cols-2">
             <Stat

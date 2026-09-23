@@ -16,7 +16,7 @@ Texas power swings several-fold within a single day. On 22 September 2026,
 the latest day in our data, the cheapest hour cost **$23.08/MWh** (9:00 Texas
 time) and the dearest cost **$97.03/MWh** (18:00), 4.2 times as much
 ([`price-summary.json`](web/public/data/price-summary.json)). A MWh is roughly
-what a thousand homes use in an hour.
+what 650 Texas homes use in an hour.
 
 Some days are far worse. On **26 January 2026** the Texas power price
 averaged **$694.03/MWh** across the day

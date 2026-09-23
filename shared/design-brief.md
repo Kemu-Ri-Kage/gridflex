@@ -311,7 +311,7 @@ testnet · MockUSDT, §5) is the hero eyebrow, not a footnote.
 Texas homes use in an hour) — the only place it's explained. Two
 stats: the normal range (the middle 80% of published days, 10th to 90th
 percentile) and the exception — **26 January 2026, $694.03/MWh**, about
-**25×** the median day. Below them, the page's main chart: the daily
+**24×** the median day. Below them, the page's main chart: the daily
 Texas power price over time, the normal range shaded. It defaults to the
 last 90 published days, where the normal range is legible, with a toggle
 to the full year, which shows the 26 January peak, marked. Each number

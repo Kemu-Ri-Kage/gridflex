@@ -21,11 +21,23 @@ export type WalletRpcVerdict = 'reachable' | 'unreachable' | 'unknown';
 type WalletRequest = (args: { method: string }) => Promise<unknown>;
 
 /**
- * Long enough for a slow but working wallet: the public X Layer testnet
- * RPCs answer in well under 2s, and the wallet adds its own overhead on top.
- * At 3s, a wallet answering in 4s was reported dead.
+ * Chosen without measured OKX Wallet timings, so erring long: warning a
+ * wallet that works is far worse than warning late, since the warning never
+ * blocks a request. The public X Layer testnet RPCs answer in well under
+ * 2s; the slowest working wallet seen answered in 4s (and was reported dead
+ * at the old 3s timeout). 15s is several times that.
  */
-export const WALLET_PROBE_TIMEOUT_MS = 10_000;
+export const WALLET_PROBE_TIMEOUT_MS = 15_000;
+
+/**
+ * Failed probes needed, all in a row, before the RPC is called unreachable,
+ * and the wait between them. Spread over the window so a wallet still
+ * settling after a connect or chain switch, or one slow moment of its RPC,
+ * can't produce the warning: with a dead RPC the verdict lands about 1m45s
+ * in (4 probes timing out at 15s, 15s apart).
+ */
+export const WALLET_PROBE_ATTEMPTS = 4;
+export const WALLET_PROBE_SPACING_MS = 15_000;
 
 /** `promise`'s outcome, or `onTimeout` if it hasn't settled in `timeoutMs`. */
 async function within<T>(
@@ -87,54 +99,77 @@ async function walletReady(
   return within(ready, timeoutMs, false);
 }
 
+type CheckOptions = {
+  timeoutMs?: number;
+  attempts?: number;
+  spacingMs?: number;
+  /**
+   * Whether this check's verdict is still wanted (see rpcCheckGate); asked
+   * before every request, and the check ends `unknown` once it says no.
+   */
+  stillWanted?: () => boolean;
+};
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /**
  * Judge the wallet's saved RPC for `chainId`: `unreachable` only when a
- * connected, unlocked wallet on that chain fails the probe twice in a row,
- * and is still connected, unlocked and on that chain afterwards (a wallet
- * that locked or switched mid-check failed for that reason instead).
+ * connected, unlocked wallet on that chain fails every one of `attempts`
+ * probes spread over the window, and is still connected, unlocked and on
+ * that chain before each one and afterwards (a wallet that locked or
+ * switched mid-check failed for that reason instead). One answer anywhere
+ * in the window is `reachable`.
  */
 export async function checkWalletRpc(
   request: WalletRequest,
   chainId: number,
-  timeoutMs = WALLET_PROBE_TIMEOUT_MS,
+  {
+    timeoutMs = WALLET_PROBE_TIMEOUT_MS,
+    attempts = WALLET_PROBE_ATTEMPTS,
+    spacingMs = WALLET_PROBE_SPACING_MS,
+    stillWanted = () => true,
+  }: CheckOptions = {},
 ): Promise<WalletRpcVerdict> {
-  if (!(await walletReady(request, chainId, timeoutMs))) return 'unknown';
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const judgeable = async () =>
+    stillWanted() && (await walletReady(request, chainId, timeoutMs));
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await sleep(spacingMs);
+    if (!(await judgeable())) return 'unknown';
     if ((await probeWalletRpc(request, timeoutMs)) === 'ok') return 'reachable';
   }
-  return (await walletReady(request, chainId, timeoutMs))
-    ? 'unreachable'
-    : 'unknown';
+  return (await judgeable()) && stillWanted() ? 'unreachable' : 'unknown';
 }
 
-export const SLOW_WALLET_REQUEST_MS = 8_000;
-
 /**
- * Resolve as `request` does, calling `onSlow` each `afterMs` it stays
- * pending, until it settles or `onSlow` returns false. This never abandons
- * the request: a wallet prompt can't be withdrawn, and a transaction the
- * wallet sends late must still be tracked.
+ * Decides whose health-check verdict may still land. Each check takes a
+ * token when it starts; the token goes stale when a newer check starts, a
+ * wallet prompt opens (so a check never probes while one is open, and one
+ * started before the prompt is dropped), or a transaction succeeds (proof
+ * the RPC works, which a check already running must not overturn).
  */
-export function watchSlowRequest<T>(
-  request: Promise<T>,
-  onSlow: () => Promise<boolean>,
-  afterMs = SLOW_WALLET_REQUEST_MS,
-): Promise<T> {
-  let settled = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const schedule = () => {
-    timer = setTimeout(() => {
-      void onSlow().then(
-        (keepWatching) => {
-          if (keepWatching && !settled) schedule();
-        },
-        () => {},
-      );
-    }, afterMs);
+export function rpcCheckGate() {
+  let generation = 0;
+  let promptsOpen = 0;
+  return {
+    begin(): () => boolean {
+      const token = ++generation;
+      return () => token === generation && promptsOpen === 0;
+    },
+    /** A wallet prompt is opening; call the result once it has closed. */
+    hold(): () => void {
+      generation++;
+      promptsOpen++;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        promptsOpen--;
+      };
+    },
+    /** A transaction went through: every check in flight is stale. */
+    succeeded() {
+      generation++;
+    },
   };
-  schedule();
-  return request.finally(() => {
-    settled = true;
-    clearTimeout(timer);
-  });
 }

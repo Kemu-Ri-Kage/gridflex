@@ -64,8 +64,8 @@ import {
 } from '@/lib/wallet-errors';
 import {
   checkWalletRpc,
+  rpcCheckGate,
   type WalletRpcVerdict,
-  watchSlowRequest,
 } from '@/lib/wallet-health';
 import {
   connectWallet as connectWithChoice,
@@ -184,11 +184,13 @@ type Web3ContextValue = {
   connecting: boolean;
   /**
    * The wallet's own saved RPC for X Layer looks unreachable: a connected,
-   * unlocked wallet on X Layer failed the health check twice
-   * (lib/wallet-health.ts), or a transaction failed in a way that points
-   * at it (lib/wallet-errors.ts). Checked on connect, on a chain change and
-   * while a transaction is slow; cleared by the next check or request that
-   * succeeds. Never stops a request being sent.
+   * unlocked wallet on X Layer failed every health-check probe over a
+   * sustained window (lib/wallet-health.ts). Checked on connect, on a chain
+   * change and after a transaction fails in a way that points at the RPC
+   * (lib/wallet-errors.ts); never while a wallet prompt is open. Cleared by
+   * the next check that passes or any transaction that goes through, and a
+   * check already running then can't set it again. Never stops a request
+   * being sent.
    */
   walletRpcFailed: boolean;
   /**
@@ -260,18 +262,18 @@ const emptySnapshot: MarketSnapshot = {
 const WALLET_RPC_MESSAGE =
   "Your wallet couldn't reach X Layer through the RPC address it has saved for this network.";
 
-/** The health check failed while a wallet request was still pending. */
-const WALLET_RPC_STALLED_MESSAGE = `${WALLET_RPC_MESSAGE} The request is still open in the wallet; if a prompt appears, you can confirm or reject it there.`;
-
 /**
  * Check the chosen wallet's saved RPC for X Layer, or `unknown` when there
  * is no wallet (every wallet action already refuses that case).
  */
 async function walletRpcVerdict(
   provider: WalletProvider | undefined,
+  stillWanted: () => boolean,
 ): Promise<WalletRpcVerdict> {
   if (!provider) return 'unknown';
-  return checkWalletRpc((args) => provider.request(args), xLayerTestnet.id);
+  return checkWalletRpc((args) => provider.request(args), xLayerTestnet.id, {
+    stillWanted,
+  });
 }
 
 export const NO_WALLET_MESSAGE =
@@ -382,6 +384,19 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [connectError, setConnectError] = React.useState<string>();
   const [connecting, setConnecting] = React.useState(false);
   const [walletRpcFailed, setWalletRpcFailed] = React.useState(false);
+  // Which health check may still set walletRpcFailed: none while a wallet
+  // prompt is open, and none started before a transaction went through.
+  const [rpcGate] = React.useState(rpcCheckGate);
+  /** Start a health check; its verdict lands only if still current. */
+  const checkRpc = React.useCallback(
+    (provider: WalletProvider | undefined) => {
+      const current = rpcGate.begin();
+      void walletRpcVerdict(provider, current).then((verdict) => {
+        if (current()) applyRpcVerdict(verdict, setWalletRpcFailed);
+      });
+    },
+    [rpcGate],
+  );
   const [buyProgress, setBuyProgress] = React.useState<BuyProgress>();
   const [lastTransaction, setLastTransaction] = React.useState<Hash>();
   const [failedTransaction, setFailedTransaction] = React.useState<Hash>();
@@ -445,6 +460,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       walletRef.current = chosen;
       setWallet(info);
       setConnecting(true);
+      // Connecting opens prompts: no check probes until they are answered.
+      const releasePrompt = rpcGate.hold();
 
       try {
         const accounts = (await provider.request({
@@ -485,12 +502,11 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         }
 
         setAccount(getAddress(accounts[0]));
+        releasePrompt();
         // Connecting and switching are answered by the wallet itself; this is
         // the first request that needs its RPC. Never awaited: it can't hold
         // up the connection.
-        void walletRpcVerdict(provider).then((verdict) =>
-          applyRpcVerdict(verdict, setWalletRpcFailed),
-        );
+        checkRpc(provider);
       } catch (walletError) {
         // Never read as a dead RPC: the wallet answers these requests without
         // it, so its -32002, -32603 or "timed out" is about the prompt or the
@@ -507,10 +523,11 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           );
         }
       } finally {
+        releasePrompt();
         setConnecting(false);
       }
     },
-    [forgetWallet],
+    [forgetWallet, rpcGate, checkRpc],
   );
 
   const connect = React.useCallback(() => {
@@ -704,11 +721,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     };
     const handleChain = () => {
       void refresh();
-      if (account) {
-        void walletRpcVerdict(provider).then((verdict) =>
-          applyRpcVerdict(verdict, setWalletRpcFailed),
-        );
-      }
+      if (account) checkRpc(provider);
     };
     provider.on('accountsChanged', handleAccounts);
     provider.on('chainChanged', handleChain);
@@ -716,7 +729,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       provider.removeListener?.('accountsChanged', handleAccounts);
       provider.removeListener?.('chainChanged', handleChain);
     };
-  }, [wallet, account, refresh]);
+  }, [wallet, account, refresh, checkRpc]);
 
   // Restore the connected wallet's unfinished order (after a reload, or on
   // switching wallets), and follow changes made in other tabs.
@@ -762,30 +775,19 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         // Only this request goes through the wallet's saved RPC; the
         // receipt and refresh below use the app's own endpoints.
         let hash: Hash;
+        // Not timed out, and the RPC isn't probed while it waits: a slow
+        // answer may be the user reading the prompt, and a wallet may hold
+        // reads back while its prompt is open, which looked like a dead RPC.
+        const releasePrompt = rpcGate.hold();
         try {
-          // Not timed out: a slow answer may be the user reading the prompt.
-          // While it waits, re-check the RPC, and if that fails swap the
-          // spinner for the connection help without dropping the request.
-          hash = await watchSlowRequest(
-            walletClient.writeContract({
-              address: request.address,
-              abi: request.abi,
-              functionName: request.functionName,
-              args: request.args,
-            }),
-            async () => {
-              // Only a verdict of unreachable swaps the spinner for help;
-              // when unsure, keep waiting on the wallet.
-              if ((await walletRpcVerdict(chosen.provider)) !== 'unreachable') {
-                return true;
-              }
-              setWalletRpcFailed(true);
-              setPendingAction(undefined);
-              setError(WALLET_RPC_STALLED_MESSAGE);
-              return false;
-            },
-          );
+          hash = await walletClient.writeContract({
+            address: request.address,
+            abi: request.abi,
+            functionName: request.functionName,
+            args: request.args,
+          });
         } catch (walletError) {
+          releasePrompt();
           const alreadyPending = walletRequestAlreadyPending(
             walletError,
             chosen.info.name,
@@ -796,9 +798,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           if (!isWalletRpcFailure(walletError)) throw walletError;
           // The help panel waits for the health check's verdict; the message
           // carries the wallet's own words so the failure stays diagnosable.
-          void walletRpcVerdict(chosen.provider).then((verdict) =>
-            applyRpcVerdict(verdict, setWalletRpcFailed),
-          );
+          checkRpc(chosen.provider);
           const walletSaid = walletErrorMessage(walletError);
           throw new Error(
             walletSaid
@@ -807,6 +807,10 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
             { cause: walletError },
           );
         }
+        releasePrompt();
+        // The wallet sent it through its RPC: proof the RPC works, which no
+        // check already running may overturn.
+        rpcGate.succeeded();
         setWalletRpcFailed(false);
         setPendingAction(label);
         setError(undefined);
@@ -839,7 +843,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         setPendingAction(undefined);
       }
     },
-    [account, refresh],
+    [account, refresh, rpcGate, checkRpc],
   );
 
   /**

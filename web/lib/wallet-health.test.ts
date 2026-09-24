@@ -4,8 +4,10 @@ import { test } from 'node:test';
 import {
   checkWalletRpc,
   probeWalletRpc,
+  rpcCheckGate,
+  WALLET_PROBE_ATTEMPTS,
+  WALLET_PROBE_SPACING_MS,
   WALLET_PROBE_TIMEOUT_MS,
-  watchSlowRequest,
 } from './wallet-health.ts';
 
 const never = () => new Promise<never>(() => {});
@@ -40,44 +42,10 @@ void test('a wallet whose RPC errors, or answers nonsense, is unhealthy', async 
   assert.equal(await probeWalletRpc(async () => null), 'error');
 });
 
-void test('a request that settles quickly is never reported slow', async () => {
-  let checks = 0;
-  const result = await watchSlowRequest(
-    Promise.resolve('0xhash'),
-    async () => (checks++, true),
-    20,
-  );
-  await delay(60);
-  assert.equal(result, '0xhash');
-  assert.equal(checks, 0);
-});
-
-void test('a slow request is checked repeatedly while the wallet stays healthy', async () => {
-  let checks = 0;
-  let finish: (hash: string) => void = () => {};
-  const watched = watchSlowRequest(
-    new Promise<string>((resolve) => (finish = resolve)),
-    async () => (checks++, true),
-    20,
-  );
-  await delay(75);
-  finish('0xlate');
-  // The late answer still comes through: nothing was abandoned.
-  assert.equal(await watched, '0xlate');
-  const afterSettle = checks;
-  assert.ok(afterSettle >= 2);
-  await delay(60);
-  assert.equal(checks, afterSettle);
-});
-
-void test('checks stop once one reports the wallet unreachable', async () => {
-  let checks = 0;
-  void watchSlowRequest(never(), async () => (checks++, false), 20);
-  await delay(100);
-  assert.equal(checks, 1);
-});
-
 const X_LAYER = 1952;
+
+/** The production window, shrunk to test time. */
+const fast = (timeoutMs: number) => ({ timeoutMs, spacingMs: 5 });
 
 /**
  * A wallet stub: connected, unlocked and on X Layer unless told otherwise,
@@ -108,38 +76,45 @@ function stubWallet({
   return { request, calls, probes: () => probes };
 }
 
-void test('the probe allows a slow but working wallet', () => {
+void test('the check allows a slow but working wallet a sustained window', () => {
   // A wallet answering in 4s was reported dead at the old 3s timeout.
-  assert.ok(WALLET_PROBE_TIMEOUT_MS >= 10_000);
+  assert.ok(WALLET_PROBE_TIMEOUT_MS >= 15_000);
+  // Every probe must fail, spread over at least a minute and a half.
+  assert.ok(WALLET_PROBE_ATTEMPTS >= 4);
+  assert.ok(
+    WALLET_PROBE_ATTEMPTS * WALLET_PROBE_TIMEOUT_MS +
+      (WALLET_PROBE_ATTEMPTS - 1) * WALLET_PROBE_SPACING_MS >=
+      90_000,
+  );
 });
 
 void test('a wallet answering at 1, 2 and 4 units of a 5-unit timeout is reachable', async () => {
   for (const ms of [10, 20, 40]) {
     const wallet = stubWallet({ blockNumber: [ms] });
     assert.equal(
-      await checkWalletRpc(wallet.request, X_LAYER, 50),
+      await checkWalletRpc(wallet.request, X_LAYER, fast(50)),
       'reachable',
     );
   }
 });
 
-void test('a wallet that never answers is unreachable only after two probes', async () => {
+void test('a wallet that never answers is unreachable only after every probe', async () => {
   const wallet = stubWallet({ blockNumber: [null] });
   assert.equal(
-    await checkWalletRpc(wallet.request, X_LAYER, 20),
+    await checkWalletRpc(wallet.request, X_LAYER, fast(20)),
     'unreachable',
   );
-  assert.equal(wallet.probes(), 2);
+  assert.equal(wallet.probes(), WALLET_PROBE_ATTEMPTS);
 });
 
-void test('one failed probe followed by an answer is reachable', async () => {
+void test('failed probes followed by one answer in the window are reachable', async () => {
   const rpcError = Object.assign(new Error('Internal JSON-RPC error.'), {
     code: -32603,
   });
   for (const first of [null, rpcError]) {
-    const wallet = stubWallet({ blockNumber: [first, 0] });
+    const wallet = stubWallet({ blockNumber: [first, first, first, 0] });
     assert.equal(
-      await checkWalletRpc(wallet.request, X_LAYER, 20),
+      await checkWalletRpc(wallet.request, X_LAYER, fast(20)),
       'reachable',
     );
   }
@@ -147,18 +122,24 @@ void test('one failed probe followed by an answer is reachable', async () => {
 
 void test('a locked or unapproved wallet is never judged', async () => {
   const wallet = stubWallet({ accounts: [], blockNumber: [null] });
-  assert.equal(await checkWalletRpc(wallet.request, X_LAYER, 20), 'unknown');
+  assert.equal(
+    await checkWalletRpc(wallet.request, X_LAYER, fast(20)),
+    'unknown',
+  );
   assert.equal(wallet.probes(), 0);
 });
 
 void test('a wallet on another chain is never judged', async () => {
   const wallet = stubWallet({ chainId: '0x1', blockNumber: [null] });
-  assert.equal(await checkWalletRpc(wallet.request, X_LAYER, 20), 'unknown');
+  assert.equal(
+    await checkWalletRpc(wallet.request, X_LAYER, fast(20)),
+    'unknown',
+  );
   assert.equal(wallet.probes(), 0);
 });
 
 void test('a wallet that stops answering its own settings is not judged', async () => {
-  assert.equal(await checkWalletRpc(never, X_LAYER, 20), 'unknown');
+  assert.equal(await checkWalletRpc(never, X_LAYER, fast(20)), 'unknown');
 });
 
 void test('a wallet that leaves X Layer during the check is not judged', async () => {
@@ -170,5 +151,59 @@ void test('a wallet that leaves X Layer during the check is not judged', async (
     chainId = '0x1';
     return never();
   };
-  assert.equal(await checkWalletRpc(request, X_LAYER, 20), 'unknown');
+  assert.equal(await checkWalletRpc(request, X_LAYER, fast(20)), 'unknown');
+});
+
+void test('a check that is no longer wanted stops probing and is not judged', async () => {
+  const wallet = stubWallet({ blockNumber: [null] });
+  let wanted = true;
+  const verdict = checkWalletRpc(wallet.request, X_LAYER, {
+    ...fast(20),
+    stillWanted: () => wanted,
+  });
+  await delay(30);
+  wanted = false;
+  assert.equal(await verdict, 'unknown');
+  assert.ok(wallet.probes() < WALLET_PROBE_ATTEMPTS);
+});
+
+void test('a check started while a wallet prompt is open never probes', async () => {
+  const gate = rpcCheckGate();
+  const release = gate.hold();
+  const wallet = stubWallet({ blockNumber: [null] });
+  assert.equal(
+    await checkWalletRpc(wallet.request, X_LAYER, {
+      ...fast(20),
+      stillWanted: gate.begin(),
+    }),
+    'unknown',
+  );
+  assert.equal(wallet.probes(), 0);
+  release();
+  assert.equal(gate.begin()(), true);
+});
+
+void test('a check running when a prompt opens is dropped, even after it closes', () => {
+  const gate = rpcCheckGate();
+  const current = gate.begin();
+  const release = gate.hold();
+  release();
+  release(); // idempotent: a second release must not unbalance the count
+  assert.equal(current(), false);
+  assert.equal(gate.begin()(), true);
+});
+
+void test('a successful transaction drops every check in flight', () => {
+  const gate = rpcCheckGate();
+  const current = gate.begin();
+  gate.succeeded();
+  assert.equal(current(), false);
+});
+
+void test('only the newest check may land', () => {
+  const gate = rpcCheckGate();
+  const older = gate.begin();
+  const newer = gate.begin();
+  assert.equal(older(), false);
+  assert.equal(newer(), true);
 });

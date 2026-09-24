@@ -213,6 +213,11 @@ every trade, with OKLink as the public record.
   function that mints and swaps in one call, or EIP-5792 wallet batching,
   brings that down to one confirmation. Either needs new contracts and new
   markets.
+- **Smart contract wallets.** OKX Wallet accounts created with a social
+  login, such as Apple ID, are smart contract accounts rather than standard
+  externally-owned accounts (EOAs). Our flow assumes an EOA, so a contract
+  account can fail to sign or simulate transactions and can't be funded by a
+  plain transfer in the usual way; full support needs EIP-4337 handling.
 - **Stop loss and take profit** orders on open positions.
 - **More markets**: more days and strikes on the Texas power price.
 - **A statewide price index**: what Texas as a whole paid for power each

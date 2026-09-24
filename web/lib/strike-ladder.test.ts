@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { labelLeft, niceScale, pastFrequency, spreadLabels, strikeLines } from './strike-ladder.ts';
+import {
+  labelLeft,
+  ladderLabelYs,
+  niceScale,
+  pastFrequency,
+  sparseLadder,
+  spreadLabels,
+  strikeLines,
+} from './strike-ladder.ts';
 
 void test('one line per strike, highest first, with every day at that strike', () => {
   const markets = [
@@ -84,4 +92,34 @@ void test('a strike label moves right of the attribution mark only where it woul
   assert.equal(labelLeft(265, 14, 300), 51);
   // clear above the mark
   assert.equal(labelLeft(263, 14, 300), 4);
+});
+
+void test('a phone-width pane outside the desktop layout draws a sparse ladder', () => {
+  // 375px phone: the pane is the width less the price scale.
+  assert.equal(sparseLadder(315, false), true);
+  // A tablet's pane has room for every label.
+  assert.equal(sparseLadder(700, false), false);
+  assert.equal(sparseLadder(480, false), false);
+  // The desktop layout is drawn in full, even with a narrow pane at lg.
+  assert.equal(sparseLadder(200, true), false);
+});
+
+void test('a full ladder labels every drawn line, as spreadLabels always placed them', () => {
+  // Labels sit half a gap above their lines; a line with no coordinate
+  // holds a slot at the top but draws nothing.
+  assert.deepEqual(ladderLabelYs([100, 108, null, 20], [false, true, false, false], 200, 14, false), [
+    93,
+    107,
+    null,
+    21,
+  ]);
+});
+
+void test('a sparse ladder labels only the selected strike, beside its own line', () => {
+  // The $2-away neighbour no longer pushes the selected label off its line.
+  assert.deepEqual(ladderLabelYs([100, 108, 20], [false, true, false], 200, 14, true), [null, 101, null]);
+  // With no selection nothing is labelled; the price tags still name every strike.
+  assert.deepEqual(ladderLabelYs([100, 108], [false, false], 200, 14, true), [null, null]);
+  // A selected strike off the top of the pane is labelled at the top edge.
+  assert.deepEqual(ladderLabelYs([-40, 108], [true, false], 200, 14, true), [7, null]);
 });

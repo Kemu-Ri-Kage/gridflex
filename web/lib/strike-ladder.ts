@@ -70,11 +70,60 @@ export function spreadLabels(ys: readonly number[], gap: number, top: number, bo
   return result;
 }
 
+/** Below this pane width (px), outside the desktop layout, the ladder is drawn sparse. */
+export const NARROW_PANE_WIDTH = 480;
+
+/**
+ * Whether the strike ladder labels only the selected strike. On a
+ * phone-width pane every strike's listed days pile up at the left edge
+ * over the candles, so there the price tags on the scale name the other
+ * strikes and only the selected one keeps its days. The desktop layout
+ * (`lg` and up) is always drawn in full, however narrow its pane.
+ */
+export function sparseLadder(paneWidth: number, desktopLayout: boolean): boolean {
+  return !desktopLayout && paneWidth < NARROW_PANE_WIDTH;
+}
+
+/**
+ * Where each strike's day label sits (px, its centre), `gap` above its
+ * line and at least `gap` from the next, within the pane; null for a line
+ * that isn't drawn, or isn't labelled on a sparse ladder. In full, a line
+ * with no coordinate still holds a slot at the top, as it always has.
+ */
+export function ladderLabelYs(
+  ys: readonly (number | null)[],
+  selected: readonly boolean[],
+  paneHeight: number,
+  gap: number,
+  sparse: boolean,
+): (number | null)[] {
+  const labelled = ys.map((y, i) => y !== null && (!sparse || selected[i]));
+  const spread = sparse ? ys.flatMap((_, i) => (labelled[i] ? [i] : [])) : ys.map((_, i) => i);
+  const placed = spreadLabels(
+    spread.map((i) => (ys[i] ?? -gap) - gap / 2),
+    gap,
+    gap / 2,
+    paneHeight - gap / 2,
+  );
+  const result: (number | null)[] = ys.map(() => null);
+  spread.forEach((i, k) => {
+    if (labelled[i]) result[i] = placed[k];
+  });
+  return result;
+}
+
 interface DailyRecord {
   dayKey: number;
   /** Price in cents, as published. */
   value: number;
 }
+
+/**
+ * The windows past frequency is counted over, in published days: the
+ * settlement chart shows both, the order ticket the first, so the two
+ * always agree.
+ */
+export const PAST_WINDOWS = [30, 90] as const;
 
 export interface PastFrequency {
   /** Days whose price was strictly above the strike. */

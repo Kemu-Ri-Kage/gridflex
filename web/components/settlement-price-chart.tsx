@@ -36,7 +36,7 @@ import {
   type ScaleState,
 } from '@/lib/settlement-chart-drawing';
 import { useCommittedRecords, usePriceCandles } from '@/lib/site-data';
-import { pastFrequency, strikeLines } from '@/lib/strike-ladder';
+import { PAST_WINDOWS, pastFrequency, strikeLines } from '@/lib/strike-ladder';
 
 const RANGES: { id: RangePreset; label: string }[] = [
   { id: '90d', label: '90 days' },
@@ -49,9 +49,6 @@ const RANGES: { id: RangePreset; label: string }[] = [
  * fills them at reduced opacity.
  */
 const CANDLE_STYLE: CandleStyle = 'filled';
-
-/** The two past-frequency windows, in published days. */
-const WINDOWS = [30, 90] as const;
 
 /** A preset to apply; `nonce` changes on every click, so re-clicking one re-applies it. */
 export interface PresetRequest {
@@ -115,7 +112,7 @@ function PastFrequencyPanel({
   } else if (!selected || !records) {
     body = <p className="text-muted-foreground">Loading…</p>;
   } else {
-    const counts = WINDOWS.map((window) => ({
+    const counts = PAST_WINDOWS.map((window) => ({
       window,
       ...pastFrequency(records, selected.threshold, selected.dayKey, window),
     }));

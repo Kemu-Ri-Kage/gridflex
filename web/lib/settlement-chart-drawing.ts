@@ -25,7 +25,7 @@ import {
   type WhitespaceData,
 } from 'lightweight-charts';
 
-import { labelLeft, spreadLabels } from '@/lib/strike-ladder';
+import { labelLeft, ladderLabelYs, sparseLadder, spreadLabels } from '@/lib/strike-ladder';
 
 type DrawTarget = Parameters<ICustomSeriesPaneRenderer['draw']>[0];
 
@@ -252,6 +252,8 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
   private tagYs: number[] = [];
   /** Where each strike sits against the pane: above it, below it, or in view. */
   private sides: ('above' | 'below' | 'in')[] = [];
+  /** Matches at `lg`, the desktop layout, whose ladder is always drawn in full. */
+  private desktopLayout: MediaQueryList | null = null;
 
   constructor(private readonly palette: LadderPalette) {}
 
@@ -259,6 +261,7 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
     this.chart = chart;
     this.series = series;
     this.requestUpdate = requestUpdate;
+    this.desktopLayout = window.matchMedia('(min-width: 64rem)');
   }
 
   detached(): void {
@@ -309,7 +312,7 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
 
     // Dashed lines, the selected one last so it sits on top, then each
     // strike's listed days at the left edge, spread so a $2 ladder stays
-    // readable.
+    // readable; on a phone only the selected strike's (lib/strike-ladder.ts).
     const ladder: IPrimitivePaneView = {
       zOrder: () => 'top',
       renderer: () =>
@@ -329,18 +332,19 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
           }
           context.setLineDash([]);
 
-          const placed = lines.map((_, i) => ys[i] ?? -LABEL_GAP);
-          const labelYs = spreadLabels(
-            placed.map((y) => y - LABEL_GAP / 2),
+          const labelYs = ladderLabelYs(
+            ys,
+            lines.map((line) => line.selected),
+            mediaSize.height,
             LABEL_GAP,
-            LABEL_GAP / 2,
-            mediaSize.height - LABEL_GAP / 2,
+            sparseLadder(mediaSize.width, this.desktopLayout?.matches ?? true),
           );
           context.font = `${LABEL_FONT}px ${palette.font}`;
           context.textBaseline = 'middle';
           context.lineJoin = 'round';
           for (const i of order) {
-            if (ys[i] === null) continue;
+            const labelY = labelYs[i];
+            if (labelY === null) continue;
             const text = pointer(this.sides[i]) + (lines[i].selected ? `Strike · ${lines[i].days}` : lines[i].days);
             context.globalAlpha = lines[i].selected ? 1 : 0.75;
             // A halo in the background colour keeps the label legible
@@ -348,10 +352,10 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
             context.lineWidth = 3;
             context.strokeStyle = palette.background;
             // Clear of the attribution mark in the bottom-left corner.
-            const x = labelLeft(labelYs[i], LABEL_GAP, mediaSize.height);
-            context.strokeText(text, x, labelYs[i]);
+            const x = labelLeft(labelY, LABEL_GAP, mediaSize.height);
+            context.strokeText(text, x, labelY);
             context.fillStyle = lines[i].selected ? palette.warning : palette.muted;
-            context.fillText(text, x, labelYs[i]);
+            context.fillText(text, x, labelY);
           }
           context.globalAlpha = 1;
         }),

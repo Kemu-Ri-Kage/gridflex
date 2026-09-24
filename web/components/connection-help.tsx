@@ -3,7 +3,9 @@
 import * as React from 'react';
 import { ChevronDown, Copy } from 'lucide-react';
 
+import { useWeb3 } from '@/components/web3-provider';
 import { XLAYER_TESTNET_RPC_URLS } from '@/lib/contracts';
+import { METAMASK_RDNS } from '@/lib/wallet-discovery';
 
 function CopyableUrl({ url, label }: { url: string; label: string }) {
   const [copied, setCopied] = React.useState(false);
@@ -35,8 +37,9 @@ function CopyableUrl({ url, label }: { url: string; label: string }) {
  * a way that points at it (lib/wallet-errors.ts). A wallet sends
  * transactions through the network it already has saved, which this site
  * can neither see nor change, so this only explains how to replace the RPC
- * by hand. Opens expanded by default, since until the RPC is fixed nothing
- * can be sent.
+ * by hand: in MetaMask's own menus when MetaMask is the wallet in use,
+ * otherwise in general terms. Opens expanded by default, since until the
+ * RPC is fixed nothing can be sent.
  */
 export function ConnectionHelp({
   defaultOpen = true,
@@ -45,6 +48,9 @@ export function ConnectionHelp({
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const [primary, backup] = XLAYER_TESTNET_RPC_URLS;
+  const { wallet } = useWeb3();
+  const metaMask = wallet?.rdns === METAMASK_RDNS;
+  const walletName = wallet?.name ?? 'your wallet';
 
   return (
     <div
@@ -72,28 +78,37 @@ export function ConnectionHelp({
             Your wallet sends transactions through the RPC address it has saved
             for X Layer Testnet, and that address didn&apos;t respond. This site
             can&apos;t see or change a network your wallet already has saved.
-            You can replace the RPC yourself in MetaMask:
+            You can replace the RPC yourself in {walletName}:
           </p>
           <ol className="list-decimal space-y-1 pl-4">
+            {metaMask ? (
+              <li>
+                Open MetaMask, open the network menu, and find X Layer Testnet
+                (chain ID 1952). Choose Edit.
+              </li>
+            ) : (
+              <li>
+                Open {walletName}&apos;s network settings and find X Layer
+                Testnet (chain ID 1952).
+              </li>
+            )}
             <li>
-              Open MetaMask, open the network menu, and find X Layer Testnet
-              (chain ID 1952). Choose Edit.
-            </li>
-            <li>
-              Under Default RPC URL, choose Add RPC URL and paste:
+              {metaMask
+                ? 'Under Default RPC URL, choose Add RPC URL and paste:'
+                : 'Replace its RPC URL with:'}
               <CopyableUrl label="primary" url={primary} />
               <span className="mt-1 block text-muted-foreground">
                 If that one fails too, use the backup:
               </span>
               <CopyableUrl label="backup" url={backup} />
             </li>
-            <li>Select the new URL as the default and save.</li>
+            <li>
+              {metaMask
+                ? 'Select the new URL as the default and save.'
+                : 'Save the network.'}
+            </li>
             <li>Come back here and try again.</li>
           </ol>
-          <p className="text-muted-foreground">
-            Other wallets have the same setting under their network or chain
-            settings.
-          </p>
         </div>
       )}
     </div>

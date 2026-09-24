@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  CONNECTION_ALREADY_PENDING_MESSAGE,
+  connectionAlreadyPendingMessage,
   isUnknownChainError,
   isWalletRpcFailure,
-  REQUEST_ALREADY_PENDING_MESSAGE,
+  requestAlreadyPendingMessage,
   walletErrorMessage,
   walletRequestAlreadyPending,
+  walletUserRejected,
 } from './wallet-errors.ts';
 
 function wrapped(cause: object) {
@@ -153,7 +154,7 @@ void test('an already-pending permissions prompt is not an RPC failure', () => {
   assert.equal(isWalletRpcFailure(PENDING_PERMISSIONS), false);
   assert.equal(isWalletRpcFailure(wrapped(PENDING_PERMISSIONS)), false);
   assert.equal(
-    walletRequestAlreadyPending(wrapped(PENDING_PERMISSIONS)),
+    walletRequestAlreadyPending(wrapped(PENDING_PERMISSIONS), 'MetaMask'),
     'A wallet connection request is already open. Open MetaMask and complete or reject it.',
   );
 });
@@ -166,7 +167,7 @@ void test("older MetaMask's already-processing eth_requestAccounts is a pending 
   assert.equal(isWalletRpcFailure(error), false);
   assert.equal(
     walletRequestAlreadyPending(error),
-    CONNECTION_ALREADY_PENDING_MESSAGE,
+    connectionAlreadyPendingMessage(),
   );
 });
 
@@ -182,7 +183,7 @@ void test('other prompt types already pending get the general message', () => {
     assert.equal(isWalletRpcFailure(error), false);
     assert.equal(
       walletRequestAlreadyPending(error),
-      REQUEST_ALREADY_PENDING_MESSAGE,
+      requestAlreadyPendingMessage(),
     );
   }
 });
@@ -198,7 +199,7 @@ void test("a pending prompt is recognised through viem's wrapping of a write", a
   assert.equal(isWalletRpcFailure(error), false);
   assert.equal(
     walletRequestAlreadyPending(error),
-    CONNECTION_ALREADY_PENDING_MESSAGE,
+    connectionAlreadyPendingMessage(),
   );
 });
 
@@ -250,4 +251,30 @@ void test('an unknown chain is recognised, including wrapped in -32603', () => {
     isUnknownChainError({ code: 4001, message: 'User rejected the request.' }),
     false,
   );
+});
+
+void test('the pending message names the wallet in use, never MetaMask by default', () => {
+  assert.equal(
+    walletRequestAlreadyPending(PENDING_PERMISSIONS, 'OKX Wallet'),
+    'A wallet connection request is already open. Open OKX Wallet and complete or reject it.',
+  );
+  const unnamed = walletRequestAlreadyPending(PENDING_PERMISSIONS);
+  assert.equal(
+    unnamed,
+    'A wallet connection request is already open. Open your wallet and complete or reject it.',
+  );
+  assert.doesNotMatch(unnamed ?? '', /MetaMask/);
+});
+
+void test("OKX Wallet's refusal of a connect is a user rejection, not an RPC failure", async () => {
+  // Measured in Chrome, 24 Sep 2026: OKX's answer to eth_requestAccounts.
+  const okxDenied = {
+    code: 4001,
+    message: 'Request Signature: User denied request signature.',
+  };
+  assert.equal(walletUserRejected(okxDenied), true);
+  assert.equal(walletUserRejected(wrapped(okxDenied)), true);
+  assert.equal(isWalletRpcFailure(okxDenied), false);
+  assert.equal(walletRequestAlreadyPending(okxDenied), undefined);
+  assert.equal(walletUserRejected(PENDING_PERMISSIONS), false);
 });

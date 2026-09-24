@@ -3,10 +3,25 @@
 import { ExternalLink, LogOut, Wallet } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { WalletPicker } from '@/components/wallet-picker';
 import { useWeb3 } from '@/components/web3-provider';
 
 /** OKX's Web3 portal: the wallet download for every platform. */
 const OKX_WALLET_URL = 'https://www.okx.com/web3';
+const METAMASK_URL = 'https://metamask.io/download/';
+
+function InstallLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      className="inline-flex items-center gap-1 font-mono text-foreground underline-offset-4 hover:underline"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {label} <ExternalLink className="size-3" />
+    </a>
+  );
+}
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -15,7 +30,8 @@ function shortAddress(address: string) {
 /**
  * Header wallet control. Connection failures are surfaced here, under the
  * button, because nothing else on the page shows them: the order ticket
- * only shows trade errors, and on a closed market there is no ticket.
+ * only shows trade errors, and on a closed market there is no ticket. It
+ * also holds the wallet picker, which either Connect button can open.
  */
 export function WalletButton() {
   const {
@@ -53,6 +69,7 @@ export function WalletButton() {
         <Wallet data-icon="inline-start" />
         {connecting ? 'Check your wallet…' : 'Connect wallet'}
       </Button>
+      <WalletPicker />
       {connectError && (
         <div
           aria-live="polite"
@@ -60,14 +77,10 @@ export function WalletButton() {
         >
           <p className="text-down">{connectError}</p>
           {walletDetected === false && (
-            <a
-              className="mt-2 inline-flex items-center gap-1 font-mono text-foreground underline-offset-4 hover:underline"
-              href={OKX_WALLET_URL}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Install OKX Wallet <ExternalLink className="size-3" />
-            </a>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+              <InstallLink href={OKX_WALLET_URL} label="Install OKX Wallet" />
+              <InstallLink href={METAMASK_URL} label="Install MetaMask" />
+            </div>
           )}
         </div>
       )}

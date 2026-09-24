@@ -8,7 +8,6 @@ import {
   custom,
   getAddress,
   type Address,
-  type EIP1193Provider,
   type Hash,
 } from 'viem';
 
@@ -49,22 +48,33 @@ import {
   assertTransactionSucceeded,
   TransactionRevertedError,
 } from '@/lib/transaction-outcome';
+import { latestOnly } from '@/lib/latest-only';
 import { singleFlight } from '@/lib/single-flight';
 import {
   isUnknownChainError,
   isWalletRpcFailure,
   walletErrorMessage,
   walletRequestAlreadyPending,
+  walletUserRejected,
 } from '@/lib/wallet-errors';
 import {
   checkWalletRpc,
   type WalletRpcVerdict,
   watchSlowRequest,
 } from '@/lib/wallet-health';
+import {
+  connectWallet as connectWithChoice,
+  watchWallets,
+  type DiscoveredWallet,
+  type WalletInfo,
+  type WalletProvider,
+} from '@/lib/wallet-discovery';
 
 declare global {
   interface Window {
-    ethereum?: EIP1193Provider;
+    ethereum?: WalletProvider;
+    /** OKX Wallet's own global, set by versions that predate EIP-6963. */
+    okxwallet?: WalletProvider;
   }
 }
 
@@ -88,6 +98,13 @@ export type MarketSnapshot = {
   collateralBalance: bigint;
   yesBalance: bigint;
   noBalance: bigint;
+  /** The wallet's OKB, which pays gas on X Layer. */
+  gasBalance: bigint;
+  /**
+   * The wallet the balances above were read for; undefined until a read
+   * for a connected wallet lands, so zero is never shown before then.
+   */
+  balanceAccount?: Address;
   resolved: boolean;
   cancelled: boolean;
   yesWon: boolean;
@@ -125,8 +142,21 @@ export type SwitchQuote = {
 
 type Web3ContextValue = {
   account?: Address;
-  /** undefined until mounted; false when no EIP-1193 wallet is injected. */
+  /** undefined until mounted; false when no wallet was found. */
   walletDetected?: boolean;
+  /**
+   * The wallet Connect chose, remembered for this page session so every
+   * later request goes to it. Cleared by Disconnect, by the user declining
+   * in the wallet, and on reload; never written to storage.
+   */
+  wallet?: WalletInfo;
+  /**
+   * Set while Connect is waiting for the user to pick one of several
+   * installed wallets; the picker lists these.
+   */
+  walletChoices?: WalletInfo[];
+  /** Answer the picker with a wallet's id, or undefined to cancel. */
+  chooseWallet: (id?: string) => void;
   /** True when a collateral token and a market are known. */
   configured: boolean;
   /** The market every read and transaction targets. Set by selectMarket. */
@@ -176,13 +206,13 @@ type Web3ContextValue = {
   /**
    * Swap `amount` of `from` into the other side, refused if the output
    * falls below `minimumOut` (the quote shown before confirming) or the
-   * 5-minute deadline passes.
+   * 5-minute deadline passes. Resolves whether the swap confirmed.
    */
   switchPosition: (
     from: TradeSide,
     amount: string,
     minimumOut: bigint,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   /** Retry the swap for pendingOrder; clears it once the swap confirms. */
   finishPendingOrder: () => Promise<void>;
   /** Forget pendingOrder and keep the YES + NO pair as it is. */
@@ -200,6 +230,7 @@ const emptySnapshot: MarketSnapshot = {
   collateralBalance: 0n,
   yesBalance: 0n,
   noBalance: 0n,
+  gasBalance: 0n,
   resolved: false,
   cancelled: false,
   yesWon: false,
@@ -218,17 +249,14 @@ const WALLET_RPC_MESSAGE =
 const WALLET_RPC_STALLED_MESSAGE = `${WALLET_RPC_MESSAGE} The request is still open in the wallet; if a prompt appears, you can confirm or reject it there.`;
 
 /**
- * Check the injected wallet's saved RPC for X Layer, or `unknown` when
- * there is no wallet (every wallet action already refuses that case).
+ * Check the chosen wallet's saved RPC for X Layer, or `unknown` when there
+ * is no wallet (every wallet action already refuses that case).
  */
-async function walletRpcVerdict(): Promise<WalletRpcVerdict> {
-  const ethereum = window.ethereum;
-  if (!ethereum) return 'unknown';
-  return checkWalletRpc(
-    (args) =>
-      ethereum.request(args as Parameters<EIP1193Provider['request']>[0]),
-    xLayerTestnet.id,
-  );
+async function walletRpcVerdict(
+  provider: WalletProvider | undefined,
+): Promise<WalletRpcVerdict> {
+  if (!provider) return 'unknown';
+  return checkWalletRpc((args) => provider.request(args), xLayerTestnet.id);
 }
 
 export const NO_WALLET_MESSAGE =
@@ -268,10 +296,6 @@ function browserStorage(): PendingOrderStorage | undefined {
   } catch {
     return undefined;
   }
-}
-
-function subscribeToNothing() {
-  return () => {};
 }
 
 function validAddress(value: string | undefined): Address | undefined {
@@ -315,13 +339,27 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   );
 
   const [account, setAccount] = React.useState<Address>();
-  // Whether an EIP-1193 wallet is injected: read from the window on the
-  // client, undefined during server rendering.
-  const walletDetected = React.useSyncExternalStore(
-    subscribeToNothing,
-    () => Boolean(window.ethereum),
-    () => undefined,
-  );
+  // Every wallet found (lib/wallet-discovery.ts); undefined until mounted.
+  const [wallets, setWallets] = React.useState<DiscoveredWallet[]>();
+  const walletWatcher =
+    React.useRef<ReturnType<typeof watchWallets>>(undefined);
+  React.useEffect(() => {
+    const watcher = watchWallets(window, setWallets);
+    walletWatcher.current = watcher;
+    return () => {
+      watcher.stop();
+      walletWatcher.current = undefined;
+    };
+  }, []);
+  const walletDetected = wallets && wallets.length > 0;
+  // The wallet in use: every request, listener and health check goes to
+  // its provider, never to whichever wallet owns window.ethereum.
+  const walletRef = React.useRef<DiscoveredWallet | undefined>(undefined);
+  const [wallet, setWallet] = React.useState<WalletInfo>();
+  const [walletChoices, setWalletChoices] = React.useState<WalletInfo[]>();
+  const answerChoice = React.useRef<
+    ((id: string | undefined) => void) | undefined
+  >(undefined);
   const [market, setMarket] = React.useState<Address>();
   const [snapshot, setSnapshot] = React.useState<MarketSnapshot>(emptySnapshot);
   const [pendingAction, setPendingAction] = React.useState<string>();
@@ -341,6 +379,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   // The market the latest read was started for; a read that finishes after
   // the selection moved on is dropped rather than shown for the new market.
   const marketRef = React.useRef<Address | undefined>(undefined);
+  // Only the latest read may set the snapshot: one started before the
+  // wallet connected must not land after, and replace, the connected read.
+  const [snapshotReads] = React.useState(latestOnly);
 
   const selectMarket = React.useCallback((address?: Address) => {
     const next = address ? getAddress(address) : undefined;
@@ -353,92 +394,146 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     setFailedTransaction(undefined);
   }, []);
 
-  // One connect at a time: a second click while the wallet prompt is open
-  // would send another eth_requestAccounts, which MetaMask refuses with
-  // -32002. The lock is released in singleFlight's finally.
+  const forgetWallet = React.useCallback(() => {
+    walletRef.current = undefined;
+    setWallet(undefined);
+  }, []);
+
+  const chooseWallet = React.useCallback((id?: string) => {
+    const answer = answerChoice.current;
+    answerChoice.current = undefined;
+    setWalletChoices(undefined);
+    answer?.(id);
+  }, []);
+
+  /** Open the picker; resolves when chooseWallet answers it. */
+  const askForWallet = React.useCallback(
+    (options: DiscoveredWallet[]) =>
+      new Promise<string | undefined>((resolve) => {
+        answerChoice.current = resolve;
+        setWalletChoices(options.map((option) => option.info));
+      }),
+    [],
+  );
+
+  // One connect at a time, picker included: a second click while the
+  // wallet prompt is open would send another eth_requestAccounts, which a
+  // wallet refuses with -32002. The lock is released in singleFlight's
+  // finally.
   const [connectFlight] = React.useState(() =>
-    singleFlight(async () => {
+    singleFlight((task: () => Promise<void>) => task()),
+  );
+
+  const connectTo = React.useCallback(
+    async (chosen: DiscoveredWallet) => {
+      const { provider, info } = chosen;
+      walletRef.current = chosen;
+      setWallet(info);
       setConnecting(true);
+
       try {
-        await connectWallet();
+        const accounts = (await provider.request({
+          method: 'eth_requestAccounts',
+        })) as Address[];
+        if (!accounts[0])
+          throw new Error('The wallet did not return an account.');
+
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x7a0' }],
+          });
+        } catch (switchError) {
+          if (!isUnknownChainError(switchError)) throw switchError;
+
+          await provider.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: '0x7a0',
+                chainName: 'X Layer Testnet',
+                nativeCurrency: { name: 'OKB', symbol: 'OKB', decimals: 18 },
+                rpcUrls: xLayerTestnet.rpcUrls.default.http,
+                blockExplorerUrls: [xLayerTestnet.blockExplorers.default.url],
+              },
+            ],
+          });
+        }
+
+        // A wallet can answer the switch without switching: OKX Wallet returns
+        // null for a site it hasn't connected yet. Check where it landed.
+        const chainId = await provider.request({ method: 'eth_chainId' });
+        if (Number(chainId) !== xLayerTestnet.id) {
+          throw new Error(
+            `${info.name} is on another network. Switch it to X Layer Testnet and connect again.`,
+          );
+        }
+
+        setAccount(getAddress(accounts[0]));
+        // Connecting and switching are answered by the wallet itself; this is
+        // the first request that needs its RPC. Never awaited: it can't hold
+        // up the connection.
+        void walletRpcVerdict(provider).then((verdict) =>
+          applyRpcVerdict(verdict, setWalletRpcFailed),
+        );
+      } catch (walletError) {
+        // Never read as a dead RPC: the wallet answers these requests without
+        // it, so its -32002, -32603 or "timed out" is about the prompt or the
+        // chain. Show the wallet's own words so a real problem is diagnosable.
+        if (walletUserRejected(walletError)) {
+          // Forgotten, so the next Connect offers every wallet again.
+          forgetWallet();
+          setConnectError(`${info.name} declined the connection.`);
+        } else {
+          setConnectError(
+            walletRequestAlreadyPending(walletError, info.name) ??
+              walletErrorMessage(walletError) ??
+              errorMessage(walletError),
+          );
+        }
       } finally {
         setConnecting(false);
       }
-    }),
+    },
+    [forgetWallet],
   );
 
-  async function connectWallet() {
-    setConnectError(undefined);
-    const ethereum = window.ethereum;
-    if (!ethereum) {
-      setConnectError(NO_WALLET_MESSAGE);
-      return;
-    }
-
-    try {
-      const accounts = (await ethereum.request({
-        method: 'eth_requestAccounts',
-      })) as Address[];
-      if (!accounts[0])
-        throw new Error('The wallet did not return an account.');
-
-      try {
-        await ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x7a0' }],
-        });
-      } catch (switchError) {
-        if (!isUnknownChainError(switchError)) throw switchError;
-
-        await ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [
-            {
-              chainId: '0x7a0',
-              chainName: 'X Layer Testnet',
-              nativeCurrency: { name: 'OKB', symbol: 'OKB', decimals: 18 },
-              rpcUrls: xLayerTestnet.rpcUrls.default.http,
-              blockExplorerUrls: [xLayerTestnet.blockExplorers.default.url],
-            },
-          ],
-        });
-      }
-
-      setAccount(getAddress(accounts[0]));
-      // Connecting and switching are answered by the wallet itself; this is
-      // the first request that needs its RPC. Never awaited: it can't hold
-      // up the connection.
-      void walletRpcVerdict().then((verdict) =>
-        applyRpcVerdict(verdict, setWalletRpcFailed),
+  const connect = React.useCallback(() => {
+    // Ask the wallets again at click time, so one that loaded late is found.
+    const found = walletWatcher.current?.current() ?? [];
+    const chosenId = walletRef.current?.info.id;
+    return connectFlight.run(async () => {
+      setConnectError(undefined);
+      const outcome = await connectWithChoice(
+        found,
+        chosenId,
+        askForWallet,
+        connectTo,
       );
-    } catch (walletError) {
-      // Never read as a dead RPC: the wallet answers these requests without
-      // it, so its -32002, -32603 or "timed out" is about the prompt or the
-      // chain. Show the wallet's own words so a real problem is diagnosable.
-      setConnectError(
-        walletRequestAlreadyPending(walletError) ??
-          walletErrorMessage(walletError) ??
-          errorMessage(walletError),
-      );
-    }
-  }
-
-  const connect = React.useCallback(() => connectFlight.run(), [connectFlight]);
+      if (outcome === 'none') setConnectError(NO_WALLET_MESSAGE);
+    });
+  }, [connectFlight, askForWallet, connectTo]);
 
   const disconnect = React.useCallback(() => {
     setAccount(undefined);
+    forgetWallet();
     setConnectError(undefined);
     setSnapshot((current) => ({
       ...current,
       collateralBalance: 0n,
       yesBalance: 0n,
       noBalance: 0n,
+      gasBalance: 0n,
+      balanceAccount: undefined,
     }));
-  }, []);
+  }, [forgetWallet]);
 
   const refresh = React.useCallback(async () => {
     const target = marketRef.current;
     if (!target) return;
+    const read = snapshotReads.begin();
+    const current = () =>
+      marketRef.current === target && snapshotReads.isLatest(read);
 
     try {
       const [
@@ -476,34 +571,38 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       let collateralBalance = 0n;
       let yesBalance = 0n;
       let noBalance = 0n;
+      let gasBalance = 0n;
       if (account && collateral) {
-        [collateralBalance, yesBalance, noBalance] =
-          (await publicClient.multicall({
-            allowFailure: false,
-            contracts: [
-              {
-                address: collateral,
-                abi: mockUsdtAbi,
-                functionName: 'balanceOf',
-                args: [account],
-              },
-              {
-                address: outcomeAddresses[0],
-                abi: outcomeTokenAbi,
-                functionName: 'balanceOf',
-                args: [account],
-              },
-              {
-                address: outcomeAddresses[1],
-                abi: outcomeTokenAbi,
-                functionName: 'balanceOf',
-                args: [account],
-              },
-            ],
-          })) as [bigint, bigint, bigint];
+        [[collateralBalance, yesBalance, noBalance], gasBalance] =
+          await Promise.all([
+            publicClient.multicall({
+              allowFailure: false,
+              contracts: [
+                {
+                  address: collateral,
+                  abi: mockUsdtAbi,
+                  functionName: 'balanceOf',
+                  args: [account],
+                },
+                {
+                  address: outcomeAddresses[0],
+                  abi: outcomeTokenAbi,
+                  functionName: 'balanceOf',
+                  args: [account],
+                },
+                {
+                  address: outcomeAddresses[1],
+                  abi: outcomeTokenAbi,
+                  functionName: 'balanceOf',
+                  args: [account],
+                },
+              ],
+            }) as Promise<[bigint, bigint, bigint]>,
+            publicClient.getBalance({ address: account }),
+          ]);
       }
 
-      if (marketRef.current !== target) return;
+      if (!current()) return;
       setSnapshot({
         address: target,
         loaded: true,
@@ -515,6 +614,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         collateralBalance,
         yesBalance,
         noBalance,
+        gasBalance,
+        balanceAccount: account && collateral ? account : undefined,
         resolved: resolved as boolean,
         cancelled: cancelled as boolean,
         yesWon: yesWon as boolean,
@@ -522,10 +623,10 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         disputeWindow: Number(disputeWindow),
       });
     } catch (readError) {
-      if (marketRef.current !== target) return;
+      if (!current()) return;
       setError(`Could not read X Layer: ${errorMessage(readError)}`);
     }
-  }, [account, collateral]);
+  }, [account, collateral, snapshotReads]);
 
   React.useEffect(() => {
     if (!market) return;
@@ -533,9 +634,18 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [market, refresh]);
 
+  // Balances change outside this page too (OKB claimed from the faucet in
+  // another tab): read them again when the user comes back.
   React.useEffect(() => {
-    const ethereum = window.ethereum;
-    if (!ethereum?.on) return;
+    if (!account) return;
+    const handleFocus = () => void refresh();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [account, refresh]);
+
+  React.useEffect(() => {
+    const provider = walletRef.current?.provider;
+    if (!wallet || !provider?.on) return;
 
     const handleAccounts = (nextAccounts: unknown) => {
       const next = Array.isArray(nextAccounts) ? nextAccounts[0] : undefined;
@@ -544,18 +654,18 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     const handleChain = () => {
       void refresh();
       if (account) {
-        void walletRpcVerdict().then((verdict) =>
+        void walletRpcVerdict(provider).then((verdict) =>
           applyRpcVerdict(verdict, setWalletRpcFailed),
         );
       }
     };
-    ethereum.on('accountsChanged', handleAccounts);
-    ethereum.on('chainChanged', handleChain);
+    provider.on('accountsChanged', handleAccounts);
+    provider.on('chainChanged', handleChain);
     return () => {
-      ethereum.removeListener?.('accountsChanged', handleAccounts);
-      ethereum.removeListener?.('chainChanged', handleChain);
+      provider.removeListener?.('accountsChanged', handleAccounts);
+      provider.removeListener?.('chainChanged', handleChain);
     };
-  }, [account, refresh]);
+  }, [wallet, account, refresh]);
 
   // Restore the connected wallet's unfinished order (after a reload, or on
   // switching wallets), and follow changes made in other tabs.
@@ -583,8 +693,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       /** Names this step in the error if it reverts; defaults to `label`. */
       step = label,
     ): Promise<boolean> => {
-      const ethereum = window.ethereum;
-      if (!ethereum || !account) {
+      const chosen = walletRef.current;
+      if (!chosen || !account) {
         setError('Connect a wallet before sending a transaction.');
         return false;
       }
@@ -596,7 +706,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         const walletClient = createWalletClient({
           account,
           chain: xLayerTestnet,
-          transport: custom(ethereum),
+          transport: custom(chosen.provider),
         });
         // Only this request goes through the wallet's saved RPC; the
         // receipt and refresh below use the app's own endpoints.
@@ -615,7 +725,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
             async () => {
               // Only a verdict of unreachable swaps the spinner for help;
               // when unsure, keep waiting on the wallet.
-              if ((await walletRpcVerdict()) !== 'unreachable') return true;
+              if ((await walletRpcVerdict(chosen.provider)) !== 'unreachable') {
+                return true;
+              }
               setWalletRpcFailed(true);
               setPendingAction(undefined);
               setError(WALLET_RPC_STALLED_MESSAGE);
@@ -623,14 +735,17 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
             },
           );
         } catch (walletError) {
-          const alreadyPending = walletRequestAlreadyPending(walletError);
+          const alreadyPending = walletRequestAlreadyPending(
+            walletError,
+            chosen.info.name,
+          );
           if (alreadyPending) {
             throw new Error(alreadyPending, { cause: walletError });
           }
           if (!isWalletRpcFailure(walletError)) throw walletError;
           // The help panel waits for the health check's verdict; the message
           // carries the wallet's own words so the failure stays diagnosable.
-          void walletRpcVerdict().then((verdict) =>
+          void walletRpcVerdict(chosen.provider).then((verdict) =>
             applyRpcVerdict(verdict, setWalletRpcFailed),
           );
           const walletSaid = walletErrorMessage(walletError);
@@ -717,7 +832,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
 
   const mintCollateral = React.useCallback(async () => {
     if (!collateral || !account) return;
-    await write('Getting demo mUSDT', {
+    await write('Getting test mUSDT', {
       address: collateral,
       abi: mockUsdtAbi,
       functionName: 'mint',
@@ -980,31 +1095,35 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
    * before settlement. Held to the same one-action-at-a-time rule as buys.
    */
   const switchPosition = React.useCallback(
-    async (from: TradeSide, amount: string, minimumOut: bigint) => {
+    async (
+      from: TradeSide,
+      amount: string,
+      minimumOut: bigint,
+    ): Promise<boolean> => {
       const target = marketRef.current;
       if (!target) {
         setError('Contracts not configured.');
-        return;
+        return false;
       }
-      if (orderInFlight.current) return;
+      if (orderInFlight.current) return false;
       if (
         pendingOrder ||
         (account &&
           loadPendingOrder(browserStorage(), xLayerTestnet.id, account))
       ) {
         setError('Finish the unfinished order first.');
-        return;
+        return false;
       }
       let units: bigint;
       try {
         units = parsePositiveTokenAmount(amount);
       } catch (amountError) {
         setError(errorMessage(amountError));
-        return;
+        return false;
       }
       const to: TradeSide = from === 'YES' ? 'NO' : 'YES';
       orderInFlight.current = true;
-      await swapInto(
+      return swapInto(
         target,
         to,
         units,
@@ -1067,6 +1186,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     () => ({
       account,
       walletDetected,
+      wallet,
+      walletChoices,
+      chooseWallet,
       configured: Boolean(collateral && market),
       market,
       selectMarket,
@@ -1097,6 +1219,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     [
       account,
       walletDetected,
+      wallet,
+      walletChoices,
+      chooseWallet,
       collateral,
       market,
       selectMarket,

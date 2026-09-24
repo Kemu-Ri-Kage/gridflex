@@ -28,6 +28,7 @@ import {
   type PositionRow,
   type UndeterminedReason,
 } from '@/lib/position';
+import { losingSide } from '@/lib/redeemable';
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -74,11 +75,14 @@ function PositionsTab() {
   const live = selected.live;
   const settled = live.resolved || live.cancelled;
   const loading = history.state === 'loading';
+  // Once resolved, the losing side pays nothing and redeem() leaves it in
+  // the wallet: not a position, so not listed.
+  const lost = losingSide(live);
   const rows: PositionRow[] = positionRows(
     { YES: balances.yes, NO: balances.no },
     live,
     history.state === 'ready' ? history.ledger : { undetermined: 'history' },
-  );
+  ).filter((row) => row.side !== lost);
   const reasons = loading
     ? []
     : [
@@ -121,16 +125,11 @@ function PositionsTab() {
 
   return (
     <div className="space-y-3 p-4 sm:p-6">
-      <div className="font-mono text-xs text-muted-foreground">
-        mUSDT balance{' '}
-        <span className="text-foreground tabular-nums">
-          {formatToken(balances.collateral)}
-        </span>
-      </div>
-
       {rows.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No YES or NO held on this market.
+          {lost && balances[lost === 'YES' ? 'yes' : 'no'] > 0n
+            ? 'Nothing left to redeem on this market.'
+            : 'No YES or NO held on this market.'}
         </p>
       ) : (
         <>

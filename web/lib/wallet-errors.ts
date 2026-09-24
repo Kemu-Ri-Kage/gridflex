@@ -76,11 +76,21 @@ const CONNECTION_REQUESTS = new Set([
   'eth_requestAccounts',
 ]);
 
-export const CONNECTION_ALREADY_PENDING_MESSAGE =
-  'A wallet connection request is already open. Open MetaMask and complete or reject it.';
+/**
+ * Named after the wallet the request went to (`OKX Wallet`, `MetaMask`),
+ * or `your wallet` when its name isn't known.
+ */
+export function connectionAlreadyPendingMessage(
+  walletName = 'your wallet',
+): string {
+  return `A wallet connection request is already open. Open ${walletName} and complete or reject it.`;
+}
 
-export const REQUEST_ALREADY_PENDING_MESSAGE =
-  'A wallet request is already open. Open MetaMask and complete or reject it.';
+export function requestAlreadyPendingMessage(
+  walletName = 'your wallet',
+): string {
+  return `A wallet request is already open. Open ${walletName} and complete or reject it.`;
+}
 
 /**
  * What to tell the user when `error` is the wallet refusing a request
@@ -90,14 +100,15 @@ export const REQUEST_ALREADY_PENDING_MESSAGE =
  */
 export function walletRequestAlreadyPending(
   error: unknown,
+  walletName?: string,
 ): string | undefined {
   for (const record of errorChain(error)) {
     const match = ALREADY_PENDING.exec(text(record));
     if (!match) continue;
     const type = match[1] ?? match[2];
     return CONNECTION_REQUESTS.has(type)
-      ? CONNECTION_ALREADY_PENDING_MESSAGE
-      : REQUEST_ALREADY_PENDING_MESSAGE;
+      ? connectionAlreadyPendingMessage(walletName)
+      : requestAlreadyPendingMessage(walletName);
   }
   return undefined;
 }
@@ -156,4 +167,12 @@ export function isUnknownChainError(error: unknown): boolean {
       Number((original as Record<string, unknown>).code) === 4902
     );
   });
+}
+
+/**
+ * The user declined in the wallet (EIP-1193 code 4001). OKX Wallet words it
+ * "Request Signature: User denied request signature." even for a connect.
+ */
+export function walletUserRejected(error: unknown): boolean {
+  return errorChain(error).some((record) => Number(record.code) === 4001);
 }

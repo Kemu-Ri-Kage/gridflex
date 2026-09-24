@@ -19,12 +19,32 @@ import {
 import { explorerTxUrl } from '@/lib/explorer';
 import { formatToken } from '@/lib/format';
 import { buySteps } from '@/lib/buy-steps';
+import { fundingState } from '@/lib/funding-state';
 import { marketName, strikeLabel, useMarkets } from '@/lib/markets';
 import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
 import { oppositeBuyWarning, positionSummary } from '@/lib/position-summary';
+import { redeemablePayout } from '@/lib/redeemable';
 import { ticketState } from '@/lib/ticket-state';
 import { parsePositiveTokenAmount } from '@/lib/trade';
-import { collateralShortfall } from '@/lib/transaction-outcome';
+
+/** OKX's X Layer testnet faucet: paste an address, get 0.2 test OKB. */
+const OKB_FAUCET_URL = 'https://web3.okx.com/xlayer/faucet/xlayerfaucet';
+
+function FaucetLink() {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-xs">
+      <span className="text-warning">No OKB for gas</span>
+      <a
+        className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+        href={OKB_FAUCET_URL}
+        rel="noreferrer"
+        target="_blank"
+      >
+        Get test OKB <ExternalLink className="size-3" />
+      </a>
+    </div>
+  );
+}
 
 function tokenUnits(value: string): bigint | undefined {
   try {
@@ -114,12 +134,16 @@ export function TradePanel() {
 
   const validAmount = validTokenAmount(amount);
   const units = tokenUnits(amount);
-  // Checked again in buy(); here it keeps a mint the balance can't cover
-  // from being offered at all.
-  const shortfall =
-    account && ready && units !== undefined
-      ? collateralShortfall(units, snapshot.collateralBalance)
-      : undefined;
+  // The balance is checked again in buy(); here a wallet with no mUSDT or
+  // no OKB is told before anything is sent (lib/funding-state.ts).
+  const funding = fundingState({
+    account,
+    balanceAccount: snapshot.balanceAccount,
+    balance: snapshot.collateralBalance,
+    gasBalance: snapshot.gasBalance,
+    units,
+    tradingOpen,
+  });
   const quote = quoteState.key === quoteKey ? quoteState.quote : undefined;
   const quoteUnavailable =
     quoteState.key === quoteKey && quoteState.unavailable;
@@ -133,12 +157,12 @@ export function TradePanel() {
     : undefined;
   const canBuy = Boolean(
     account &&
-      tradingOpen &&
-      validAmount &&
-      !shortfall &&
-      quote &&
-      !busy &&
-      !gate.blocked,
+    tradingOpen &&
+    validAmount &&
+    funding.fundsReady &&
+    quote &&
+    !busy &&
+    !gate.blocked,
   );
   const selectedMarket = markets?.find(
     (m) => m.address.toLowerCase() === (market ?? '').toLowerCase(),
@@ -150,6 +174,10 @@ export function TradePanel() {
       ? positionSummary(snapshot.yesBalance, snapshot.noBalance)
       : undefined;
   const oppositeWarning = oppositeBuyWarning(position, side);
+  // redeem() reverts with NothingToRedeem when this is zero: after a
+  // YES-win redeem, the leftover NO pays nothing.
+  const canRedeem =
+    redeemablePayout(snapshot, snapshot.yesBalance, snapshot.noBalance) > 0n;
   const steps =
     buyProgress?.steps ??
     (units !== undefined ? buySteps(side, units, quote?.swapOut) : undefined);
@@ -249,140 +277,187 @@ export function TradePanel() {
             <TabsTrigger value="switch">Switch position</TabsTrigger>
           </TabsList>
           <TabsContent className="space-y-4 pt-2" value="buy">
-            <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-2">
-              <Button
-                aria-pressed={side === 'YES'}
-                className="h-auto min-h-10 rounded-[2px] border-border bg-background py-1.5 font-mono text-up shadow-none hover:bg-muted aria-pressed:border-up aria-pressed:bg-up/10 aria-pressed:ring-0"
-                onClick={() => setSide('YES')}
-                variant="outline"
-              >
-                YES
-                <span className="ml-auto flex flex-col items-end font-mono leading-tight tabular-nums">
-                  {ready ? (
-                    <>
-                      <span className="text-sm">{yesPrice.toFixed(1)}¢</span>
-                      <span className="text-[11px] text-muted-foreground">{Math.round(yesPrice)}% implied</span>
-                    </>
-                  ) : (
-                    '—'
-                  )}
-                </span>
-              </Button>
-              <Button
-                aria-pressed={side === 'NO'}
-                className="h-auto min-h-10 rounded-[2px] border-border bg-background py-1.5 font-mono text-down shadow-none hover:bg-muted aria-pressed:border-down aria-pressed:bg-down/10 aria-pressed:ring-0"
-                onClick={() => setSide('NO')}
-                variant="outline"
-              >
-                NO
-                <span className="ml-auto flex flex-col items-end font-mono leading-tight tabular-nums">
-                  {ready ? (
-                    <>
-                      <span className="text-sm">{noPrice.toFixed(1)}¢</span>
-                      <span className="text-[11px] text-muted-foreground">{Math.round(noPrice)}% implied</span>
-                    </>
-                  ) : (
-                    '—'
-                  )}
-                </span>
-              </Button>
-            </div>
-
-            <div>
-              <label
-                className="mb-2 block text-xs text-muted-foreground"
-                htmlFor="order-amount"
-              >
-                Amount
-              </label>
-              <div className="relative">
-                <Input
-                  aria-invalid={!validAmount}
-                  className="h-10 rounded-[2px] border-border bg-background pr-20 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
-                  disabled={!tradingOpen}
-                  id="order-amount"
-                  inputMode="decimal"
-                  min="0"
-                  onChange={(event) => setAmount(event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={amount}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
-                  mUSDT
-                </span>
+            {funding.needsMusdt && (
+              <div className="space-y-2 rounded-[2px] border border-primary/60 bg-primary/10 p-3">
+                <div className="flex items-baseline justify-between font-mono text-xs">
+                  <span className="text-muted-foreground">Balance</span>
+                  <span className="text-foreground tabular-nums">0 mUSDT</span>
+                </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Free test dollars for trying a trade.
+                </p>
+                {funding.needsGas && <FaucetLink />}
+                <Button
+                  className="h-10 w-full rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
+                  disabled={!configured || busy || funding.needsGas}
+                  onClick={() => void mintCollateral()}
+                >
+                  Get 1,000 test mUSDT
+                </Button>
               </div>
-              {tradingOpen && shortfall && (
-                <p className="mt-2 text-xs leading-5 text-warning">
-                  {shortfall}{' '}
+            )}
+            {/* Visible but dimmed until there is mUSDT to buy with. */}
+            <div
+              className={
+                'space-y-4' + (funding.needsMusdt ? ' opacity-60' : '')
+              }
+            >
+              <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-2">
+                <Button
+                  aria-pressed={side === 'YES'}
+                  className="h-auto min-h-10 rounded-[2px] border-border bg-background py-1.5 font-mono text-up shadow-none hover:bg-muted aria-pressed:border-up aria-pressed:bg-up/10 aria-pressed:ring-0"
+                  onClick={() => setSide('YES')}
+                  variant="outline"
+                >
+                  YES
+                  <span className="ml-auto flex flex-col items-end font-mono leading-tight tabular-nums">
+                    {ready ? (
+                      <>
+                        <span className="text-sm">{yesPrice.toFixed(1)}¢</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {Math.round(yesPrice)}% implied
+                        </span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </span>
+                </Button>
+                <Button
+                  aria-pressed={side === 'NO'}
+                  className="h-auto min-h-10 rounded-[2px] border-border bg-background py-1.5 font-mono text-down shadow-none hover:bg-muted aria-pressed:border-down aria-pressed:bg-down/10 aria-pressed:ring-0"
+                  onClick={() => setSide('NO')}
+                  variant="outline"
+                >
+                  NO
+                  <span className="ml-auto flex flex-col items-end font-mono leading-tight tabular-nums">
+                    {ready ? (
+                      <>
+                        <span className="text-sm">{noPrice.toFixed(1)}¢</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {Math.round(noPrice)}% implied
+                        </span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </span>
+                </Button>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-baseline justify-between gap-3 text-xs">
+                  <label
+                    className="text-muted-foreground"
+                    htmlFor="order-amount"
+                  >
+                    Amount
+                  </label>
+                  {account && !funding.needsMusdt && (
+                    <span className="font-mono text-muted-foreground">
+                      Balance{' '}
+                      <span className="text-foreground tabular-nums">
+                        {funding.balance === undefined
+                          ? '—'
+                          : formatToken(funding.balance)}
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <Input
+                    aria-invalid={!validAmount}
+                    className="h-10 rounded-[2px] border-border bg-background pr-20 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
+                    disabled={!tradingOpen}
+                    id="order-amount"
+                    inputMode="decimal"
+                    min="0"
+                    onChange={(event) => setAmount(event.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={amount}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
+                    mUSDT
+                  </span>
+                </div>
+                {funding.needsGas && !funding.needsMusdt && (
+                  <div className="mt-2">
+                    <FaucetLink />
+                  </div>
+                )}
+                {funding.shortfall && !funding.needsGas && (
+                  <p className="mt-2 text-xs leading-5 text-warning">
+                    {funding.shortfall}{' '}
+                    <button
+                      className="font-semibold text-foreground underline underline-offset-4 disabled:opacity-50"
+                      disabled={!configured || busy}
+                      onClick={() => void mintCollateral()}
+                      type="button"
+                    >
+                      Get 1,000 test mUSDT
+                    </button>
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
+                <div>
+                  <div className="text-muted-foreground">Estimated output</div>
+                  <div className="mt-1 font-mono text-foreground">
+                    {quote ? `${formatToken(quote.totalOut)} ${side}` : '—'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Minimum received</div>
+                  <div className="mt-1 font-mono text-foreground">
+                    {quote
+                      ? `${formatToken(quote.minimumTotalOut)} ${side}`
+                      : '—'}
+                  </div>
+                </div>
+                <div className="col-span-2 text-muted-foreground">
+                  0.50% slippage protection · 5-minute deadline
+                  {quoteUnavailable && (
+                    <span className="ml-2 text-warning">
+                      Live quote unavailable.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {account && tradingOpen && steps && (
+                <BuyStepList progress={buyProgress} steps={steps} />
+              )}
+
+              {account && tradingOpen && oppositeWarning && !buyProgress && (
+                <p className="text-xs leading-5 text-warning">
+                  {oppositeWarning}{' '}
                   <button
-                    className="font-semibold text-foreground underline underline-offset-4 disabled:opacity-50"
-                    disabled={!configured || busy}
-                    onClick={() => void mintCollateral()}
+                    className="font-semibold text-foreground underline underline-offset-4"
+                    onClick={() => setTab('switch')}
                     type="button"
                   >
-                    Get 1,000 demo mUSDT
+                    Switch to change sides
                   </button>
                 </p>
               )}
-            </div>
 
-            <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
-              <div>
-                <div className="text-muted-foreground">Estimated output</div>
-                <div className="mt-1 font-mono text-foreground">
-                  {quote ? `${formatToken(quote.totalOut)} ${side}` : '—'}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Minimum received</div>
-                <div className="mt-1 font-mono text-foreground">
-                  {quote
-                    ? `${formatToken(quote.minimumTotalOut)} ${side}`
-                    : '—'}
-                </div>
-              </div>
-              <div className="col-span-2 text-muted-foreground">
-                0.50% slippage protection · 5-minute deadline
-                {quoteUnavailable && (
-                  <span className="ml-2 text-warning">
-                    Live quote unavailable.
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {account && tradingOpen && steps && (
-              <BuyStepList progress={buyProgress} steps={steps} />
-            )}
-
-            {account && tradingOpen && oppositeWarning && !buyProgress && (
-              <p className="text-xs leading-5 text-warning">
-                {oppositeWarning}{' '}
-                <button
-                  className="font-semibold text-foreground underline underline-offset-4"
-                  onClick={() => setTab('switch')}
-                  type="button"
+              {account && (
+                <Button
+                  className={
+                    'h-10 w-full rounded-[2px] shadow-none ' +
+                    (side === 'YES'
+                      ? 'bg-up text-background hover:bg-up/85'
+                      : 'bg-down text-background hover:bg-down/85')
+                  }
+                  disabled={!canBuy}
+                  onClick={() => void buy(side, amount)}
                 >
-                  Switch to change sides
-                </button>
-              </p>
-            )}
-
-            {account && (
-              <Button
-                className={
-                  'h-10 w-full rounded-[2px] shadow-none ' +
-                  (side === 'YES'
-                    ? 'bg-up text-background hover:bg-up/85'
-                    : 'bg-down text-background hover:bg-down/85')
-                }
-                disabled={!canBuy}
-                onClick={() => void buy(side, amount)}
-              >
-                {ready && !tradingOpen ? 'Trading closed' : `Buy ${side}`}
-              </Button>
-            )}
+                  {ready && !tradingOpen ? 'Trading closed' : `Buy ${side}`}
+                </Button>
+              )}
+            </div>
           </TabsContent>
           <TabsContent className="pt-2" value="switch">
             {/* Keyed by market so a half-typed switch never carries over. */}
@@ -405,14 +480,19 @@ export function TradePanel() {
           </Button>
         ) : (
           <div className="grid gap-2">
-            <Button
-              className="rounded-[2px] shadow-none"
-              disabled={!configured || busy}
-              onClick={() => void mintCollateral()}
-              variant="outline"
-            >
-              Get 1,000 demo mUSDT
-            </Button>
+            {/* Secondary once the wallet has mUSDT; with none, the Buy tab
+                leads with it instead. */}
+            {!funding.needsMusdt && (
+              <Button
+                className="h-7 justify-self-start rounded-[2px] px-2 text-xs text-muted-foreground shadow-none"
+                disabled={!configured || busy || funding.needsGas}
+                onClick={() => void mintCollateral()}
+                size="sm"
+                variant="outline"
+              >
+                Get 1,000 test mUSDT
+              </Button>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <Button
                 className="rounded-[2px] shadow-none"
@@ -434,7 +514,7 @@ export function TradePanel() {
               </Button>
               <Button
                 className="rounded-[2px] shadow-none"
-                disabled={!settled || busy}
+                disabled={!settled || busy || !canRedeem}
                 onClick={() => void redeem()}
                 size="sm"
                 variant="ghost"

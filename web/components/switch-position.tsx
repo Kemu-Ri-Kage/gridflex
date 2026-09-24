@@ -225,7 +225,14 @@ export function SwitchPosition({
           className="h-10 w-full rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
           disabled={!canSwitch}
           onClick={() => {
-            if (quote) void switchPosition(from, amount, quote.minimumOut);
+            if (!quote) return;
+            // Cleared once it confirms, so the reverse switch, now the side
+            // held more of, is never one click away with the same amount.
+            void switchPosition(from, amount, quote.minimumOut).then(
+              (switched) => {
+                if (switched) setAmount('');
+              },
+            );
           }}
         >
           {ready && !tradingOpen

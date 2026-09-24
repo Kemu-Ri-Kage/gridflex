@@ -24,9 +24,12 @@ X Layer testnet carries the whole settlement path. `GridOracle` stores one
 reading per day; `MarketFactory` creates each market; `BinaryMarket` holds
 fully collateralised YES and NO tokens (`OutcomeToken`), lets a wallet Buy
 YES, Buy NO or switch sides, and resolves against the oracle's reading.
-Seven markets exist: five trading, two resolved. Next: cashing out before
-settlement, stop-loss and take-profit orders, and dated futures on a week or
-month of prices.
+Seven markets exist: five trading, two resolved. A Hedge tab sizes a ladder
+of YES tokens for a power bill in megawatts, and a price API sells the
+verified price and hedge quotes to AI agents on OKX AI, priced at $0.01 a
+call in USDT0 on X Layer through x402. Next: cashing out before settlement,
+an AI agent that keeps a load hedged, and dated futures on a week or month
+of prices.
 
 ## Under 100 words
 

@@ -53,6 +53,12 @@ live trade was 10 MockUSDT.
 - **Anyone whose costs depend on Texas power**, such as bitcoin miners and
   data centres. A YES on a high-price day pays out on the day their power
   bill hurts most.
+- **Anyone who sells Texas power**, such as wind and solar farms, whose
+  income falls when the price does. NO is their side of the same question,
+  so the buyers who fear high prices and the sellers who fear low ones meet
+  in one market.
+- **AI agents**, which can buy the verified price and a hedge quote per
+  call from the [price API](#the-price-api-for-agents-okx-ai).
 
 ## What works today
 
@@ -109,15 +115,49 @@ $45.00/MWh. On the site steps 2 and 3 are one button: **Buy YES**.
 Nobody chose these outcomes. Each market read the price from the oracle and
 compared it to its own strike.
 
+### For hedgers
+
+The terminal's **Hedge** tab sizes a hedge for a power bill. Enter a load
+in megawatts, the hours it runs and the price to protect up to, and it
+builds a ladder of YES tokens across every strike trading on that day, so
+the payout steps up with the extra cost of the power. It prices each rung
+from its market's pool and shows the extra cost against the payout at each
+price. **Load in ticket** puts a rung into the order ticket; nothing is
+sent until the buyer presses Buy.
+
+The order ticket states every buy in plain money ("Pay 100 mUSDT → receive
+190.45 mUSDT if YES wins (+90.45). Max loss 100 mUSDT."). The **Portfolio**
+tab lists a wallet's positions across every market, with **Redeem all**,
+and a banner says when winnings are waiting.
+
+### The price API for agents (OKX AI)
+
+A JSON API sells the verified Texas power price, the live markets and hedge
+quotes, built for AI agents to find on OKX AI and pay per call with x402:
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/v1` | What the API sells and how it's paid (always free) |
+| `GET /api/v1/price?day=2026-09-08` | The day's price, its source hash, and the oracle reading on X Layer, re-read and compared |
+| `GET /api/v1/markets` | Every trading market: strike, day, YES price, pool depth, trading close |
+| `GET /api/v1/hedge-quote?mw=10&day=2026-09-30&protectTo=80` | The YES ladder for a load, its cost from the pools, and payout scenarios |
+
+Each paid call is priced at $0.01 in USDT0 on X Layer through OKX's x402
+Payment SDK. Payment switches on once the OKX facilitator credentials are
+set; until then every call is free and says so in an `X-GRIDFLEX-Payment`
+header. A demo client, `web/scripts/hedge-agent.ts`, pays for the price,
+the markets and a hedge quote, and can buy the ladder from its own wallet
+on X Layer testnet. Full reference: [`shared/price-api.md`](shared/price-api.md).
+
 ### Tests
 
-**431 automated tests, all passing** on 23 September 2026:
+**627 automated tests, all passing** on 24 September 2026:
 
 | Suite | Tests | Run it |
 |---|---|---|
-| Data pipeline, publisher, finalizer (Python) | 306 | `python3 -m unittest discover -s tests` |
+| Data pipeline, publisher, finalizer (Python) | 317 | `python3 -m unittest discover -s tests` |
 | Contracts (Solidity, Foundry) | 54 | `cd contracts && forge test` |
-| Web app logic (TypeScript) | 71 | `cd web && node --test lib/*.test.ts` |
+| Web app logic and price API (TypeScript) | 256 | `cd web && node --test lib/*.test.ts` |
 
 `./scripts/check_all.sh` runs all three plus data validation, lint and the
 production build.
@@ -137,6 +177,35 @@ cast call 0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07 'yesWon()(bool)' --rpc-url 
 ```
 
 ---
+
+## Why X Layer and OKX
+
+- **Settlement lives on X Layer.** The oracle, the market factory, every
+  market and every trade are X Layer contracts, and OKLink is the public
+  record anyone can check.
+- **The oracle is a public feed.** Any X Layer contract can read the
+  verified Texas power price with `GridOracle.getReading(metricId, dayKey)`
+  and check `isFinal()`, without trusting GRIDFLEX's site.
+- **OKX AI is the distribution for data.** The price API is built to list
+  on OKX AI, paid per call in USDT0 on X Layer through OKX's x402 Payment
+  SDK, so agents can buy the price and hedge quotes without an account.
+- **USDT0 is the path to mainnet.** Markets settle in MockUSDT on testnet.
+  On mainnet the same contracts take X Layer's USDT0 as collateral.
+- **OKX Wallet first.** The site finds every installed wallet and lists OKX
+  Wallet first.
+
+## Business model
+
+- **API revenue:** $0.01 per call for the price, the markets and hedge
+  quotes, paid by agents in USDT0 on X Layer.
+- **Trading fees:** the next contracts add a swap fee paid to liquidity
+  providers, with a protocol share. Today's pools charge none.
+- **Two natural sides:** buyers whose costs rise with the price (miners,
+  data centres) take YES; sellers whose income falls with it (wind and
+  solar farms) take NO, so liquidity doesn't depend on speculators alone.
+- **Regulation:** event contracts on a US commodity price are regulated in
+  the US. GRIDFLEX runs on testnet with test tokens; a mainnet launch would
+  exclude US persons or run through a licensed partner.
 
 ## How settlement works
 
@@ -229,6 +298,13 @@ every trade, with OKLink as the public record.
   externally-owned accounts (EOAs). Our flow assumes an EOA, so a contract
   account can fail to sign or simulate transactions and can't be funded by a
   plain transfer in the usual way; full support needs EIP-4337 handling.
+- **An AI hedging agent.** A miner says "keep my 10 MW hedged above $80";
+  the agent, on OKX's Agentic Wallet, buys the price from the API each day
+  and keeps the YES ladder topped up on X Layer. `web/scripts/hedge-agent.ts`
+  is its first version.
+- **One-prompt buying for smart accounts.** Wallets that batch calls
+  (EIP-5792) can send approve, mint and swap as one prompt without new
+  contracts.
 - **Stop loss and take profit** orders on open positions.
 - **More markets**: more days and strikes on the Texas power price.
 - **A statewide price index**: what Texas as a whole paid for power each

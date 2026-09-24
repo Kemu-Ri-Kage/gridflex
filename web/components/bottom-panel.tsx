@@ -121,13 +121,6 @@ function PositionsTab() {
 
   return (
     <div className="space-y-3 p-4 sm:p-6">
-      <div className="font-mono text-xs text-muted-foreground">
-        mUSDT balance{' '}
-        <span className="text-foreground tabular-nums">
-          {formatToken(balances.collateral)}
-        </span>
-      </div>
-
       {rows.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           No YES or NO held on this market.

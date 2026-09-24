@@ -81,9 +81,9 @@ export function collateralShortfall(
   units: bigint,
   balance: bigint,
 ): string | undefined {
-  if (balance === 0n) return 'No mUSDT in this wallet. Get demo mUSDT first.';
+  if (balance === 0n) return 'No mUSDT in this wallet. Get test mUSDT first.';
   if (units > balance) {
-    return 'More than the mUSDT in this wallet. Lower the amount or get demo mUSDT.';
+    return 'More than the mUSDT in this wallet. Lower the amount or get test mUSDT.';
   }
   return undefined;
 }

@@ -48,6 +48,7 @@ import {
   assertTransactionSucceeded,
   TransactionRevertedError,
 } from '@/lib/transaction-outcome';
+import { latestOnly } from '@/lib/latest-only';
 import { singleFlight } from '@/lib/single-flight';
 import {
   isUnknownChainError,
@@ -97,6 +98,13 @@ export type MarketSnapshot = {
   collateralBalance: bigint;
   yesBalance: bigint;
   noBalance: bigint;
+  /** The wallet's OKB, which pays gas on X Layer. */
+  gasBalance: bigint;
+  /**
+   * The wallet the balances above were read for; undefined until a read
+   * for a connected wallet lands, so zero is never shown before then.
+   */
+  balanceAccount?: Address;
   resolved: boolean;
   cancelled: boolean;
   yesWon: boolean;
@@ -222,6 +230,7 @@ const emptySnapshot: MarketSnapshot = {
   collateralBalance: 0n,
   yesBalance: 0n,
   noBalance: 0n,
+  gasBalance: 0n,
   resolved: false,
   cancelled: false,
   yesWon: false,
@@ -370,6 +379,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   // The market the latest read was started for; a read that finishes after
   // the selection moved on is dropped rather than shown for the new market.
   const marketRef = React.useRef<Address | undefined>(undefined);
+  // Only the latest read may set the snapshot: one started before the
+  // wallet connected must not land after, and replace, the connected read.
+  const [snapshotReads] = React.useState(latestOnly);
 
   const selectMarket = React.useCallback((address?: Address) => {
     const next = address ? getAddress(address) : undefined;
@@ -511,12 +523,17 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       collateralBalance: 0n,
       yesBalance: 0n,
       noBalance: 0n,
+      gasBalance: 0n,
+      balanceAccount: undefined,
     }));
   }, [forgetWallet]);
 
   const refresh = React.useCallback(async () => {
     const target = marketRef.current;
     if (!target) return;
+    const read = snapshotReads.begin();
+    const current = () =>
+      marketRef.current === target && snapshotReads.isLatest(read);
 
     try {
       const [
@@ -554,34 +571,38 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       let collateralBalance = 0n;
       let yesBalance = 0n;
       let noBalance = 0n;
+      let gasBalance = 0n;
       if (account && collateral) {
-        [collateralBalance, yesBalance, noBalance] =
-          (await publicClient.multicall({
-            allowFailure: false,
-            contracts: [
-              {
-                address: collateral,
-                abi: mockUsdtAbi,
-                functionName: 'balanceOf',
-                args: [account],
-              },
-              {
-                address: outcomeAddresses[0],
-                abi: outcomeTokenAbi,
-                functionName: 'balanceOf',
-                args: [account],
-              },
-              {
-                address: outcomeAddresses[1],
-                abi: outcomeTokenAbi,
-                functionName: 'balanceOf',
-                args: [account],
-              },
-            ],
-          })) as [bigint, bigint, bigint];
+        [[collateralBalance, yesBalance, noBalance], gasBalance] =
+          await Promise.all([
+            publicClient.multicall({
+              allowFailure: false,
+              contracts: [
+                {
+                  address: collateral,
+                  abi: mockUsdtAbi,
+                  functionName: 'balanceOf',
+                  args: [account],
+                },
+                {
+                  address: outcomeAddresses[0],
+                  abi: outcomeTokenAbi,
+                  functionName: 'balanceOf',
+                  args: [account],
+                },
+                {
+                  address: outcomeAddresses[1],
+                  abi: outcomeTokenAbi,
+                  functionName: 'balanceOf',
+                  args: [account],
+                },
+              ],
+            }) as Promise<[bigint, bigint, bigint]>,
+            publicClient.getBalance({ address: account }),
+          ]);
       }
 
-      if (marketRef.current !== target) return;
+      if (!current()) return;
       setSnapshot({
         address: target,
         loaded: true,
@@ -593,6 +614,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         collateralBalance,
         yesBalance,
         noBalance,
+        gasBalance,
+        balanceAccount: account && collateral ? account : undefined,
         resolved: resolved as boolean,
         cancelled: cancelled as boolean,
         yesWon: yesWon as boolean,
@@ -600,16 +623,25 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         disputeWindow: Number(disputeWindow),
       });
     } catch (readError) {
-      if (marketRef.current !== target) return;
+      if (!current()) return;
       setError(`Could not read X Layer: ${errorMessage(readError)}`);
     }
-  }, [account, collateral]);
+  }, [account, collateral, snapshotReads]);
 
   React.useEffect(() => {
     if (!market) return;
     const timer = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(timer);
   }, [market, refresh]);
+
+  // Balances change outside this page too (OKB claimed from the faucet in
+  // another tab): read them again when the user comes back.
+  React.useEffect(() => {
+    if (!account) return;
+    const handleFocus = () => void refresh();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [account, refresh]);
 
   React.useEffect(() => {
     const provider = walletRef.current?.provider;
@@ -800,7 +832,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
 
   const mintCollateral = React.useCallback(async () => {
     if (!collateral || !account) return;
-    await write('Getting demo mUSDT', {
+    await write('Getting test mUSDT', {
       address: collateral,
       abi: mockUsdtAbi,
       functionName: 'mint',

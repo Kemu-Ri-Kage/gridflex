@@ -206,8 +206,19 @@ every trade, with OKLink as the public record.
 ## What's next
 
 - **Cash out before settlement.** Today a position can switch sides but not
-  return to MockUSDT before the day settles. Burning a matched YES and NO
-  to release their collateral adds a real exit.
+  return to MockUSDT before the day settles (`redeem()` only opens at
+  settlement).
+  - `mergeSet` burns a matched YES and NO and returns exactly 1 MockUSDT.
+    It is allowed in every market state, because a pair is worth exactly
+    1 MockUSDT in all of them.
+  - An atomic `sell` exits a one-sided position, which is what a buy
+    leaves, in one wallet prompt with no approval.
+  - Both ship together in one redeploy, after submission, because a new
+    factory replaces every address above.
+  - Before that redeploy, the resolver must also read the old factory's
+    markets, and the market ledger must stop overwriting old records.
+
+  Full design: [`shared/merge-set-spec.md`](shared/merge-set-spec.md).
 - **Single-confirmation trading.** A buy is a mint and a swap, so the
   wallet asks twice even once its approvals are in place. A contract
   function that mints and swaps in one call, or EIP-5792 wallet batching,

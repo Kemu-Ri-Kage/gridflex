@@ -1,8 +1,19 @@
 # mergeSet: exiting a position before settlement
 
-**Status: design only.** Nothing here is implemented, deployed or scheduled.
-It describes a change to `BinaryMarket` for David to build against. Every
-line reference is to `contracts/src/` as of commit `f22d04f`.
+**Status: design only.** Nothing here is implemented or deployed. It
+describes a change to `BinaryMarket` for David to build against. Every line
+reference is to `contracts/src/` as of commit `f22d04f`.
+
+**It ships after submission (25 September 2026), not before.** A new
+factory replaces every address that the README, `shared/demo-evidence.md`
+and the recorded demo point to (§8).
+
+**Recommended scope for that redeploy:**
+- `mergeSet`, allowed in every market state (§3.2);
+- an atomic `sell` (§5.4);
+- both in one redeploy, because each one on its own costs a new factory and
+  every market recreated;
+- the two blocking migration fixes in §8.1 land first.
 
 GRIDFLEX is a cash-settled derivatives venue. Outcome tokens are claims on
 mUSDT collateral, settled against the published ERCOT reading. Nothing here,
@@ -199,12 +210,20 @@ market, a holder with 3 YES and 2 NO gets 2 from `redeem` (`floor(2.5)`).
 Merging 2 and then redeeming the 1 leftover YES pays `2 + floor(0.5) = 2`,
 the same amount.
 
-**This part is David's call.** Each option is safe; they differ in product
-behaviour and in what the tests must cover.
+**Recommendation: Option A, allow merging in every market state.** A pair is
+worth exactly 1 mUSDT whether the market is open, closed, resolved either
+way, or cancelled. A merge in any state therefore pays exactly what the
+tokens could claim anyway, so there's nothing to exploit. Blocking it only
+traps pair holders. With B or C, a trader holding a pair when trading
+closes can't get their mUSDT back until someone calls `resolve()`. If no
+reading arrives, that waits out the whole dispute window: 7 days on every
+live market (`disputeWindow = 604800` in `shared/addresses.json`). B and C
+are kept below for the record. Both are safe; they only cost a holder
+access for no gain.
 
 | Option | Rule | What it means |
 |---|---|---|
-| **A. Always allowed** *(recommended)* | No time or state check | Simplest, and nothing is lost. Pairs can be exited during the close-to-resolution gap. A live market's gap runs from 12:30 Central the day before to whenever someone calls `resolve()`, and can last up to the 7-day `disputeWindow` (604800 s in `shared/addresses.json`) if no reading arrives. After settlement it duplicates part of what `redeem` does; the ticket should still point to Redeem then (§7). |
+| **A. Always allowed** *(recommended; see above)* | No time or state check | Simplest, and nothing is lost. Pairs can be exited during the close-to-resolution gap. A live market's gap runs from 12:30 Central the day before to whenever someone calls `resolve()`, and can last up to the 7-day `disputeWindow` (604800 s in `shared/addresses.json`) if no reading arrives. After settlement it duplicates part of what `redeem` does; the ticket should still point to Redeem then (§7). |
 | B. Only until settlement | `if (resolved \|\| cancelled) revert MarketAlreadySettled();` (existing error, `:63`) | One exit per state: merge before settlement, redeem after. Costs one branch, and gains no safety. |
 | C. Only while trading is open | `if (block.timestamp >= resolveAfter) revert TradingClosed();` (as `mintSet`, `:133`) | Mirrors `mintSet`, but traps paired holders for the whole close-to-resolution gap for no safety benefit. Not recommended. |
 
@@ -321,22 +340,48 @@ exactly 1 per pair in every outcome, plus whatever YES is left. The ticket
 should show that pair with a Cash out control, as it would any matched
 holding. The price risk was taken, and fixed, when the swap confirmed.
 
-**A related option, outside this spec, for David to rule on before any
-redeploy.** A market function `sell(bool yes, uint256 amountIn, uint256
-minimumCollateralOut, uint64 deadline)` could do the swap and merge
-atomically inside the market.
+### 5.4 Recommended in the same redeploy: an atomic sell
 
-- It would need **no approval and one prompt**, because the market can burn
-  the caller's tokens directly.
-- It would have a single slippage bound, in mUSDT.
-- The swap-then-merge path above works without it, so it isn't needed for
-  exits.
-- It needs its own spec: an in-market swap without the transfer, rounding
-  on the collateral out, and its own invariant tests.
+`mergeSet` alone can't exit the position most traders hold, which is one
+side after a buy (§5.3). Swap-then-merge works, but it needs 2–3 prompts
+and a gap between two transactions. **The recommended scope for the
+redeploy is `mergeSet` plus an atomic sell:**
 
-It's raised here because shipping `mergeSet` already costs a full redeploy
-(§8). If `sell` is ever wanted, adding it in the same redeploy avoids paying
-that cost twice.
+```solidity
+function sell(bool yes, uint256 amountIn, uint256 minimumCollateralOut, uint64 deadline)
+    external nonReentrant returns (uint256 collateralOut)
+```
+
+It performs §5.3 inside the market, in one transaction:
+- It works out how much of the held side to swap into the pool at the
+  current reserves.
+- It merges the pairs that swap forms, burns the rest of `amountIn`, and
+  pays `collateralOut`.
+- Any remainder the rounding leaves (§5.3) stays with the caller.
+
+What it gives the trader:
+- **One prompt and no approval.** The market burns the caller's tokens
+  directly (`OutcomeToken.burn` is `onlyMarket`), so the side being sold
+  never needs approving, unlike `swap`'s `safeTransferFrom` (`:167, 172`).
+- **One slippage bound, in mUSDT**, and a deadline, matching `swap`'s
+  protections (`:153-158`).
+- It closes when trading closes (`TradingClosed`, as `swap` does, `:155`),
+  because it trades against the pool.
+
+It needs its own short spec before it's built, written in the same terms as
+this one:
+- the in-market swap without a token transfer, and how the reserves change;
+- solving for the swap amount on-chain with rounding toward the market
+  (`collateralOut` rounded down);
+- showing that `D` (§2.1) is unchanged by a sell;
+- its own acceptance tests: full and partial sells of each side, the
+  slippage and deadline reverts, a sell after close, reentrancy, and `sell`
+  added to the §6 invariant handler.
+
+**Ship both in one redeploy.** Each is a change to `BinaryMarket`, and any
+change to `BinaryMarket` costs a new factory and every market recreated
+(§8). Shipping `mergeSet` now and `sell` later pays that cost twice and
+moves every address twice.
 
 ---
 
@@ -344,9 +389,9 @@ that cost twice.
 
 These are Foundry tests in `contracts/test/BinaryMarket.t.sol`, using the
 existing fixture: a factory-seeded 10,000 mUSDT pool, `MockUSDT`, and the
-oracle mock. Each line is one test and states what must hold. Rows marked
-"Option A/B/C" depend on the decision in §3.2; build the rows for the
-option chosen.
+oracle mock. Each line is one test and states what must hold. Rows marked "Option A/B/C"
+follow §3.2. Option A is recommended, so build its rows unless that
+decision changes.
 
 1. **Merge the full balance.** Mint 100 and merge 100. The caller's YES and
    NO go to 0; mUSDT comes back to its starting balance. `C`, `Y` and `N`
@@ -460,9 +505,14 @@ On the ticket (`web/components/trade-panel.tsx`, which is David's):
   > it: part of your YES is swapped for NO at the pool's price, then the
   > pairs are cashed out. You'd get about X mUSDT."
 
-  X is computed as in §5.3, followed by the prompt count from §5.3. If
-  trading has closed, the text says the position can be redeemed after
-  settlement, since the swap is closed (`:155`).
+  X is computed as in §5.3.
+  - With the atomic `sell` (§5.4, recommended), this is a Sell control:
+    one transaction and one prompt, with no approval.
+  - Without it, the control runs swap then merge, and the ticket shows the
+    prompt count from §5.3.
+  - If trading has closed, the text instead says the position can be
+    redeemed after settlement, because swapping (and so selling) is closed
+    (`:155`).
 - **After settlement** (Option A), the ticket leads with Redeem, which pays
   everything in one call. Cash out doesn't need to appear there.
 
@@ -491,7 +541,35 @@ proxy and no upgrade path; every market is a separate `new BinaryMarket`
    2 Oct $45 market, `0xb22A…E604`, in `shared/demo-evidence.md`) must
    still be resolved and redeemable there.
 
-**Artefacts that would need updating:**
+### 8.1 Blocking prerequisites for any redeploy
+
+The redeploy doesn't go ahead until both of these are fixed and tested.
+Either one, missed, does lasting damage the new contracts can't undo:
+
+1. **`resolve_markets.py` must also read the legacy factories.** Today it
+   lists markets only from the configured factory's `getMarkets()`
+   (`list_market_states`).
+   - Once `shared/addresses.json` points at the new factory, the old
+     factory's seven markets drop out of that list, so **they would never
+     be resolved**. Their holders, including the first-trade wallet on
+     `0xb22A…E604`, could then only get their mUSDT back through `cancel()`
+     at half value per token.
+   - The fix: also walk every factory in `legacyDeployments.MarketFactory`.
+   - A test must show a legacy-factory market being found and resolved.
+2. **The market ledger must not overwrite records the evidence file
+   cites.** `data/market-ledger.json` is keyed by `metric:dayKey:threshold`.
+   - A market recreated on the same day and strike gets its predecessor's
+     key, so recording it would **replace the old record**, including the
+     address and create transaction that `shared/demo-evidence.md` and the
+     README point to.
+   - The fix: make the key include the factory, or move old records to a
+     legacy section before the first new market is recorded.
+   - A test must show a recreated market recorded next to its predecessor,
+     with the predecessor unchanged.
+
+### 8.2 Artefacts that would need updating
+
+
 
 - **`contracts/src/BinaryMarket.sol` and `contracts/test/BinaryMarket.t.sol`.**
   Plus `contracts/scripts/export_abi.py` output to both copies of the ABI,
@@ -504,20 +582,14 @@ proxy and no upgrade path; every market is a separate `new BinaryMarket`
   - `legacyDeployments` for the old factory and its seven markets.
 
   It is the only place addresses live.
-- **`data/market-ledger.json`.** It's keyed by `metric:dayKey:threshold`,
-  so a recreated market reuses its predecessor's key. Decide whether old
-  records move to a legacy section or get new keys; they must never be
-  overwritten, because the evidence file cites them.
+- **`data/market-ledger.json`**: see §8.1, item 2.
 - **`create_markets.py`.** Its preflight refuses a `MarketFactory` whose
   deployed bytecode differs from the checked-out build ("Configured
   MarketFactory bytecode does not match…"). From the moment the
   `BinaryMarket.sol` change lands, it refuses to create markets until the
   new factory is deployed and recorded. **The contract change and the
   redeploy must land together.**
-- **`resolve_markets.py`.** It lists markets from the configured factory's
-  `getMarkets()` (`list_market_states`). After the switch it would stop
-  seeing the old factory's markets, so it needs to also walk
-  `legacyDeployments` or the old positions never settle.
+- **`resolve_markets.py`**: see §8.1, item 1.
 - **The site:**
   - `web/lib/markets.tsx` and `web/lib/site-data.ts` read `addresses.json`
     and follow automatically, but decide whether legacy markets stay listed
@@ -537,7 +609,11 @@ proxy and no upgrade path; every market is a separate `new BinaryMarket`
   - `docs/HANDOFF.md`;
   - `docs/technical-reference.md`.
 
-**Timing.** Submission is 25 September. The redeploy replaces every address
-the README, the evidence file and the recorded demo point to. Whether that
-happens before submission or after is a product decision, not an
-engineering one. The spec doesn't assume either.
+### 8.3 Timing: after submission
+
+**This ships after submission on 25 September 2026.** A new factory, and the
+markets recreated under it, replace every address that the README,
+`shared/demo-evidence.md` and the recorded demo reference. Doing it before
+submission would leave the submitted evidence pointing at superseded
+contracts, the day before judging starts. The submission therefore
+describes cashing out as what comes next, not as something live.

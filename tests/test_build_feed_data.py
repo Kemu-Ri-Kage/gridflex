@@ -269,11 +269,19 @@ class TestWritePriceCandles(unittest.TestCase):
             finally:
                 build_feed_data.RAW_DIR, build_feed_data.METRICS_DIR = originals
             written = json.loads((out / "price-candles.json").read_text())
+            grid = json.loads((out / "price-grid.json").read_text())
         self.assertEqual(counts, {"candles": 2, "skipped": 1})
         self.assertEqual([c["dayKey"] for c in written["candles"]], [20260909, 20260911])
         self.assertEqual(written["candles"][0]["average"], 3000)
         self.assertEqual(written["skipped"][0]["dayKey"], 20260910)
         self.assertIn("23/24 hours", written["skipped"][0]["reason"])
+        self.assertEqual([d["dayKey"] for d in grid["days"]], [20260909, 20260911])
+        for day, candle in zip(grid["days"], written["candles"]):
+            self.assertEqual(len(day["hours"]), 24)
+            self.assertEqual(max(day["hours"]), candle["high"])
+            self.assertEqual(min(day["hours"]), candle["low"])
+            self.assertEqual(day["hours"][0], candle["open"])
+            self.assertEqual(round(sum(day["hours"]) / 24), day["average"])
 
 
 class TestPriceRange(unittest.TestCase):

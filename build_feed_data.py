@@ -232,6 +232,18 @@ def daily_candle(hourly: pd.DataFrame, market_day: str, expected_value: int) -> 
     return {"open": cents[0], "high": max(cents), "low": min(cents), "close": cents[-1]}
 
 
+def day_hours(hourly: pd.DataFrame, market_day: str, expected_value: int) -> list[int]:
+    """One day's 24 hourly day-ahead prices in cents, hour 0 (Central)
+    first - the hours that average to the day's published price, held to
+    the same checks as daily_candle."""
+    prices = market_day_hours(hourly, market_day, expected_value)[DAY_AHEAD["price_column"]]
+    return [int(round(price * 100)) for price in prices]
+
+
+#: Days in the landing page's price grid, most recent published first.
+PRICE_GRID_DAYS = 30
+
+
 def hours_per_day(hourly: pd.DataFrame) -> dict[str, int]:
     """Distinct hourly intervals per Central market day, across every cached
     chunk (chunks overlap, so each interval is counted once)."""
@@ -252,6 +264,7 @@ def write_price_candles(output_dir: Path, records: list[dict[str, Any]]) -> dict
     hours present.
     """
     frames: dict[str, pd.DataFrame] = {}
+    grid: list[dict[str, Any]] = []
 
     def raw(name: str) -> pd.DataFrame:
         if name not in frames:
@@ -265,11 +278,13 @@ def write_price_candles(output_dir: Path, records: list[dict[str, Any]]) -> dict
             metric = json.loads(metric_path.read_text(encoding="utf-8"))
             hourly = pd.concat([raw(name) for name in metric["sourceFiles"]], ignore_index=True)
             candle = daily_candle(hourly, record["marketDay"], record["value"])
+            hours = day_hours(hourly, record["marketDay"], record["value"])
         except (OSError, KeyError, ValueError) as exc:
             print(f"SKIPPED candle: {exc}", file=sys.stderr)
             skipped.append({"dayKey": record["dayKey"], "reason": str(exc)})
             continue
         candles.append({"dayKey": record["dayKey"], "average": record["value"], **candle})
+        grid.append({"dayKey": record["dayKey"], "average": record["value"], "hours": hours})
 
     if records:
         published = {record["marketDay"] for record in records}
@@ -287,6 +302,12 @@ def write_price_candles(output_dir: Path, records: list[dict[str, Any]]) -> dict
     output = {"metricId": PRICE_METRIC_ID, "candles": candles, "skipped": skipped}
     path = output_dir / "price-candles.json"
     path.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # The landing hero's grid: the same checked hours, the latest days only,
+    # compact because every visitor loads it.
+    grid_output = {"metricId": PRICE_METRIC_ID, "days": grid[-PRICE_GRID_DAYS:]}
+    (output_dir / "price-grid.json").write_text(
+        json.dumps(grid_output, separators=(",", ":"), sort_keys=True) + "\n", encoding="utf-8"
+    )
     return {"candles": len(candles), "skipped": len(skipped)}
 
 

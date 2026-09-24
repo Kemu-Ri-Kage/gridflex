@@ -2,6 +2,7 @@
 
 import { ExternalLink, LogOut, Wallet } from 'lucide-react';
 
+import { useConnectFrom, WalletPromptHint } from '@/components/connection-help';
 import { Button } from '@/components/ui/button';
 import { WalletPicker } from '@/components/wallet-picker';
 import { useWeb3 } from '@/components/web3-provider';
@@ -36,13 +37,13 @@ function shortAddress(address: string) {
 export function WalletButton() {
   const {
     account,
-    connect,
     disconnect,
     pendingAction,
     connectError,
     connecting,
     walletDetected,
   } = useWeb3();
+  const connectFromHeader = useConnectFrom('header');
 
   if (account) {
     return (
@@ -64,12 +65,16 @@ export function WalletButton() {
       <Button
         className="h-8 rounded-[2px] bg-primary px-4 text-primary-foreground shadow-none hover:bg-primary/85"
         disabled={Boolean(pendingAction) || connecting}
-        onClick={() => void connect()}
+        onClick={connectFromHeader}
       >
         <Wallet data-icon="inline-start" />
         {connecting ? 'Check your wallet…' : 'Connect wallet'}
       </Button>
       <WalletPicker />
+      <WalletPromptHint
+        origin="header"
+        className="absolute right-0 top-full z-20 mt-2 w-[min(18rem,calc(100vw-2rem))] border border-border bg-card p-3"
+      />
       {connectError && (
         <div
           aria-live="polite"

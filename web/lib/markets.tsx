@@ -19,6 +19,7 @@ import {
   xLayerTransport,
 } from '@/lib/contracts';
 import {
+  marketStatus,
   PUBLIC_METRIC,
   readFacts,
   type Market,
@@ -235,7 +236,13 @@ export function MarketsProvider({ children }: { children: React.ReactNode }) {
           (m) =>
             m.address.toLowerCase() ===
             (selectedAddress ?? requested)?.toLowerCase(),
-        ) ?? markets?.[0],
+        ) ??
+        // Nothing chosen: the market that settles soonest, top of the
+        // list's Next day group, highest strike first.
+        markets
+          ?.filter((m) => marketStatus(m, now) === 'trading')
+          .toSorted((a, b) => a.resolveAfter - b.resolveAfter || b.threshold - a.threshold)[0] ??
+        markets?.[0],
       select: setSelectedAddress,
       now,
     }),

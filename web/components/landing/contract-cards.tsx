@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 
 import { closesIn } from '@/lib/closes-in';
+import { byTerm, TERM_LABELS, termOf, type Term } from '@/lib/market-term';
 import { formatCentsE18 } from '@/lib/format';
 import { dayLabel, marketName, marketStatus, statusLabel, strikeLabel, type Market } from '@/lib/markets';
 
@@ -21,7 +22,7 @@ function prefersReducedMotion(): boolean {
  * contract. It leans toward the pointer (transform only, design-brief.md
  * §13) and opens the terminal on that market.
  */
-function ContractCard({ market, now }: { market: Market; now: number }) {
+function ContractCard({ market, now, term }: { market: Market; now: number; term: Term }) {
   const ref = React.useRef<HTMLAnchorElement | null>(null);
   const status = marketStatus(market, now);
   const left = status === 'trading' ? closesIn(market.resolveAfter, now) : null;
@@ -61,6 +62,7 @@ function ContractCard({ market, now }: { market: Market; now: number }) {
         <div className="flex items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.14em]">
           <span className={status === 'trading' ? 'text-up' : 'text-muted-foreground'}>
             {statusLabel(market, now) ?? '…'}
+            {status === 'trading' && <span className="text-muted-foreground"> · {TERM_LABELS[term]}</span>}
           </span>
           {left && <span className="tabular-nums text-muted-foreground">Closes in {left}</span>}
         </div>
@@ -92,21 +94,51 @@ function ContractCard({ market, now }: { market: Market; now: number }) {
   );
 }
 
-/** Every listed question, trading ones first, as cards on a hairline grid. */
+/** Trading cards shown before the link to the rest; one settled card follows them. */
+const TRADING_CARDS = 5;
+
+/**
+ * The questions that settle soonest, by maturity (lib/market-term.ts), and
+ * the latest settled one to show what settling looks like, as cards on a
+ * hairline grid; the full ladder is one link away in the terminal.
+ */
 export function ContractCards({ markets, now }: { markets: Market[]; now: number }) {
-  const ordered = React.useMemo(
-    () =>
-      [...markets].sort(
-        (a, b) =>
-          Number(marketStatus(b, now) === 'trading') - Number(marketStatus(a, now) === 'trading'),
-      ),
-    [markets, now],
-  );
+  const { shown, rest } = React.useMemo(() => {
+    const ordered = byTerm(
+      markets.map((market) => ({
+        market,
+        term: termOf(marketStatus(market, now), market.resolveAfter, now),
+        resolveAfter: market.resolveAfter,
+        dayKey: market.dayKey,
+        threshold: market.threshold,
+      })),
+    );
+    const open = ordered.filter((entry) => entry.term !== 'settled').slice(0, TRADING_CARDS);
+    const settled = ordered.filter((entry) => entry.term === 'settled').slice(0, 1);
+    const picked = [...open, ...settled];
+    return { shown: picked, rest: markets.length - picked.length };
+  }, [markets, now]);
+
   return (
-    <div className="grid gap-px border border-border bg-border [perspective:1200px] sm:grid-cols-2 xl:grid-cols-3">
-      {ordered.map((market) => (
-        <ContractCard key={market.address} market={market} now={now} />
-      ))}
+    <div>
+      <div className="grid gap-px border border-border bg-border [perspective:1200px] sm:grid-cols-2 xl:grid-cols-3">
+        {shown.map(({ market, term }) => (
+          <ContractCard key={market.address} market={market} now={now} term={term} />
+        ))}
+      </div>
+      {rest > 0 && (
+        <Link
+          className="mt-4 inline-block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground transition-colors duration-200 hover:text-foreground"
+          href="/trade"
+        >
+          {rest} more {rest === 1 ? 'market' : 'markets'}, every day to {lastDay(markets)}, in the terminal →
+        </Link>
+      )}
     </div>
   );
+}
+
+/** The furthest market day listed, e.g. "2 Oct". */
+function lastDay(markets: Market[]): string {
+  return dayLabel(Math.max(...markets.map((market) => market.dayKey)));
 }

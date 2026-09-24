@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { HedgeCalculator } from '@/components/hedge-calculator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PortfolioTab } from '@/components/portfolio';
 import { SettlementEvidence } from '@/components/settlement-panel';
@@ -405,6 +406,7 @@ export function BottomPanel() {
         <TabsTrigger value="positions">Positions</TabsTrigger>
         <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
         <TabsTrigger value="history">History</TabsTrigger>
+        <TabsTrigger value="hedge">Hedge</TabsTrigger>
         <TabsTrigger value="settlement">Settlement</TabsTrigger>
       </TabsList>
       <TabsContent value="positions">
@@ -415,6 +417,11 @@ export function BottomPanel() {
       </TabsContent>
       <TabsContent value="history">
         <HistoryTab />
+      </TabsContent>
+      <TabsContent value="hedge">
+        <div className="max-w-3xl space-y-3 p-4 text-xs sm:p-6">
+          <HedgeCalculator />
+        </div>
       </TabsContent>
       <TabsContent value="settlement">
         <SettlementEvidence />

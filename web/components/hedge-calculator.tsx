@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronDown } from 'lucide-react';
 import type { Address } from 'viem';
 
 import { Input } from '@/components/ui/input';
@@ -31,78 +30,11 @@ import { prefillTicket } from '@/lib/ticket-prefill';
  */
 
 /**
- * Whether this viewer collapsed the card, kept in localStorage. Held here
- * as well, so the toggle still works where the browser blocks storage.
+ * The bottom panel's Hedge tab. It sits full width below the chart rather
+ * than in the order column, where its tables made the terminal's row, and
+ * so the chart, far taller than one screen.
  */
-const COLLAPSED_KEY = 'gridflex:hedge-calculator:collapsed';
-let collapsedHere: boolean | undefined;
-const collapsedListeners = new Set<() => void>();
-
-function readCollapsed(): boolean {
-  if (collapsedHere === undefined) {
-    try {
-      collapsedHere = window.localStorage.getItem(COLLAPSED_KEY) === '1';
-    } catch {
-      collapsedHere = false;
-    }
-  }
-  return collapsedHere;
-}
-
-function writeCollapsed(collapsed: boolean): void {
-  collapsedHere = collapsed;
-  try {
-    if (collapsed) window.localStorage.setItem(COLLAPSED_KEY, '1');
-    else window.localStorage.removeItem(COLLAPSED_KEY);
-  } catch {
-    // Blocked storage only means the card opens expanded next visit.
-  }
-  for (const listener of collapsedListeners) listener();
-}
-
-function onCollapsed(listener: () => void): () => void {
-  collapsedListeners.add(listener);
-  return () => {
-    collapsedListeners.delete(listener);
-  };
-}
-
 export function HedgeCalculator() {
-  // Expanded on the server render; the stored choice applies on hydration.
-  const collapsed = React.useSyncExternalStore(
-    onCollapsed,
-    readCollapsed,
-    () => false,
-  );
-  const toggle = () => writeCollapsed(!collapsed);
-
-  return (
-    <div className="border border-border bg-card">
-      <button
-        aria-controls="hedge-calculator"
-        aria-expanded={!collapsed}
-        className="flex w-full items-center justify-between gap-2 p-3 text-left font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground"
-        onClick={toggle}
-        type="button"
-      >
-        Hedge calculator
-        <ChevronDown
-          className={`size-3.5 transition-transform ${collapsed ? '' : 'rotate-180'}`}
-        />
-      </button>
-      {!collapsed && (
-        <div
-          className="space-y-3 border-t border-border p-3 text-xs"
-          id="hedge-calculator"
-        >
-          <HedgeBody />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HedgeBody() {
   const { markets, error, selected, select, now } = useMarkets();
   const [mw, setMw] = React.useState('10');
   const [hours, setHours] = React.useState('24');
@@ -228,6 +160,10 @@ function HedgeBody() {
                           side: 'YES',
                           amount: row.amount,
                         });
+                        // The ticket is above this panel: bring it into view.
+                        document
+                          .getElementById('order-ticket')
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }}
                       type="button"
                     >

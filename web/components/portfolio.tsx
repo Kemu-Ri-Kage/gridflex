@@ -9,6 +9,7 @@ import { useWeb3 } from '@/components/web3-provider';
 import { formatToken, formatTokenExact } from '@/lib/format';
 import {
   marketName,
+  marketStatus,
   statusLabel,
   useHoldings,
   useMarkets,
@@ -238,8 +239,16 @@ export function PortfolioTab() {
       yes: quantity(row.yes),
       no: quantity(row.no),
       value: valueText(row),
+      // Before settlement nothing is redeemable yet: say when it will be,
+      // rather than a dash that reads as "nothing to collect".
       redeemable:
-        row.redeemable > 0n ? `${redeemAmount(row.redeemable)} mUSDT` : '—',
+        row.redeemable > 0n
+          ? `${redeemAmount(row.redeemable)} mUSDT`
+          : market &&
+              (marketStatus(market, now) === 'trading' ||
+                marketStatus(market, now) === 'awaiting')
+            ? 'After settlement'
+            : '—',
       // A redeem confirmed or queued shows its status, even before the
       // balances are re-read; a failed one can be retried.
       action:
@@ -393,8 +402,9 @@ export function PortfolioTab() {
         )}
         {totals.indicative && (
           <p>
-            * Indicative: marked at the pool price, with no mUSDT exit before
-            settlement.
+            * Indicative: marked at the pool price. The current contracts pay out
+            only at settlement; until then a position can switch sides but not
+            cash out.
           </p>
         )}
         {rows.length > 0 && (

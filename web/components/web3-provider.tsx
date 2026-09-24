@@ -206,13 +206,13 @@ type Web3ContextValue = {
   /**
    * Swap `amount` of `from` into the other side, refused if the output
    * falls below `minimumOut` (the quote shown before confirming) or the
-   * 5-minute deadline passes.
+   * 5-minute deadline passes. Resolves whether the swap confirmed.
    */
   switchPosition: (
     from: TradeSide,
     amount: string,
     minimumOut: bigint,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   /** Retry the swap for pendingOrder; clears it once the swap confirms. */
   finishPendingOrder: () => Promise<void>;
   /** Forget pendingOrder and keep the YES + NO pair as it is. */
@@ -1095,31 +1095,35 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
    * before settlement. Held to the same one-action-at-a-time rule as buys.
    */
   const switchPosition = React.useCallback(
-    async (from: TradeSide, amount: string, minimumOut: bigint) => {
+    async (
+      from: TradeSide,
+      amount: string,
+      minimumOut: bigint,
+    ): Promise<boolean> => {
       const target = marketRef.current;
       if (!target) {
         setError('Contracts not configured.');
-        return;
+        return false;
       }
-      if (orderInFlight.current) return;
+      if (orderInFlight.current) return false;
       if (
         pendingOrder ||
         (account &&
           loadPendingOrder(browserStorage(), xLayerTestnet.id, account))
       ) {
         setError('Finish the unfinished order first.');
-        return;
+        return false;
       }
       let units: bigint;
       try {
         units = parsePositiveTokenAmount(amount);
       } catch (amountError) {
         setError(errorMessage(amountError));
-        return;
+        return false;
       }
       const to: TradeSide = from === 'YES' ? 'NO' : 'YES';
       orderInFlight.current = true;
-      await swapInto(
+      return swapInto(
         target,
         to,
         units,

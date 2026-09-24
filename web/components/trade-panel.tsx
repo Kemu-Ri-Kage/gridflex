@@ -23,6 +23,7 @@ import { fundingState } from '@/lib/funding-state';
 import { marketName, strikeLabel, useMarkets } from '@/lib/markets';
 import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
 import { oppositeBuyWarning, positionSummary } from '@/lib/position-summary';
+import { redeemablePayout } from '@/lib/redeemable';
 import { ticketState } from '@/lib/ticket-state';
 import { parsePositiveTokenAmount } from '@/lib/trade';
 
@@ -173,6 +174,10 @@ export function TradePanel() {
       ? positionSummary(snapshot.yesBalance, snapshot.noBalance)
       : undefined;
   const oppositeWarning = oppositeBuyWarning(position, side);
+  // redeem() reverts with NothingToRedeem when this is zero: after a
+  // YES-win redeem, the leftover NO pays nothing.
+  const canRedeem =
+    redeemablePayout(snapshot, snapshot.yesBalance, snapshot.noBalance) > 0n;
   const steps =
     buyProgress?.steps ??
     (units !== undefined ? buySteps(side, units, quote?.swapOut) : undefined);
@@ -509,7 +514,7 @@ export function TradePanel() {
               </Button>
               <Button
                 className="rounded-[2px] shadow-none"
-                disabled={!settled || busy}
+                disabled={!settled || busy || !canRedeem}
                 onClick={() => void redeem()}
                 size="sm"
                 variant="ghost"

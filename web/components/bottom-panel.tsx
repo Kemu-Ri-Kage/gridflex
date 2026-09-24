@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SettlementEvidence } from '@/components/settlement-panel';
 import { useWeb3 } from '@/components/web3-provider';
@@ -32,6 +33,17 @@ import { losingSide } from '@/lib/redeemable';
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+/**
+ * Stands in for a figure still being read from chain - average entry and
+ * P&L while the wallet's trades load - at about the width it will take,
+ * so the row doesn't read as broken or jump when the figure arrives.
+ */
+function PendingFigure({ width }: { width: string }) {
+  return (
+    <Skeleton aria-hidden className={`ml-auto inline-block h-3 align-middle rounded-[2px] ${width}`} />
+  );
 }
 
 /** Green and red only for a P&L whose shown digits are a gain or a loss. */
@@ -106,14 +118,14 @@ function PositionsTab() {
     sideClass: row.side === 'YES' ? 'text-up' : 'text-down',
     quantity: formatTokenExact(row.quantity),
     entry: loading
-      ? '…'
+      ? <PendingFigure width="w-12" />
       : row.averageEntryE18 === undefined
         ? '—'
         : formatCentsE18(row.averageEntryE18),
     mark: formatCentsE18(row.markE18),
     value: `${formatToken(row.value)} mUSDT`,
     pnl: loading
-      ? '…'
+      ? <PendingFigure width="w-28" />
       : row.pnl === undefined
         ? '—'
         : `${formatSignedToken(row.pnl)} mUSDT` +

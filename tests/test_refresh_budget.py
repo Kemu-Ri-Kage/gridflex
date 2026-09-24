@@ -173,6 +173,17 @@ class TestCheck(unittest.TestCase):
     def test_no_limit_always_fits(self):
         self.assertEqual(self.check(requests_limit=-1, requests_used=10**6), [])
 
+    def check_lifted(self, **kwargs):
+        return refresh_budget.check(self.PLAN, refresh_budget.read_allowance(usage(**kwargs)),
+                                    requests_lifted=True)
+
+    def test_requests_lifted_skips_the_request_check(self):
+        self.assertEqual(self.check_lifted(requests_used=375), [])
+
+    def test_requests_lifted_still_checks_rows(self):
+        [problem] = self.check_lifted(requests_used=375, rows_used=499_000)
+        self.assertIn("needs 1,300 rows, 1,000 left", problem)
+
 
 class TestMain(CacheTest):
     def run_main(self, answer=None, error=None, argv=()):
@@ -210,6 +221,29 @@ class TestMain(CacheTest):
 
     def test_an_unreadable_usage_answer_refuses(self):
         code, _, _, err = self.run_main({"something": "else"})
+        self.assertEqual(code, 1)
+        self.assertIn("Refusing to refresh", err)
+
+    def test_requests_lifted_passes_over_the_request_limit(self):
+        code, client, out, err = self.run_main(
+            usage(requests_used=375, rows_used=378_000), argv=["--requests-lifted"])
+        self.assertEqual(code, 0, err)
+        client.get_api_usage.assert_called_once_with()
+        client.get_dataset.assert_not_called()
+        self.assertIn("one refresh: 3 request(s), ~1,300 rows", out)
+        self.assertIn("requests 375 used, cap lifted", out)
+        self.assertIn("rows 122,000 of 500,000 left", out)
+
+    def test_requests_lifted_still_refuses_too_few_rows(self):
+        code, client, _, err = self.run_main(
+            usage(requests_used=375, rows_used=499_000), argv=["--requests-lifted"])
+        self.assertEqual(code, 1)
+        self.assertIn("needs 1,300 rows, 1,000 left", err)
+        self.assertNotIn("needs 3 requests", err)
+        client.get_dataset.assert_not_called()
+
+    def test_requests_lifted_still_refuses_an_unreadable_answer(self):
+        code, _, _, err = self.run_main({"something": "else"}, argv=["--requests-lifted"])
         self.assertEqual(code, 1)
         self.assertIn("Refusing to refresh", err)
 

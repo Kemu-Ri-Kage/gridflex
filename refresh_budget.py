@@ -22,9 +22,17 @@ doesn't carry a monthly request and row limit and the usage against them,
 the refresh is refused - a guard that can't read the allowance mustn't wave
 a fetch through.
 
+GridStatus lifted the monthly request cap on this account on 23 September
+2026 (confirmed by email), but get_api_usage() still reports the old
+250-request limit, with more than that already used. --requests-lifted skips
+the request-count check alone: the row check stays enforced, the usage
+answer must still be readable, and the request cost and usage are still
+printed.
+
 Usage:
-    python refresh_budget.py            # plan, check the allowance, exit 0/1
-    python refresh_budget.py --plan     # plan only; no GridStatus call at all
+    python refresh_budget.py                    # plan, check the allowance, exit 0/1
+    python refresh_budget.py --requests-lifted  # the same, without the request-count check
+    python refresh_budget.py --plan             # plan only; no GridStatus call at all
 """
 
 import argparse
@@ -136,8 +144,12 @@ def read_allowance(usage: dict) -> dict:
     return found
 
 
-def check(plan: list, allowance: dict) -> list:
-    """Reasons the refresh doesn't fit; empty when it does."""
+def check(plan: list, allowance: dict, requests_lifted: bool = False) -> list:
+    """
+    Reasons the refresh doesn't fit; empty when it does. requests_lifted
+    skips the request-count check (GridStatus lifted the cap, 23 Sep 2026);
+    rows are always checked.
+    """
     requests = sum(item["requests"] for item in plan)
     rows = sum(item["rows"] for item in plan)
     problems = []
@@ -145,7 +157,7 @@ def check(plan: list, allowance: dict) -> list:
         ("requests", requests, allowance["requests_limit"], allowance["requests_used"]),
         ("rows", rows, allowance["rows_limit"], allowance["rows_used"]),
     ):
-        if limit is None:
+        if limit is None or (what == "requests" and requests_lifted):
             continue
         left = limit - used
         if need > left:
@@ -167,6 +179,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plan", action="store_true",
                         help="print the plan only; make no GridStatus call")
+    parser.add_argument("--requests-lifted", action="store_true",
+                        help="skip the request-count check only (GridStatus lifted "
+                             "the request cap on 23 Sep 2026); rows are still checked")
     args = parser.parse_args(argv)
     today = fetch_ercot.utc_today()
 
@@ -198,10 +213,16 @@ def main(argv=None) -> int:
 
     def show(limit, used):
         return "no limit" if limit is None else f"{limit - used:,} of {limit:,} left"
-    print(f"GridStatus allowance: requests {show(allowance['requests_limit'], allowance['requests_used'])}, "
+    requests = show(allowance["requests_limit"], allowance["requests_used"])
+    if args.requests_lifted:
+        # The reported limit no longer binds, so "left" would be meaningless.
+        requests = (f"{allowance['requests_used']:,} used, cap lifted by GridStatus "
+                    f"23 Sep 2026 (reported limit {allowance['requests_limit']:,} not checked)"
+                    if allowance["requests_limit"] is not None else "no limit")
+    print(f"GridStatus allowance: requests {requests}, "
           f"rows {show(allowance['rows_limit'], allowance['rows_used'])}")
 
-    problems = check(plan, allowance)
+    problems = check(plan, allowance, requests_lifted=args.requests_lifted)
     if problems:
         print("Refusing to refresh: it would not fit in the remaining allowance - "
               + "; ".join(problems) + ".", file=sys.stderr)

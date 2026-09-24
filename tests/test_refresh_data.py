@@ -22,7 +22,7 @@ FAKE_PYTHON = """\
 echo "python $*" >> "$STUB_LOG"
 case "$1" in
   refresh_budget.py)
-    if [[ -n "${STUB_BUDGET_REFUSE:-}" ]]; then
+    if [[ -n "${STUB_BUDGET_REFUSE:-}" && "$*" != *--requests-lifted* ]]; then
       echo "Refusing to refresh: needs 3 requests, 0 left" >&2
       exit 1
     fi
@@ -180,6 +180,16 @@ class RefreshScriptTest(unittest.TestCase):
         self.assertEqual(self.calls(), ["python refresh_budget.py"])
         self.assertEqual(self.git("rev-parse", "HEAD"), before)
         self.assertEqual(self.remote_head(), before)
+
+    def test_requests_lifted_is_passed_to_the_allowance_check(self):
+        # The stub refuses unless told the request cap is lifted.
+        result = self.refresh("--requests-lifted", STUB_BUDGET_REFUSE="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        steps = [c for c in self.calls() if c.startswith("python ")]
+        self.assertEqual(steps[:2], [
+            "python refresh_budget.py --requests-lifted",
+            "python fetch_ercot.py --days 3 --fill-gaps",
+        ])
 
     def test_no_fetch_skips_the_allowance_check(self):
         result = self.refresh("--no-fetch", STUB_BUDGET_REFUSE="1")

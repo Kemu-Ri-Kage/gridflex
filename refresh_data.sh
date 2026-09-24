@@ -3,6 +3,9 @@
 #
 #   ./refresh_data.sh              fetch, rebuild, commit, push, build, deploy
 #   ./refresh_data.sh --no-deploy  everything except the deploy
+#   ./refresh_data.sh --requests-lifted
+#                                  skip only the GridStatus request-count
+#                                  check (see below); rows are still checked
 #   ./refresh_data.sh --no-fetch   no GridStatus at all: rebuild the feed data
 #                                  from data/metrics as it is, then commit,
 #                                  push, build and deploy (candles are left
@@ -24,6 +27,12 @@
 # rows those three reads will cost from the raw cache, asks GridStatus's
 # get_api_usage() (one request) what is left of this period's allowance, and
 # stops here, fetching nothing, unless the whole refresh fits.
+# GridStatus lifted the monthly request cap on this account on 23 September
+# 2026 (confirmed by email), but get_api_usage() still reports the old
+# 250-request limit as exceeded. --requests-lifted passes that on to
+# refresh_budget.py, which then skips the request-count check alone: the
+# row limit (500,000/month) is still enforced, and the planned cost and
+# what remains are still printed.
 #
 # Then feed data (build_feed_data.py), a commit of the regenerated data files
 # on the current branch, a push, `pnpm build`, and `wrangler deploy` of the
@@ -41,12 +50,14 @@ set -euo pipefail
 
 deploy=1
 fetch=1
+budget_args=()
 for arg in "$@"; do
   case "$arg" in
     --no-deploy) deploy=0 ;;
     --no-fetch) fetch=0 ;;
+    --requests-lifted) budget_args+=(--requests-lifted) ;;
     -h | --help)
-      sed -n '2,39p' "$0"
+      sed -n '2,48p' "$0"
       exit 0
       ;;
     *)
@@ -120,7 +131,7 @@ trap 'rm -f "$run_log"' EXIT
 
 if [[ "$fetch" == 1 ]]; then
   echo "[0/6] Checking the GridStatus allowance"
-  if ! "$python_bin" refresh_budget.py; then
+  if ! "$python_bin" refresh_budget.py ${budget_args[@]+"${budget_args[@]}"}; then
     echo "Nothing fetched. Run with --no-fetch to rebuild from data/metrics without GridStatus." >&2
     exit 1
   fi

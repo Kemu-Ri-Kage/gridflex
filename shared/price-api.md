@@ -301,3 +301,104 @@ Type every secret yourself; none belongs in a file, a commit or a chat.
    Run it again: each call should print "Paid $0.01 in USDT0 on X Layer …"
    with the settlement transaction, and your payee's USDT0 balance rises
    by $0.03.
+
+## The hedging agent
+
+`web/scripts/hedge-agent.ts` is a prototype of the finale's AI hedging
+agent: a command-line client that pays for the API like any other agent
+would, sizes a hedge for a load, and can buy it. Its pure parts (arguments,
+printed lines, the checks before a buy) are `web/lib/hedge-agent.ts`, tested
+in `web/lib/hedge-agent.test.ts`.
+
+What it does, in order:
+
+1. Loads its wallet: `AGENT_PRIVATE_KEY` if set, else the throwaway
+   testnet key in `web/.agent-wallet.json` (git-ignored, mode 600), created
+   on the first run. It prints the address, never the key.
+2. `GET /api/v1` and prints the payment mode. When the API charges, the
+   paid calls go through `@okxweb3/x402-fetch`'s wrapped `fetch`, signing
+   each $0.01 USDT0 payment with the agent's key; when it is free, plain
+   `fetch`.
+3. Calls `/price`, `/markets` and `/hedge-quote` and prints one line each,
+   then the plan and its payout scenarios. The price line says "verified"
+   only when the API does (`verified: true`).
+4. `--fund` mints 1,000 test mUSDT to the agent, as the site's "Get 1,000
+   test mUSDT" does. `--execute` checks OKB for gas and the mUSDT the plan
+   needs, stops with what to do if either is short, then buys each rung
+   through the site's own `runBuy` (`web/lib/buy-flow.ts`): approve mUSDT if
+   the allowance is short, `mintSet`, approve NO if needed, re-quote, and
+   `swap` with the ticket's 0.50% minimum and 5-minute deadline
+   (`web/lib/trade.ts`), printing each transaction's OKLink link.
+
+### Run it
+
+```bash
+# dry run against the live site: calls the API, prints the plan, sends nothing
+node web/scripts/hedge-agent.ts
+
+# a chosen day and load
+node web/scripts/hedge-agent.ts --day 2026-09-30 --mw 10 --hours 24 --protect-to 80
+
+# against a local server (cd web && pnpm dev --port 5301)
+node web/scripts/hedge-agent.ts --base http://localhost:5301
+
+# buy it from the agent wallet (needs test OKB for gas and enough mUSDT)
+node web/scripts/hedge-agent.ts --fund          # 1,000 test mUSDT a run
+node web/scripts/hedge-agent.ts --day 2026-09-30 --execute
+```
+
+`--execute` and `--fund` send testnet transactions and have not been run
+yet. A 10 MW, 24-hour ladder to $80 costs about 5,700 mUSDT from today's
+pools, so the agent needs six `--fund` runs first (or a smaller `--mw`),
+and a little test OKB from the X Layer faucet at the address it prints.
+
+Output of the dry run against `pnpm dev --port 5301` on 24 Sep 2026 (free
+mode, so no payment lines yet):
+
+```text
+$ node web/scripts/hedge-agent.ts --base http://localhost:5301 --day 2026-09-30
+Agent wallet 0x0F464bE01f96319A18E979d8afF155e7586dEB89 (web/.agent-wallet.json)
+GRIDFLEX API at http://localhost:5301: free for now (payments are not switched on)
+Free call (the API isn't charging yet) for the Texas power price: $41.60/MWh on 24 Sep 2026 (not yet published to the oracle)
+Free call (the API isn't charging yet) for the markets: 5 trading; 30 Sep 2026 has strikes $40, $45
+Free call (the API isn't charging yet) for a hedge quote: 2 rungs for 10 MW x 24 h on 30 Sep 2026
+
+Hedge plan: 240 MWh on 30 Sep 2026, protected up to $80/MWh
+Strike    YES to buy   YES price   Cost (mUSDT)
+-------   ----------   ---------   ------------
+$40/MWh     1,200.00       50.0¢         617.98
+$45/MWh     8,400.00       50.0¢       5,050.07
+Total: 5,668.05 mUSDT (indicative)
+
+Settles at   Extra cost      Ladder pays   Covered
+----------   ----------   --------------   -------
+$40/MWh           $0.00       0.00 mUSDT         -
+$45/MWh       $1,200.00   1,200.00 mUSDT      100%
+$80/MWh       $9,600.00   9,600.00 mUSDT      100%
+$160/MWh     $28,800.00   9,600.00 mUSDT       33%
+
+· Each YES pays 1 mUSDT if the Texas power price for 30 Sep 2026 settles above its strike. The ladder pays the extra cost of 240 MWh above $40/MWh up to $80/MWh; above that it stays at 9,600 mUSDT.
+· Indicative: costs are worked out from each pool's reserves now, including the price impact of the buy. A buy is sent with its own on-chain quote and a 0.50% slippage limit.
+· Markets settle on the verified daily Texas power price published to the oracle on X Layer testnet, in mUSDT.
+
+Dry run: nothing sent. --fund mints test mUSDT to the agent; --execute buys the plan.
+```
+
+Without `--day` it picks the next day with a trading market (26 Sep, one
+$45 strike, one rung). A day with no market stops with the API's 404:
+`Stopped: /api/v1/hedge-quote?…&day=2026-09-27&… answered 404: No market is trading for 2026-09-27.`
+
+### 20-second end clip
+
+Before filming: payments switched on (What you do, steps 1-5), the agent
+wallet holding a little USDT0, test OKB and enough mUSDT (`--fund`), and a
+day with two or more trading strikes. The price line reads "verified" only
+if the latest day is already published to the oracle; otherwise it says
+"not yet published", and that is what gets filmed.
+
+| Time | On screen | Spoken |
+|---|---|---|
+| 0-3 s | `node web/scripts/hedge-agent.ts --day <day> --mw 2 --execute` typed and run; the wallet address and "GRIDFLEX API … $0.01 in USDT0 a call on eip155:1952" appear. | "This is an AI agent with its own wallet on X Layer." |
+| 3-8 s | Three "Paid $0.01 in USDT0 on X Layer for …" lines: the Texas power price, the markets, a hedge quote, each with its payment transaction. | "It pays a cent a call, over x402, for the Texas power price and the live markets." |
+| 8-14 s | The hedge plan table and the payout scenarios; the $80 row reads 100%. | "It sizes a hedge for a 2-megawatt load: a ladder of YES tokens that pays the extra cost up to eighty dollars." |
+| 14-20 s | "Buying YES on the $40 strike …" with approve, mint and swap lines and their OKLink links, then "Hedge placed." | "Then it buys the ladder itself, the same way our order ticket does, and every step is on chain." |

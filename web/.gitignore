@@ -30,6 +30,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# the hedging agent's throwaway testnet key (scripts/hedge-agent.ts)
+/.agent-wallet.json
+
 # deployment and generated files
 .vercel
 next-env.d.ts

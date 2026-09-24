@@ -5,7 +5,6 @@ import {
   ColorType,
   createChart,
   LineStyle,
-  type AutoscaleInfo,
   type IChartApi,
   type ISeriesApi,
   type MouseEventParams,
@@ -14,11 +13,19 @@ import {
   type WhitespaceData,
 } from 'lightweight-charts';
 
+import { CaretGlyph } from '@/components/settlement-price-chart';
 import { formatUpdated } from '@/lib/format';
-import { CandleSeriesView, type OhlcPoint } from '@/lib/settlement-chart-drawing';
+import { DEFAULT_BARS, liveWindow, switchRange, type Timeframe } from '@/lib/live-chart-view';
+import { visibleIndices } from '@/lib/price-candles';
+import {
+  CandleSeriesView,
+  MANUAL_CLIP,
+  TOP_MARGIN,
+  type OhlcPoint,
+  type ScaleState,
+} from '@/lib/settlement-chart-drawing';
 
 type Hub = 'HB_NORTH' | 'HB_WEST';
-type Timeframe = '15m' | '1h' | '4h' | '1d' | '1w';
 
 /**
  * The Texas power price's hub - the only one the public site shows
@@ -93,6 +100,21 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
   // The strike the price scale always takes in, so its line can't scroll
   // out of view at any zoom - read by the series' autoscale provider.
   const strikeRef = React.useRef<number | undefined>(strikeDollars);
+  // The timeframe's candles, read by the autoscale provider to fit the
+  // scale to the ones on screen.
+  const candlesRef = React.useRef<Candle[]>([]);
+  const scaleRef = React.useRef<ScaleState>({ cap: null, autoScale: () => true });
+  // Set once the viewer zooms or pans, so a timeframe switch keeps the span
+  // of time they were looking at instead of jumping back to the default.
+  const adjustedRef = React.useRef(false);
+  const refreshStatsRef = React.useRef<() => void>(() => {});
+  const [stats, setStats] = React.useState({
+    cap: null as number | null,
+    spikes: 0,
+    floor: null as number | null,
+    dips: 0,
+    manual: false,
+  });
 
   const renderLegend = React.useCallback((candle: Candle | null) => {
     const el = legendRef.current;
@@ -164,28 +186,30 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
     });
 
     // The settlement view's candle renderer, filled: the same thin, spaced
-    // bodies and 1px wicks in --up/--down on both views. Its scale never
-    // caps, so no wick is ever cut (the settlement view's caret is its own).
+    // bodies and 1px wicks in --up/--down on both views, and the same caret
+    // on a wick the capped scale cuts.
     const background = styles.getPropertyValue('--background').trim() || '#0a0b0d';
+    const scale = scaleRef.current;
+    const priceScale = chart.priceScale('right');
+    scale.autoScale = () => priceScale.options().autoScale;
+    const visibleCandles = () => {
+      const all = candlesRef.current;
+      const indices = visibleIndices(all.length, chart.timeScale().getVisibleLogicalRange());
+      return indices ? all.slice(indices.first, indices.last + 1) : [];
+    };
     const series = chart.addCustomSeries(
-      new CandleSeriesView<OhlcPoint>(
-        'filled',
-        { up, upLight: up, down, flat: muted, background },
-        { cap: null, autoScale: () => true },
-      ),
+      new CandleSeriesView<OhlcPoint>('filled', { up, upLight: up, down, flat: muted, background }, scale),
       {
-        // The full high and low of the visible candles, with no cap, widened
-        // only to take in the strike.
-        autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
-          const info = original();
-          const strike = strikeRef.current;
-          if (!info?.priceRange || strike === undefined) return info;
+        // The scale refits to the visible candles, capped so one spike can't
+        // press every normal candle into the bottom; the renderer marks what
+        // the cap cuts. The strike is always in range.
+        autoscaleInfoProvider: () => {
+          const window = liveWindow(visibleCandles(), strikeRef.current);
+          scale.cap = window?.cap ?? null;
+          if (!window) return null;
           return {
-            ...info,
-            priceRange: {
-              minValue: Math.min(info.priceRange.minValue, strike),
-              maxValue: Math.max(info.priceRange.maxValue, strike),
-            },
+            priceRange: { minValue: window.min, maxValue: window.max },
+            margins: { above: TOP_MARGIN, below: 8 },
           };
         },
       },
@@ -225,10 +249,55 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
       const onPriceAxis = event.clientX - container.getBoundingClientRect().left > chart.paneSize().width;
       if (!onPriceAxis) chart.timeScale().fitContent();
       chart.priceScale('right').applyOptions({ autoScale: true });
+      refreshStats();
     };
     container.addEventListener('dblclick', onDoubleClick);
 
+    // What the caption reports for the candles on screen, from the scale as
+    // it stands: the cap while it fits itself, or the wicks cut at the top
+    // of a hand-stretched scale.
+    let frame = 0;
+    const refreshStats = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const shown = visibleCandles();
+        const manual = !priceScale.options().autoScale;
+        const window = liveWindow(shown, strikeRef.current);
+        const cutAtTop = shown.filter((candle) => {
+          const y = series.priceToCoordinate(candle.high);
+          return y !== null && y < MANUAL_CLIP;
+        }).length;
+        const next = {
+          cap: manual ? null : (window?.cap ?? null),
+          spikes: manual ? cutAtTop : (window?.spikes ?? 0),
+          floor: manual ? null : (window?.floor ?? null),
+          dips: manual ? 0 : (window?.dips ?? 0),
+          manual,
+        };
+        setStats((previous) =>
+          (Object.keys(next) as (keyof typeof next)[]).every((key) => previous[key] === next[key]) ? previous : next,
+        );
+      });
+    };
+    refreshStatsRef.current = refreshStats;
+    chart.timeScale().subscribeVisibleLogicalRangeChange(refreshStats);
+
+    // Any zoom or pan by the viewer - wheel, drag, pinch - marks the view as
+    // theirs to keep. A drag on the price axis may also have switched
+    // auto-fit off, which the caption reports once the pointer lifts.
+    const onGesture = () => {
+      adjustedRef.current = true;
+    };
+    container.addEventListener('wheel', onGesture, { passive: true });
+    container.addEventListener('pointerdown', onGesture);
+    container.addEventListener('pointerup', refreshStats);
+
     return () => {
+      cancelAnimationFrame(frame);
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(refreshStats);
+      container.removeEventListener('wheel', onGesture);
+      container.removeEventListener('pointerdown', onGesture);
+      container.removeEventListener('pointerup', refreshStats);
       container.removeEventListener('dblclick', onDoubleClick);
       chart.unsubscribeCrosshairMove(onCrosshairMove);
       // Nulled before remove() so the strike-line cleanup below can tell the
@@ -249,8 +318,15 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
       setSource(file.sources[timeframe]);
       setUpdatedAt(formatUpdated(file.generatedAt));
       const series = seriesRef.current;
-      if (!series) return;
-      const data = file.candles[timeframe].map((c) => ({
+      const chart = chartRef.current;
+      if (!series || !chart) return;
+      // The span of time on screen, kept across the switch once the viewer
+      // has zoomed or panned; read before the old candles are replaced.
+      const visible = adjustedRef.current ? chart.timeScale().getVisibleRange() : null;
+      const kept = visible ? { from: visible.from as number, to: visible.to as number } : null;
+      const candles = file.candles[timeframe];
+      candlesRef.current = candles;
+      const data = candles.map((c) => ({
         time: c.time as UTCTimestamp,
         open: c.open,
         high: c.high,
@@ -260,10 +336,18 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
         color: c.close >= c.open ? colorsRef.current.up : colorsRef.current.down,
       }));
       series.setData(data);
-      // A timeframe switch always returns a fitted view, even after the
-      // price axis was stretched by hand.
-      chartRef.current?.priceScale('right').applyOptions({ autoScale: true });
-      chartRef.current?.timeScale().fitContent();
+      // A timeframe switch opens on its recent candles (DEFAULT_BARS), or on
+      // the viewer's own span of time, and always with the price axis
+      // fitting itself again, even after it was stretched by hand.
+      chart.priceScale('right').applyOptions({ autoScale: true });
+      chart.timeScale().setVisibleLogicalRange(
+        switchRange(
+          candles.map((c) => c.time),
+          DEFAULT_BARS[timeframe],
+          kept,
+        ),
+      );
+      refreshStatsRef.current();
 
       const latest = data.length ? data[data.length - 1] : null;
       latestCandleRef.current = latest;
@@ -345,6 +429,26 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
           Live prices, for reference · markets settle on the verified daily Texas power price
         </span>
         {updatedAt && <span className="tabular-nums">Updated {updatedAt}</span>}
+        {stats.manual && stats.spikes > 0 && (
+          <div className="flex w-full items-center gap-1.5">
+            <CaretGlyph />
+            Scale set by hand · {stats.spikes} {stats.spikes === 1 ? 'spike' : 'spikes'} above it marked · double-click
+            the price axis to refit
+          </div>
+        )}
+        {!stats.manual && stats.cap !== null && (
+          <div className="flex w-full items-center gap-1.5">
+            <CaretGlyph />
+            Scale capped at ${stats.cap.toLocaleString('en-US')} so typical prices stay readable · {stats.spikes} higher{' '}
+            {stats.spikes === 1 ? 'spike' : 'spikes'} marked, real high on hover
+          </div>
+        )}
+        {!stats.manual && stats.floor !== null && (
+          <div className="w-full">
+            Scale floored at -${Math.abs(stats.floor).toLocaleString('en-US')} · {stats.dips} deeper negative{' '}
+            {stats.dips === 1 ? 'price runs' : 'prices run'} below it, real low on hover
+          </div>
+        )}
       </div>
     </div>
   );

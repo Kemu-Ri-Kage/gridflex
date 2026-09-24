@@ -4,7 +4,11 @@ import * as React from 'react';
 import { ArrowUpRight, ExternalLink, Loader2 } from 'lucide-react';
 
 import { BuyStepList } from '@/components/buy-step-list';
-import { ConnectionHelp } from '@/components/connection-help';
+import {
+  ConnectionHelp,
+  useConnectFrom,
+  WalletPromptHint,
+} from '@/components/connection-help';
 import { PositionSummary } from '@/components/position-summary';
 import { SwitchPosition } from '@/components/switch-position';
 import { Button } from '@/components/ui/button';
@@ -82,7 +86,6 @@ export function TradePanel() {
     buyProgress,
     lastTransaction,
     failedTransaction,
-    connect,
     mintCollateral,
     quoteBuy,
     buy,
@@ -93,6 +96,7 @@ export function TradePanel() {
     cancel,
     redeem,
   } = useWeb3();
+  const connectFromTicket = useConnectFrom('ticket');
   const { markets, select, now } = useMarkets();
   const [tab, setTab] = React.useState('buy');
   const [side, setSide] = React.useState<TradeSide>('YES');
@@ -492,14 +496,17 @@ export function TradePanel() {
         </Tabs>
 
         {!account ? (
-          <Button
-            className="h-10 w-full rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
-            disabled={connecting}
-            onClick={() => void connect()}
-          >
-            {connecting ? 'Check your wallet…' : 'Connect wallet to trade'}{' '}
-            <ArrowUpRight data-icon="inline-end" />
-          </Button>
+          <div className="grid gap-2">
+            <Button
+              className="h-10 w-full rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
+              disabled={connecting}
+              onClick={connectFromTicket}
+            >
+              {connecting ? 'Check your wallet…' : 'Connect wallet to trade'}{' '}
+              <ArrowUpRight data-icon="inline-end" />
+            </Button>
+            <WalletPromptHint origin="ticket" />
+          </div>
         ) : (
           <div className="grid gap-2">
             {/* Secondary once the wallet has mUSDT; with none, the Buy tab

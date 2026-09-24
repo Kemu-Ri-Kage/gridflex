@@ -31,6 +31,56 @@ function CopyableUrl({ url, label }: { url: string; label: string }) {
   );
 }
 
+/** How long Connect waits on the wallet before suggesting its window never opened. */
+export const PROMPT_HINT_DELAY_MS = 8000;
+
+/** The Connect buttons: the header's, on every page, and the order ticket's on /trade. */
+export type ConnectOrigin = 'header' | 'ticket';
+
+// Which button started the connect in progress, so its hint shows under
+// that button only, never under both. Set in the click handler, before
+// `connecting` flips and the hints re-render.
+let connectOrigin: ConnectOrigin | undefined;
+
+/** A Connect button's click handler, noting which button it was. */
+export function useConnectFrom(origin: ConnectOrigin): () => void {
+  const { connect } = useWeb3();
+  return React.useCallback(() => {
+    connectOrigin = origin;
+    void connect();
+  }, [connect, origin]);
+}
+
+/**
+ * Shown under the Connect button that has read "Check your wallet…" for
+ * PROMPT_HINT_DELAY_MS. Some embedded browsers (the in-app browser of a
+ * chat app, for one) pass the request to the wallet but never surface its
+ * window, so the request just waits; the same page works in a normal
+ * browser with the extension installed.
+ */
+export function WalletPromptHint({ origin, className = '' }: { origin: ConnectOrigin; className?: string }) {
+  const { connecting, wallet } = useWeb3();
+  const [late, setLate] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!connecting) return;
+    const timer = window.setTimeout(() => setLate(true), PROMPT_HINT_DELAY_MS);
+    return () => {
+      window.clearTimeout(timer);
+      setLate(false);
+    };
+  }, [connecting]);
+
+  if (!connecting || !late || connectOrigin !== origin) return null;
+  const walletName = wallet?.name ?? 'wallet';
+  return (
+    <p aria-live="polite" className={`text-xs leading-5 text-muted-foreground ${className}`}>
+      No {walletName} window appeared? Open it from the browser toolbar, or open this page in Chrome or another
+      browser where your wallet extension is installed.
+    </p>
+  );
+}
+
 /**
  * Shown when the wallet's own saved RPC for X Layer looks unreachable: its
  * health check failed (lib/wallet-health.ts) or a wallet request failed in

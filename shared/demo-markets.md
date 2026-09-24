@@ -1,6 +1,6 @@
 # GRIDFLEX demo markets
 
-Seven markets, all on the one public product — the Texas power price,
+Seventeen markets, all on the one public product — the Texas power price,
 `ERCOT_HBNORTH_DA_AVG` (see `shared/design-brief.md` §5). They come in two
 kinds, and `create_markets.py` reads the kind of each one from the
 Summary table below:
@@ -159,6 +159,16 @@ those strikes: see "Choosing the ladder strikes" below.
 | 5 | `ERCOT_HBNORTH_DA_AVG` | > $20 | `20250910` | 2025-09-10 (past, $22.62 — YES; spare) | replay | 45 min after creation |
 | 6 | `ERCOT_HBNORTH_DA_AVG` | > $40 | `20260930` | 2026-09-30 | live | 2026-09-29 12:30 CDT (Texas) / 18:30 BST (London) |
 | 7 | `ERCOT_HBNORTH_DA_AVG` | > $38 | `20261002` | 2026-10-02 | live | 2026-10-01 12:30 CDT (Texas) / 18:30 BST (London) |
+| 8 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20260926` | 2026-09-26 | live | 2026-09-25 12:30 CDT (Texas) / 18:30 BST (London) |
+| 9 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20260927` | 2026-09-27 | live | 2026-09-26 12:30 CDT (Texas) / 18:30 BST (London) |
+| 10 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260927` | 2026-09-27 | live | 2026-09-26 12:30 CDT (Texas) / 18:30 BST (London) |
+| 11 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20260928` | 2026-09-28 | live | 2026-09-27 12:30 CDT (Texas) / 18:30 BST (London) |
+| 12 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260928` | 2026-09-28 | live | 2026-09-27 12:30 CDT (Texas) / 18:30 BST (London) |
+| 13 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20260929` | 2026-09-29 | live | 2026-09-28 12:30 CDT (Texas) / 18:30 BST (London) |
+| 14 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20260929` | 2026-09-29 | live | 2026-09-28 12:30 CDT (Texas) / 18:30 BST (London) |
+| 15 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20260930` | 2026-09-30 | live | 2026-09-29 12:30 CDT (Texas) / 18:30 BST (London) |
+| 16 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20261001` | 2026-10-01 | live | 2026-09-30 12:30 CDT (Texas) / 18:30 BST (London) |
+| 17 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261001` | 2026-10-01 | live | 2026-09-30 12:30 CDT (Texas) / 18:30 BST (London) |
 
 `create_markets.py` and `finalize.py --verify` both parse this table, so
 keep its seven-column shape. Metric is column 2, threshold column 3, dayKey
@@ -168,6 +178,18 @@ and strike, so a day may appear once per strike but never twice with the
 same strike. The Trading close column is written for humans, and
 `tests/test_create_markets.py` checks it against the close the script
 computes.
+
+**The daily ladder (rows 8-17).** A $35 and a $45 strike on every day from
+26 September to 1 October, beside the markets above, so something settles
+every afternoon of the judging week: with no cash-out before settlement,
+a short maturity is what keeps money from being locked up for long.
+Create only these rows, never the replay rows, which start their 45-minute
+clock the moment they exist:
+
+```sh
+python3 create_markets.py --market 8 --market 9 --market 10 --market 11 --market 12 --market 13 --market 14 --market 15 --market 16 --market 17          # dry run
+python3 create_markets.py --market 8 --market 9 --market 10 --market 11 --market 12 --market 13 --market 14 --market 15 --market 16 --market 17 --live   # sends
+```
 
 None of these dayKeys is a DST changeover day. Contracts can't settle on
 those days (see `shared/metrics.md`).

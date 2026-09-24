@@ -712,7 +712,7 @@ class TestDemoMarketsDocument(unittest.TestCase):
     def setUp(self):
         self.candidates = create_markets.parse_demo_markets_candidates()
 
-    def test_parses_two_replay_and_five_live_texas_power_markets(self):
+    def test_parses_two_replay_and_fifteen_live_texas_power_markets(self):
         self.assertEqual(
             [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates],
             [
@@ -723,6 +723,17 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (5, "replay", "ERCOT_HBNORTH_DA_AVG", 20250910, 2000),
                 (6, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 4000),
                 (7, "live", "ERCOT_HBNORTH_DA_AVG", 20261002, 3800),
+                # the daily ladder: $35 and $45 on each day, 26 Sep - 1 Oct
+                (8, "live", "ERCOT_HBNORTH_DA_AVG", 20260926, 3500),
+                (9, "live", "ERCOT_HBNORTH_DA_AVG", 20260927, 3500),
+                (10, "live", "ERCOT_HBNORTH_DA_AVG", 20260927, 4500),
+                (11, "live", "ERCOT_HBNORTH_DA_AVG", 20260928, 3500),
+                (12, "live", "ERCOT_HBNORTH_DA_AVG", 20260928, 4500),
+                (13, "live", "ERCOT_HBNORTH_DA_AVG", 20260929, 3500),
+                (14, "live", "ERCOT_HBNORTH_DA_AVG", 20260929, 4500),
+                (15, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 3500),
+                (16, "live", "ERCOT_HBNORTH_DA_AVG", 20261001, 3500),
+                (17, "live", "ERCOT_HBNORTH_DA_AVG", 20261001, 4500),
             ],
         )
 
@@ -996,11 +1007,11 @@ class TestMainDryRunByKind(unittest.TestCase):
             "2026-09-22 07:45 CDT (Texas) / 13:45 BST (London)",
             output,
         )
-        self.assertIn("Eligible to create:           7", output)
+        self.assertIn("Eligible to create:           17", output)
         self.assertIn("DRY RUN ONLY", output)
 
     def test_unknown_market_row_is_an_error(self):
-        exit_code, _, err = self.run_main(["--market", "9"])
+        exit_code, _, err = self.run_main(["--market", "99"])
         self.assertEqual(exit_code, 1)
         self.assertIn("no such row", err)
 

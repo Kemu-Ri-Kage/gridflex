@@ -105,7 +105,7 @@ is a screen recording of the live site, the agent's terminal or OKLink.
 | 2:42 | "YES won, so the portfolio flags the winnings. Redeem all: a hundred in, a hundred and ninety-nine out." | The winnings banner → **View portfolio** → **Redeem all**, confirm; the receipt pops in. (The ticket's **Redeem … mUSDT** does the same for one market; use it if the banner doesn't show.) | COMP, UV |
 | 2:53 | "It's settled real days too: 8 September resolved YES." | OKLink: resolve tx `0x004e9ae0…7b216`. | XL |
 | **2:58** | *(silent, 1s)* | **TC 6**: *05 / Agents*: *$0.01 per call · X Layer · OKX AI*. | OKX |
-| 3:00 | "The same verified price is an API for AI agents, built to list on OKX AI." | Terminal: `node web/scripts/hedge-agent.ts --mw 1 --execute`. | OKX, INN |
+| 3:00 | "The same verified price is an API for AI agents, registered on OKX AI." | Terminal: `node web/scripts/hedge-agent.ts --mw 1 --execute`. | OKX, INN |
 | 3:05 | "This agent has its own wallet on X Layer. It pays a cent a call, over OKX's x402, for the price, the markets and a hedge quote." | *Paid $0.01 in USDT0 on X Layer for …* lines with their transactions. **If payments aren't switched on:** the lines read free; say "Each call is priced at a cent through OKX's x402 SDK." instead. | OKX, XL |
 | 3:13 | "Then it buys the hedge itself, on chain." | *Buying YES on the $… strike …* lines, *Hedge placed.*, one OKLink tx opened. | XL, INN |
 | **3:20** | *(silent, 1s)* | **TC 7**: *06 / Two natural sides*: Miners buy YES · Wind & solar buy NO · API + fees. | GRO |

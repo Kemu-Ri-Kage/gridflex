@@ -133,7 +133,9 @@ and a banner says when winnings are waiting.
 ### The price API for agents (OKX AI)
 
 A JSON API sells the verified Texas power price, the live markets and hedge
-quotes, built for AI agents to find on OKX AI and pay per call with x402:
+quotes to AI agents. It is registered on OKX.AI as agent #13881 (GRIDFLEX),
+with the price, the markets and the hedge quote as three A2MCP services.
+Every endpoint answers GET or POST:
 
 | Endpoint | Returns |
 |---|---|
@@ -186,9 +188,11 @@ cast call 0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07 'yesWon()(bool)' --rpc-url 
 - **The oracle is a public feed.** Any X Layer contract can read the
   verified Texas power price with `GridOracle.getReading(metricId, dayKey)`
   and check `isFinal()`, without trusting GRIDFLEX's site.
-- **OKX AI is the distribution for data.** The price API is built to list
-  on OKX AI, paid per call in USDT0 on X Layer through OKX's x402 Payment
-  SDK, so agents can buy the price and hedge quotes without an account.
+- **OKX AI is the distribution for data.** The price API is registered on
+  OKX.AI as agent #13881 with three A2MCP services, free today and priced at
+  $0.01 a call in USDT0 on X Layer through OKX's x402 Payment SDK once
+  payments switch on, so agents can buy the price and hedge quotes without an
+  account.
 - **USDT0 is the path to mainnet.** Markets settle in MockUSDT on testnet.
   On mainnet the same contracts take X Layer's USDT0 as collateral.
 - **OKX Wallet first.** The site finds every installed wallet and lists OKX

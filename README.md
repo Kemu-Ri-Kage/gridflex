@@ -151,13 +151,13 @@ on X Layer testnet. Full reference: [`shared/price-api.md`](shared/price-api.md)
 
 ### Tests
 
-**642 automated tests, all passing** on 24 September 2026:
+**650 automated tests, all passing** on 24 September 2026:
 
 | Suite | Tests | Run it |
 |---|---|---|
 | Data pipeline, publisher, finalizer (Python) | 317 | `python3 -m unittest discover -s tests` |
 | Contracts (Solidity, Foundry) | 54 | `cd contracts && forge test` |
-| Web app logic and price API (TypeScript) | 271 | `cd web && node --test lib/*.test.ts` |
+| Web app logic and price API (TypeScript) | 279 | `cd web && node --test lib/*.test.ts` |
 
 `./scripts/check_all.sh` runs all three plus data validation, lint and the
 production build.

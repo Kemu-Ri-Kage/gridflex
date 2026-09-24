@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRIDFLEX title cards</title>
+<!--
+  Title cards for the demo video (shared/demo-video-script.md). Not part of
+  the site: open this file in Chrome, go full screen (Cmd-Ctrl-F), and
+  screen-record at 1920x1080 or 1440x900.
+  Keys: Right / Space = next card, Left = previous, R = replay this card,
+  H = hide the key hint. ?card=N in the URL opens card N (0-based).
+  Every figure on these cards is real: the bars are the 24 hourly
+  day-ahead prices of 24 Sep 2026 from web/public/data/price-grid.json.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --background: #0a0b0d;
+    --card: #111318;
+    --border: #262a33;
+    --foreground: #e7e9ed;
+    --muted: #9aa1ac;
+    --up: #1fce7a;
+    --down: #ef4444;
+    --warning: #e8a33d;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--background); color: var(--foreground); }
+  body {
+    font-family: Geist, system-ui, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    cursor: none;
+  }
+  .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
+  .card {
+    position: fixed; inset: 0;
+    display: none;
+    padding: 9vh 8vw;
+    flex-direction: column; justify-content: center;
+  }
+  .card.active { display: flex; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace; font-size: clamp(12px, 1.05vw, 16px);
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+  }
+  .headline {
+    font-weight: 600; letter-spacing: -0.035em; line-height: 1.04;
+    font-size: clamp(44px, 6.4vw, 112px);
+  }
+  .sub {
+    font-family: 'Geist Mono', monospace; color: var(--muted);
+    font-size: clamp(14px, 1.35vw, 22px); line-height: 1.6; max-width: 58ch;
+  }
+  .wordmark { font-family: 'Geist Mono', monospace; letter-spacing: 0.02em; }
+  .wordmark b { font-weight: 700; color: var(--foreground); }
+  .wordmark span { font-weight: 400; color: var(--muted); }
+  .up { color: var(--up); } .down { color: var(--down); } .warn { color: var(--warning); }
+
+  /* Word-by-word reveal, transform and opacity only. */
+  .w { display: inline-block; opacity: 0; transform: translateY(0.42em); }
+  .card.active .w { animation: rise 700ms var(--ease) forwards; animation-delay: calc(var(--d, 0) * 1ms); }
+  .fade { opacity: 0; transform: translateY(10px); }
+  .card.active .fade { animation: rise 700ms var(--ease) forwards; animation-delay: calc(var(--d, 0) * 1ms); }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  /* Card 0: the day's 24 hours as bars. */
+  .bars {
+    display: grid; grid-template-columns: repeat(24, 1fr); gap: 0.5vw;
+    align-items: end; height: 34vh; margin-top: 5vh;
+    border-bottom: 1px solid var(--border);
+  }
+  .bar { position: relative; background: #3a3f4a; transform-origin: bottom; transform: scaleY(0); border-radius: 1px 1px 0 0; }
+  .card.active .bar { animation: grow 900ms var(--ease) forwards; animation-delay: calc(300ms + var(--i) * 45ms); }
+  @keyframes grow { to { transform: scaleY(1); } }
+  .bar.min { background: var(--up); }
+  .bar.max { background: var(--down); }
+  .bar .tag {
+    position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%);
+    font-family: 'Geist Mono', monospace; font-size: clamp(12px, 1.1vw, 18px); white-space: nowrap;
+    opacity: 0;
+  }
+  .card.active .bar .tag { animation: rise 500ms var(--ease) forwards; animation-delay: 1900ms; }
+  .hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 0.5vw; margin-top: 10px; }
+  .hours span { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted); text-align: center; }
+
+  /* Tagline: three lines, one after another. */
+  .lines .headline { font-size: clamp(40px, 5.6vw, 96px); }
+  .lines .line + .line { margin-top: 1.2vh; }
+
+  /* Section cards: 01 / Title. */
+  .section-num { font-family: 'Geist Mono', monospace; color: var(--muted); font-size: clamp(20px, 2.2vw, 36px); }
+  .section-row { display: flex; align-items: baseline; gap: 1.6vw; }
+  .rule { height: 1px; background: var(--border); margin: 5vh 0 4vh; transform-origin: left; transform: scaleX(0); }
+  .card.active .rule { animation: draw 900ms var(--ease) forwards 200ms; }
+  @keyframes draw { to { transform: scaleX(1); } }
+
+  /* Figures row for agent and business cards. */
+  .figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); margin-top: 5vh; }
+  .figure { background: var(--background); padding: 3.2vh 2vw; }
+  .figure .label { font-family: 'Geist Mono', monospace; font-size: clamp(11px, 0.95vw, 15px); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .figure .value { font-family: 'Geist Mono', monospace; font-size: clamp(26px, 3vw, 52px); margin-top: 1.4vh; letter-spacing: -0.02em; }
+  .figure .note { font-family: 'Geist Mono', monospace; font-size: clamp(12px, 1vw, 16px); color: var(--muted); margin-top: 1vh; }
+
+  /* End card. */
+  .end .wordmark { font-size: clamp(48px, 8vw, 140px); }
+  .links { margin-top: 5vh; display: grid; gap: 1.2vh; }
+  .links div { font-family: 'Geist Mono', monospace; font-size: clamp(14px, 1.4vw, 24px); }
+  .links .k { color: var(--muted); display: inline-block; min-width: 9ch; }
+
+  .hint {
+    position: fixed; right: 16px; bottom: 12px; font-family: 'Geist Mono', monospace;
+    font-size: 11px; color: #5b6270;
+  }
+  .hint.hidden { display: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .w, .fade, .bar, .bar .tag, .rule { animation: none !important; opacity: 1 !important; transform: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 0. Cold open: the day's swing, from the real hourly prices. -->
+<section class="card" data-name="open">
+  <div class="eyebrow fade" style="--d:0">24 Sep 2026 · Texas power · day-ahead, $/MWh, Central time</div>
+  <div class="bars" id="bars"></div>
+  <div class="hours" id="hours"></div>
+  <div class="headline" style="margin-top:5vh">
+    <span class="w" style="--d:2100">$19</span> <span class="w" style="--d:2180">at</span> <span class="w up" style="--d:2260">11am.</span>
+    <span class="w" style="--d:2600">$95</span> <span class="w" style="--d:2680">at</span> <span class="w down" style="--d:2760">6pm.</span>
+  </div>
+</section>
+
+<!-- 1. Tagline. -->
+<section class="card lines" data-name="tagline">
+  <div class="eyebrow fade" style="--d:0">What GRIDFLEX is</div>
+  <div style="margin-top:4vh">
+    <div class="line headline"><span class="w" style="--d:200">Texas</span> <span class="w" style="--d:280">sets</span> <span class="w" style="--d:360">the</span> <span class="w" style="--d:440">price.</span></div>
+    <div class="line headline"><span class="w" style="--d:1100"><span class="wordmark"><b>GRID</b><span>FLEX</span></span></span> <span class="w" style="--d:1180">proves</span> <span class="w" style="--d:1260">it.</span></div>
+    <div class="line headline"><span class="w" style="--d:2000">X</span> <span class="w" style="--d:2080">Layer</span> <span class="w up" style="--d:2160">settles.</span></div>
+  </div>
+  <div class="sub fade" style="--d:2900; margin-top:5vh">YES/NO markets on the daily Texas power price · hash-verified oracle · X Layer testnet · MockUSDT</div>
+</section>
+
+<!-- 2-7. Sections. -->
+<section class="card" data-name="verify">
+  <div class="section-row"><span class="section-num fade" style="--d:0">01 /</span><span class="headline"><span class="w" style="--d:120">Verify</span></span></div>
+  <div class="rule"></div>
+  <div class="sub fade" style="--d:500">24 hourly prices → one SHA-256 fingerprint of the source files → the oracle on X Layer. Anyone can recompute it.</div>
+</section>
+
+<section class="card" data-name="trade">
+  <div class="section-row"><span class="section-num fade" style="--d:0">02 /</span><span class="headline"><span class="w" style="--d:120">Trade</span></span></div>
+  <div class="rule"></div>
+  <div class="sub fade" style="--d:500">Will Texas power cost more than $45 tomorrow? <span class="up">YES</span> or <span class="down">NO</span>, priced in cents. Next-day to next-week maturities.</div>
+</section>
+
+<section class="card" data-name="hedge">
+  <div class="section-row"><span class="section-num fade" style="--d:0">03 /</span><span class="headline"><span class="w" style="--d:120">Hedge</span></span></div>
+  <div class="rule"></div>
+  <div class="sub fade" style="--d:500">A 10 MW bitcoin miner types its load. GRIDFLEX builds a ladder of strikes that pays back the extra power bill when prices spike.</div>
+</section>
+
+<section class="card" data-name="settle">
+  <div class="section-row"><span class="section-num fade" style="--d:0">04 /</span><span class="headline"><span class="w" style="--d:120">Settle</span></span></div>
+  <div class="rule"></div>
+  <div class="sub fade" style="--d:500">Trading stops before the price exists. The contract reads the oracle itself. Anyone can resolve; winners redeem 1 mUSDT per token.</div>
+</section>
+
+<section class="card" data-name="agents">
+  <div class="section-row"><span class="section-num fade" style="--d:0">05 /</span><span class="headline"><span class="w" style="--d:120">Agents</span></span></div>
+  <div class="rule"></div>
+  <div class="sub fade" style="--d:500">The verified price is an API that AI agents pay per call, then act on.</div>
+  <div class="figures fade" style="--d:900">
+    <div class="figure"><div class="label">Per call</div><div class="value">$0.01</div><div class="note">USDT0 · OKX x402 Payment SDK</div></div>
+    <div class="figure"><div class="label">Settles on</div><div class="value">X Layer</div><div class="note">payment and hedge, same chain</div></div>
+    <div class="figure"><div class="label">Built for</div><div class="value">OKX AI</div><div class="note">price · markets · hedge-quote</div></div>
+  </div>
+</section>
+
+<section class="card" data-name="business">
+  <div class="section-row"><span class="section-num fade" style="--d:0">06 /</span><span class="headline"><span class="w" style="--d:120">Two</span> <span class="w" style="--d:200">natural</span> <span class="w" style="--d:280">sides</span></span></div>
+  <div class="rule"></div>
+  <div class="figures fade" style="--d:600">
+    <div class="figure"><div class="label">Buys YES</div><div class="value up">Miners</div><div class="note">lose when power is dear</div></div>
+    <div class="figure"><div class="label">Buys NO</div><div class="value down">Wind &amp; solar</div><div class="note">lose when power is cheap</div></div>
+    <div class="figure"><div class="label">Revenue</div><div class="value">API + fees</div><div class="note">per-call data · pool fees</div></div>
+  </div>
+</section>
+
+<!-- 8. End card. -->
+<section class="card end" data-name="end">
+  <div class="wordmark fade" style="--d:0"><b>GRID</b><span>FLEX</span></div>
+  <div class="sub fade" style="--d:400; margin-top:2vh">Texas sets the price. GRIDFLEX proves it. X Layer settles.</div>
+  <div class="links fade" style="--d:900">
+    <div><span class="k">Live</span> gridflex-web.teslenko-platon.workers.dev</div>
+    <div><span class="k">Code</span> github.com/Kemu-Ri-Kage/gridflex</div>
+    <div><span class="k">Built on</span> X Layer · OKX Wallet · OKX x402 Payment SDK</div>
+  </div>
+</section>
+
+<div class="hint" id="hint">→ next · ← back · R replay · H hide</div>
+
+<script>
+  // 24 Sep 2026, hours 00:00-23:00 Central, $/MWh (web/public/data/price-grid.json).
+  const HOURS = [34.92, 31.47, 30.15, 29.61, 30.4, 33.95, 33.53, 32.09, 26.8, 22.0, 19.79, 19.26,
+    21.61, 27.55, 33.66, 38.82, 42.4, 60.0, 95.33, 91.89, 85.92, 69.38, 49.77, 38.18];
+  const max = Math.max(...HOURS);
+  const minIndex = HOURS.indexOf(Math.min(...HOURS));
+  const maxIndex = HOURS.indexOf(max);
+  const bars = document.getElementById('bars');
+  const hours = document.getElementById('hours');
+  HOURS.forEach((value, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'bar' + (i === minIndex ? ' min' : i === maxIndex ? ' max' : '');
+    bar.style.height = `${(value / max) * 100}%`;
+    bar.style.setProperty('--i', i);
+    if (i === minIndex || i === maxIndex) {
+      const tag = document.createElement('span');
+      tag.className = 'tag ' + (i === minIndex ? 'up' : 'down');
+      tag.textContent = `$${value.toFixed(2)}`;
+      bar.appendChild(tag);
+    }
+    bars.appendChild(bar);
+    const label = document.createElement('span');
+    label.textContent = i % 6 === 0 ? String(i).padStart(2, '0') : '';
+    hours.appendChild(label);
+  });
+
+  const cards = [...document.querySelectorAll('.card')];
+  const start = Number(new URLSearchParams(location.search).get('card') ?? 0);
+  let current = Math.min(Math.max(0, start), cards.length - 1);
+  function show(index) {
+    cards.forEach((card) => card.classList.remove('active'));
+    current = (index + cards.length) % cards.length;
+    const card = cards[current];
+    void card.offsetWidth; // restart the card's animations
+    card.classList.add('active');
+  }
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowRight' || event.key === ' ') show(current + 1);
+    else if (event.key === 'ArrowLeft') show(current - 1);
+    else if (event.key.toLowerCase() === 'r') show(current);
+    else if (event.key.toLowerCase() === 'h') document.getElementById('hint').classList.toggle('hidden');
+  });
+  show(current);
+</script>
+</body>
+</html>

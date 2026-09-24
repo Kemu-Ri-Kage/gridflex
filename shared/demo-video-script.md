@@ -1,6 +1,6 @@
 # GRIDFLEX demo video script
 
-A 3:37 demo, recorded by the presenter. Every on-screen string below was read
+A 3:43 demo, recorded by the presenter. Every on-screen string below was read
 from the live site (<https://gridflex-web.teslenko-platon.workers.dev>) and its
 source on 23 September 2026. Every transaction shown that already exists is in
 `shared/demo-evidence.md`. The rest are made on camera by the demo wallet.
@@ -17,9 +17,29 @@ written here.
 - **"Nobody outside the industry" is now "without a futures broker".** ICE
   sells these contracts to anyone with a broker, so the original is a claim a
   judge can knock down.
+- **The opening names the customer.** After the hook, 0:15–0:31 says who
+  pays this price and why it belongs onchain: Texas bitcoin miners, whose
+  single largest cost is electricity, have no onchain hedge; ICE sells one to
+  institutions through a broker. **Cut for it:** 0:15's "Without a futures
+  broker, you can't take a position on that." The broker point moves to
+  0:31. The two ICE lines ("Institutions already trade this exact price, on
+  ICE." / "Eighty megawatt-hours a contract, through a futures broker.") are
+  reworded into 0:26 and 0:31, not cut. Net +6s.
+- **"A third more than last" is the price, from our data.** The Texas power
+  price (`ERCOT_HBNORTH_DA_AVG`) averaged **$39.91/MWh over 10–23 September
+  2026, against $30.12 over the same 14 days of 2025: up 32.5%**
+  (`data/metrics/ERCOT_HBNORTH_DA_AVG__2025-09-*.json` and `__2026-09-*.json`;
+  every day complete). Our data starts on 10 September 2025, so a longer
+  window isn't possible. The line puts data centres next to the rise but
+  doesn't claim they caused it; our data can't show that. Don't swap in a
+  demand figure: our load data overlaps across the two years on only three
+  days (19–21 Sep), and West Texas load, where most miners are, fell 1.6% on
+  those.
 - **ICE sizes are specific.** The daily option is on an 80 MWh future. The
   monthly future is about 350 MWh. "Hundreds of megawatt-hours" is true only
-  of the monthly.
+  of the monthly, so 0:26–0:31 show the monthly future's page. It's the
+  real-time peak contract at the same hub, not our day-ahead daily average,
+  which is why the line says "hedge" and no longer "this exact price".
 - **The full cycle has one cut.** Trading on the replay market closes
   45 minutes after it's created, so the video cuts from the buy to the close.
   The spoken line says so.
@@ -27,7 +47,7 @@ written here.
   shows the price history, both 30 September strikes and the past-frequency
   panel, then switches between the two strikes. The buy stays on 2 Oct $45.
 - **"Cashing out before settlement isn't in the contracts yet" is cut.** It
-  made room for the chart beat, and 3:20 already says it: cashing out before
+  made room for the chart beat, and 3:26 already says it: cashing out before
   settlement is the first item under *Next*.
 - **12 August is shown on OKLink, not the site.** It's a West-vs-North
   market, and the site lists only Texas power price questions
@@ -49,64 +69,66 @@ OKX contribution to the OKX ecosystem
 | 0:02 | "Texas power cost twenty-three dollars at nine in the morning." | Hero: **Texas power cost $23.08 at 9am and $97.03 at 6pm.** | UV |
 | 0:06 | "And ninety-seven dollars at six that evening. Same day." | Cursor under the mono line: *22 Sep 2026 · cheapest and dearest hour, Central time · $/MWh* | UV |
 | 0:11 | "Four times the price, nine hours apart." | Hero, still. | UV |
-| 0:15 | "Without a futures broker, you can't take a position on that." | Hero supporting line: *Trade YES or NO on whether Texas power will cost more than the strike on a given day.* | UV |
-| **0:20** | "Institutions already trade this exact price, on ICE." | ICE tab: the product page for the option on ICE's daily 80 MWh ERCOT North day-ahead future. | INN, GRO |
-| 0:25 | "Eighty megawatt-hours a contract, through a futures broker." | Same page, with "80 MWh" in the product name in view. | INN, GRO |
-| 0:29 | "GRIDFLEX is the same bet, as a YES or NO, at any size." | GRIDFLEX tab, scroll to **01 / Normal range**, click **Full year**: the 26 Jan 2026 spike, $694.03, about 24× the median day. | INN, UV |
-| **0:35** | "So where does the price come from?" | Scroll to **02 / How we verify**. **01 Source** active: four file names, *4 source files · 8 Sep 2026 reading*. | TECH |
-| 0:39 | "Texas's official grid price. Twenty-four hourly prices, averaged." | Click **02 Compute**. *SHA-256* `75999d0173983de904ad23e09e4b2de1536fa0929e23ae4700359d53593913c4` | TECH |
-| 0:44 | "That's a fingerprint of the exact source files. Anyone can recompute it." | Same panel, the `$ cat … \| shasum -a 256` line. | TECH |
-| 0:49 | "And the price, written to the oracle on X Layer." | Click **03 Publish**: *GridOracle* `0x970cefFC…D561`, *Oracle tx* `0xf6bdfc4e4c77…`. Click the Oracle tx link. | XL, TECH |
-| 0:54 | "Confirmed on chain. Any market that settles reads this." | OKLink tab: tx `0xf6bdfc4e…cb44f`, its status and the `GridOracle` address it was sent to. | XL |
-| **1:00** | "This is the terminal. It runs on X Layer testnet, paid in MockUSDT." | `/trade`, already on **Will Texas power cost more than $40 on 30 Sep?** TRADING. Header chip *X Layer testnet · MockUSDT*. The chart is on **Settlement price**, **90 days**: filled daily candles, the daily average line, and the strike ladder. | COMP |
-| 1:05 | "Every past day, both strikes, and how often they were beaten. See for yourself if the question's open." | Hold on the chart: the amber dashed **$40.00** line marked *Strike · 30 Sep*, the faint $45.00 line above it, the light shading above $40. Past frequency: *Days above $40.00 · Last 30 days 12 of 30 · Last 90 days 17 of 90*. **Optional, silent:** two-finger scroll in over the latest candles to about a week, then click **90 days** to come back. Skip it if it would run past the line. | UV, INN |
-| 1:11 | "Same day, two strikes: forty or forty-five." | Click **Will Texas power cost more than $45 on 30 Sep?** The $45.00 line turns amber, the shading moves up to it, past frequency reads *7 of 30 · 12 of 90*. | UV, COMP |
-| 1:15 | "Will Texas power cost more than forty-five dollars on 2 October? YES is fifty cents." | Click **Will Texas power cost more than $45 on 2 Oct?** Order ticket: YES in cents with its implied percentage underneath. Say the cents the ticket shows. | UV, COMP |
-| 1:21 | "Connect a wallet." | Click **Connect wallet to trade**. Approve the connection in the wallet. | COMP |
-| 1:24 | "Take a thousand demo tokens to trade with." | Click **Get 1,000 demo mUSDT**, confirm. *Transaction confirmed*. | COMP |
-| 1:29 | "Buy YES, a hundred." | YES selected, Amount `100`, *Estimated output* about 198.8 YES. Click **Buy YES**. | UV, COMP |
-| 1:32 | "A first buy asks for four confirmations: two permissions, then the trade in two steps." | Wallet prompt 1. Status *Approving mUSDT…* | COMP, TECH |
-| 1:38 | "Each one is its own transaction on X Layer." | Prompts 2–4. Status *Buying YES…*, *Approving NO…*, *Buying YES…*, then *Transaction confirmed*. **Edit:** jump-cut the gaps, keep each status line on screen for at least a second. | XL, COMP |
-| 1:43 | "History reads them straight back from the chain." | **History** tab: *Approve mUSDT*, *Mint YES + NO*, *Approve NO*, *Swap (Buy YES)*, with block numbers and tx links. | TECH, XL |
-| 1:48 | "Positions: what I paid, and what it's worth right now." | **Positions** tab: YES row, *Avg entry*, *Current price*, *Current value*, *Indicative unrealised P&L*. | COMP, UV |
-| **1:55** | "Change your mind? Switch a quarter of it to NO." | Order ticket, **Switch position**. **YES → NO**, click **25%**, then **Switch … YES to NO**. Two prompts: *Approving YES…*, *Switching to NO…*. | COMP |
-| 2:01 | "That changes side. It doesn't turn the position back into cash." | Hold on the line *Changes side. Not a sale: no mUSDT is returned before settlement.* Then **Positions**: YES and NO rows. | COMP |
-| **2:05** | "Now one market, start to finish." | Markets list, click **Will Texas power cost more than $25 on 11 Sep?** (bottom row, *Trading*). | TECH |
-| 2:09 | "It replays 11 September 2025, a day that has already settled." | Pay line: *Pays 1 mUSDT per YES if the Texas power price for 11 Sep 2025 settles above $25.00/MWh.* | TECH |
-| 2:14 | "So the answer is already public. That's the one thing a live market never allows." | Settlement summary: *Trading closes …* | TECH |
-| 2:19 | "Live markets stop trading an hour before the price is published." | Click the 2 Oct market for one second: *Trading closes 1 Oct 2026 17:30 UTC*. Click back to 11 Sep. | TECH, UV |
-| 2:24 | "Buy YES, a hundred. New market, so the same four confirmations." | Amount `100`, about 199.0 YES. **Buy YES**, four prompts. **Edit:** jump-cut the gaps. | COMP |
-| **2:32** | "Forty-five minutes later, trading has closed. The contract now refuses any new buy." | **Cut.** Status *Awaiting resolution*. Buy button reads **Trading closed**. Summary: *Trading closed …* | TECH |
-| 2:38 | "Anyone can resolve it. The contract reads the published price itself." | Click **Resolve**, confirm. *Resolving…* | TECH, XL |
-| 2:43 | "Twenty-six thirty-eight, above twenty-five. YES wins." | *Resolved · YES*. **Settlement** tab: *Oracle reading $26.38/MWh*, Outcome YES. | TECH |
-| 2:48 | "Redeem. One hundred in, about a hundred and ninety-nine back." | Click **Redeem**, confirm. **History**: *Redeem … YES + 0.00 NO → … mUSDT*. Positions: the mUSDT balance. | TECH, COMP |
-| **2:55** | "It has already done this for real. 8 September resolved YES." | Select **Will Texas power cost more than $30 on 8 Sep?** *Resolved · YES*. **Settlement** tab: *Oracle reading $39.57/MWh*, *Verified*, *Oracle tx*. | TECH, XL |
-| 3:01 | "Here's that resolve on OKLink." | OKLink tab: resolve tx `0x004e9ae0…7b216`. | XL |
-| 3:05 | "12 August asked whether West Texas would cost more than North. It resolved NO." | OKLink tab: resolve tx `0xd83a6e14…a82104`. | TECH, XL |
-| 3:12 | "On X Layer: GridOracle, MarketFactory, a BinaryMarket per question, and its YES and NO tokens." | Terminal footer: *GridOracle 0x970c…D561 · MarketFactory 0xE521…C3A9 · MockUSDT 0xA5A5…217A*. **Settlement** tab's *Contract* row. | XL |
-| **3:20** | "Next: cashing out before settlement, more markets every day, weekly and monthly contracts." | GitHub README, **What's next**. | GRO |
-| 3:26 | "Then the same product on other US grids." | Same section, *More US grids*. | GRO |
-| 3:29 | "Each market is a self-contained contract, so listing it on exchange infrastructure is a deployment, not a rewrite." | Same section, *Listing on exchange infrastructure*. | OKX, GRO |
-| 3:35 | "GRIDFLEX." | Landing hero. | — |
-| **3:37** | *End* | | |
+| 0:15 | "Bitcoin miners in Texas pay that price. Electricity is their single largest cost." | Hero, still. | UV, GRO |
+| 0:20 | "And AI data centres now compete for the same power. This September cost a third more than last." | Scroll to **01 / Normal range**, click **Full year**. Say it over the chart, then hold. | UV, GRO |
+| **0:26** | "Miners have no way to hedge it onchain. Institutions do, on ICE." | ICE tab: the product page for ICE's monthly ERCOT North peak future. | INN, GRO |
+| 0:31 | "Through a futures broker, in contracts of hundreds of megawatt-hours." | Same page, with the contract size (1 MW for every peak hour of the month) in view. | INN, GRO |
+| 0:35 | "GRIDFLEX is the same bet, as a YES or NO, at any size." | GRIDFLEX tab, still on **Full year**: the 26 Jan 2026 spike, $694.03, about 24× the median day. | INN, UV |
+| **0:41** | "So where does the price come from?" | Scroll to **02 / How we verify**. **01 Source** active: four file names, *4 source files · 8 Sep 2026 reading*. | TECH |
+| 0:45 | "Texas's official grid price. Twenty-four hourly prices, averaged." | Click **02 Compute**. *SHA-256* `75999d0173983de904ad23e09e4b2de1536fa0929e23ae4700359d53593913c4` | TECH |
+| 0:50 | "That's a fingerprint of the exact source files. Anyone can recompute it." | Same panel, the `$ cat … \| shasum -a 256` line. | TECH |
+| 0:55 | "And the price, written to the oracle on X Layer." | Click **03 Publish**: *GridOracle* `0x970cefFC…D561`, *Oracle tx* `0xf6bdfc4e4c77…`. Click the Oracle tx link. | XL, TECH |
+| 1:00 | "Confirmed on chain. Any market that settles reads this." | OKLink tab: tx `0xf6bdfc4e…cb44f`, its status and the `GridOracle` address it was sent to. | XL |
+| **1:06** | "This is the terminal. It runs on X Layer testnet, paid in MockUSDT." | `/trade`, already on **Will Texas power cost more than $40 on 30 Sep?** TRADING. Header chip *X Layer testnet · MockUSDT*. The chart is on **Settlement price**, **90 days**: filled daily candles, the daily average line, and the strike ladder. | COMP |
+| 1:11 | "Every past day, both strikes, and how often they were beaten. See for yourself if the question's open." | Hold on the chart: the amber dashed **$40.00** line marked *Strike · 30 Sep*, the faint $45.00 line above it, the light shading above $40. Past frequency: *Days above $40.00 · Last 30 days 12 of 30 · Last 90 days 17 of 90*. **Optional, silent:** two-finger scroll in over the latest candles to about a week, then click **90 days** to come back. Skip it if it would run past the line. | UV, INN |
+| 1:17 | "Same day, two strikes: forty or forty-five." | Click **Will Texas power cost more than $45 on 30 Sep?** The $45.00 line turns amber, the shading moves up to it, past frequency reads *7 of 30 · 12 of 90*. | UV, COMP |
+| 1:21 | "Will Texas power cost more than forty-five dollars on 2 October? YES is fifty cents." | Click **Will Texas power cost more than $45 on 2 Oct?** Order ticket: YES in cents with its implied percentage underneath. Say the cents the ticket shows. | UV, COMP |
+| 1:27 | "Connect a wallet." | Click **Connect wallet to trade**. Approve the connection in the wallet. | COMP |
+| 1:30 | "Take a thousand demo tokens to trade with." | Click **Get 1,000 demo mUSDT**, confirm. *Transaction confirmed*. | COMP |
+| 1:35 | "Buy YES, a hundred." | YES selected, Amount `100`, *Estimated output* about 198.8 YES. Click **Buy YES**. | UV, COMP |
+| 1:38 | "A first buy asks for four confirmations: two permissions, then the trade in two steps." | Wallet prompt 1. Status *Approving mUSDT…* | COMP, TECH |
+| 1:44 | "Each one is its own transaction on X Layer." | Prompts 2–4. Status *Buying YES…*, *Approving NO…*, *Buying YES…*, then *Transaction confirmed*. **Edit:** jump-cut the gaps, keep each status line on screen for at least a second. | XL, COMP |
+| 1:49 | "History reads them straight back from the chain." | **History** tab: *Approve mUSDT*, *Mint YES + NO*, *Approve NO*, *Swap (Buy YES)*, with block numbers and tx links. | TECH, XL |
+| 1:54 | "Positions: what I paid, and what it's worth right now." | **Positions** tab: YES row, *Avg entry*, *Current price*, *Current value*, *Indicative unrealised P&L*. | COMP, UV |
+| **2:01** | "Change your mind? Switch a quarter of it to NO." | Order ticket, **Switch position**. **YES → NO**, click **25%**, then **Switch … YES to NO**. Two prompts: *Approving YES…*, *Switching to NO…*. | COMP |
+| 2:07 | "That changes side. It doesn't turn the position back into cash." | Hold on the line *Changes side. Not a sale: no mUSDT is returned before settlement.* Then **Positions**: YES and NO rows. | COMP |
+| **2:11** | "Now one market, start to finish." | Markets list, click **Will Texas power cost more than $25 on 11 Sep?** (bottom row, *Trading*). | TECH |
+| 2:15 | "It replays 11 September 2025, a day that has already settled." | Pay line: *Pays 1 mUSDT per YES if the Texas power price for 11 Sep 2025 settles above $25.00/MWh.* | TECH |
+| 2:20 | "So the answer is already public. That's the one thing a live market never allows." | Settlement summary: *Trading closes …* | TECH |
+| 2:25 | "Live markets stop trading an hour before the price is published." | Click the 2 Oct market for one second: *Trading closes 1 Oct 2026 17:30 UTC*. Click back to 11 Sep. | TECH, UV |
+| 2:30 | "Buy YES, a hundred. New market, so the same four confirmations." | Amount `100`, about 199.0 YES. **Buy YES**, four prompts. **Edit:** jump-cut the gaps. | COMP |
+| **2:38** | "Forty-five minutes later, trading has closed. The contract now refuses any new buy." | **Cut.** Status *Awaiting resolution*. Buy button reads **Trading closed**. Summary: *Trading closed …* | TECH |
+| 2:44 | "Anyone can resolve it. The contract reads the published price itself." | Click **Resolve**, confirm. *Resolving…* | TECH, XL |
+| 2:49 | "Twenty-six thirty-eight, above twenty-five. YES wins." | *Resolved · YES*. **Settlement** tab: *Oracle reading $26.38/MWh*, Outcome YES. | TECH |
+| 2:54 | "Redeem. One hundred in, about a hundred and ninety-nine back." | Click **Redeem**, confirm. **History**: *Redeem … YES + 0.00 NO → … mUSDT*. Positions: the mUSDT balance. | TECH, COMP |
+| **3:01** | "It has already done this for real. 8 September resolved YES." | Select **Will Texas power cost more than $30 on 8 Sep?** *Resolved · YES*. **Settlement** tab: *Oracle reading $39.57/MWh*, *Verified*, *Oracle tx*. | TECH, XL |
+| 3:07 | "Here's that resolve on OKLink." | OKLink tab: resolve tx `0x004e9ae0…7b216`. | XL |
+| 3:11 | "12 August asked whether West Texas would cost more than North. It resolved NO." | OKLink tab: resolve tx `0xd83a6e14…a82104`. | TECH, XL |
+| 3:18 | "On X Layer: GridOracle, MarketFactory, a BinaryMarket per question, and its YES and NO tokens." | Terminal footer: *GridOracle 0x970c…D561 · MarketFactory 0xE521…C3A9 · MockUSDT 0xA5A5…217A*. **Settlement** tab's *Contract* row. | XL |
+| **3:26** | "Next: cashing out before settlement, more markets every day, weekly and monthly contracts." | GitHub README, **What's next**. | GRO |
+| 3:32 | "Then the same product on other US grids." | Same section, *More US grids*. | GRO |
+| 3:35 | "Each market is a self-contained contract, so listing it on exchange infrastructure is a deployment, not a rewrite." | Same section, *Listing on exchange infrastructure*. | OKX, GRO |
+| 3:41 | "GRIDFLEX." | Landing hero. | — |
+| **3:43** | *End* | | |
 
 ---
 
 ## Timing and cuts
 
-Runs **3:37**, leaving 23 seconds under 4:00. If every wallet step runs 13
-seconds long, it still ends 10 seconds under.
+Runs **3:43**, leaving 17 seconds under 4:00. If every wallet step runs 13
+seconds long, it still ends 4 seconds under.
 
 | Section | Length | If a take runs long |
 |---|---|---|
-| 0:00 Hook | 20s | **Untouchable** |
-| 0:20 ICE | 15s | **Cut first.** Keep only 0:29 and fold it into the hook. Saves about 10s. |
-| 0:35 How we verify | 25s | **Untouchable** |
-| 1:00 Terminal, chart, buy, History, Positions | 55s | **Untouchable.** Tighten with jump cuts, not by dropping steps. The optional zoom at 1:05 goes first. |
-| 1:55 Switch position | 10s | **Cut second.** Keep 2:01 alone over the switch screen. Saves about 6s. |
-| 2:05 Full cycle | 50s | **Untouchable.** 2:19 (the 2 Oct close) can go. Saves 5s. |
-| 2:55 Already resolved | 25s | **Untouchable.** 3:05 (12 Aug) can go if needed. Saves 7s. |
-| 3:20 Where it goes | 17s | **Cut third.** Keep only 3:29. Saves 9s. |
+| 0:00 Hook | 15s | **Untouchable** |
+| 0:15 Who pays it | 11s | **Untouchable.** It's why this belongs onchain. |
+| 0:26 ICE | 15s | **Cut first.** Drop 0:31 and keep 0:26 and 0:35. Saves about 4s. |
+| 0:41 How we verify | 25s | **Untouchable** |
+| 1:06 Terminal, chart, buy, History, Positions | 55s | **Untouchable.** Tighten with jump cuts, not by dropping steps. The optional zoom at 1:11 goes first. |
+| 2:01 Switch position | 10s | **Cut second.** Keep 2:07 alone over the switch screen. Saves about 6s. |
+| 2:11 Full cycle | 50s | **Untouchable.** 2:25 (the 2 Oct close) can go. Saves 5s. |
+| 3:01 Already resolved | 25s | **Untouchable.** 3:11 (12 Aug) can go if needed. Saves 7s. |
+| 3:26 Where it goes | 17s | **Cut third.** Keep only 3:35. Saves 9s. |
 
 ---
 
@@ -120,7 +142,8 @@ larger.
 
 1. <https://gridflex-web.teslenko-platon.workers.dev/>. Don't load it until
    recording starts, so the headline reveal is captured.
-2. <https://www.ice.com/products/53169033/Option-on-ERCOT-North-345KV-Day-Ahead-Peak-Daily-80-MWh-Fixed-Price-Future>
+2. <https://www.ice.com/products/6590337/ERCOT-North-345KV-Real-Time-Peak-Fixed-Price-Future>,
+   scrolled so the contract size is in view.
 3. <https://www.oklink.com/x-layer-testnet/tx/0xf6bdfc4e4c775eca150fff4d380f915411d6bf4e5389d8e3228dfbeff00cb44f>
    is the 8 Sep oracle reading. The diagram's link opens this. Keep it
    pre-loaded as a backup.
@@ -176,7 +199,7 @@ Load every OKLink tab once before recording, so none of them loads on camera.
     has to be a plain OKB transfer: no mUSDT, no approvals, nothing on any
     market. The script's value is that it can't send anything else.
 - **mUSDT: 0. No script.** The *Get 1,000 demo mUSDT* button calls
-  `MockUSDT.mint`, which any account may call, and it's on camera at 1:24.
+  `MockUSDT.mint`, which any account may call, and it's on camera at 1:30.
   1,000 covers 100 on 2 Oct, 100 on the replay, and 100 more if the spare is
   needed.
 - **Not connected to the site.** If the account has connected before, remove
@@ -226,11 +249,11 @@ everything else while the clock runs.
 | **T0** | `createMarket` confirmed. The 45 minutes start here. | |
 | T0 → T+8 | `./refresh_data.sh --no-fetch`. It republishes `addresses.json`, commits and pushes the data files on this branch, builds and deploys. Commit `shared/addresses.json` afterwards; the script only commits the data files. | build and deploy; time it in the rehearsal |
 | T+8 | Hard-reload `/trade`. **Will Texas power cost more than $25 on 11 Sep?** is listed as *Trading*, and its close matches what you wrote down. Then select **30 Sep $40** again, so the terminal opens on it. | |
-| **T+10** | **Record 1:00–2:04**: the chart beat, connect, get demo mUSDT, the 2 Oct buy, History, Positions, the switch. | about 5–8 min with retakes |
-| **T+20** | **Record 2:05–2:31**: select the replay market, Buy YES, four prompts. **The buy must be confirmed by T+40.** Don't start it after T+38. | about 1 min |
-| T+22 → T+44 | Record 0:00–0:59, then 2:55–3:37. | as long as needed |
+| **T+10** | **Record 1:06–2:10**: the chart beat, connect, get demo mUSDT, the 2 Oct buy, History, Positions, the switch. | about 5–8 min with retakes |
+| **T+20** | **Record 2:11–2:37**: select the replay market, Buy YES, four prompts. **The buy must be confirmed by T+40.** Don't start it after T+38. | about 1 min |
+| T+22 → T+44 | Record 0:00–1:05, then 3:01–3:43. | as long as needed |
 | T+45 | Trading closes. | |
-| **T+46** | Record 2:32–2:54: *Trading closed*, **Resolve**, **Redeem**. Wait a full minute past the close before resolving; the chain's clock can run a few seconds behind the browser's. | Resolve and Redeem are one prompt each, about 10s each |
+| **T+46** | Record 2:38–3:00: *Trading closed*, **Resolve**, **Redeem**. Wait a full minute past the close before resolving; the chain's clock can run a few seconds behind the browser's. | Resolve and Redeem are one prompt each, about 10s each |
 
 Measured on 22 September: approvals and trades confirmed 8–12 seconds
 apart, and the first live trade's two steps landed 9 seconds apart
@@ -242,7 +265,7 @@ roughly 40–60 seconds.
 A failed take isn't always a reason to use the spare:
 
 - **A resolve or redeem that reverted, or never got sent,** can simply be
-  retried. Both stay open after the close, so re-record 2:32–2:54 on
+  retried. Both stay open after the close, so re-record 2:38–3:00 on
   market 1.
 - **Use the spare only when it can't be re-shot on market 1.** That means:
   - the buy wasn't confirmed before the close;
@@ -254,7 +277,7 @@ To run the spare:
 
 1. Repeat the table above with `--market 5`, the same wallet and the same
    45 minutes.
-2. Skip 1:00–2:04; that section is already recorded.
+2. Skip 1:06–2:10; that section is already recorded.
 3. After the deploy, record the replay buy straight away.
 
 The wallet still has 800 mUSDT and plenty of OKB. A new market means the
@@ -264,8 +287,8 @@ For the spare, these lines change and nothing else does:
 
 | Time | Say instead |
 |---|---|
-| 2:09 | "It replays 10 September 2025, a day that has already settled." |
-| 2:43 | "Twenty-two sixty-two, above twenty. YES wins." |
+| 2:15 | "It replays 10 September 2025, a day that has already settled." |
+| 2:49 | "Twenty-two sixty-two, above twenty. YES wins." |
 
 The screen shows **Will Texas power cost more than $20 on 10 Sep?**, and the
 pay line reads *…for 10 Sep 2025 settles above $20.00/MWh.* On a 100 mUSDT

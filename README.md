@@ -3,6 +3,15 @@
 **A YES/NO market on whether Texas power will cost more than a strike price on
 a given day, settled automatically against the official published price.**
 
+Bitcoin miners in Texas pay that price, and electricity is their single
+largest cost. They have no way to hedge it onchain: ICE sells that hedge to
+institutions, through a futures broker, in contracts of hundreds of
+megawatt-hours. AI data centres now compete for the same power, and the
+Texas power price averaged $39.91/MWh over 10–23 September 2026, up 32.5% on
+the same days of 2025 ($30.12; from our
+[metric files](data/metrics/)). GRIDFLEX lists that price onchain as a
+YES/NO contract, at any size.
+
 Live on X Layer testnet, settled in MockUSDT.
 
 - **Live site:** <https://gridflex-web.teslenko-platon.workers.dev>

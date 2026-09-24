@@ -3,8 +3,10 @@ import { test } from 'node:test';
 
 import {
   CONNECTION_ALREADY_PENDING_MESSAGE,
+  isUnknownChainError,
   isWalletRpcFailure,
   REQUEST_ALREADY_PENDING_MESSAGE,
+  walletErrorMessage,
   walletRequestAlreadyPending,
 } from './wallet-errors.ts';
 
@@ -197,5 +199,55 @@ void test("a pending prompt is recognised through viem's wrapping of a write", a
   assert.equal(
     walletRequestAlreadyPending(error),
     CONNECTION_ALREADY_PENDING_MESSAGE,
+  );
+});
+
+void test("the wallet's own message is shown, with its code", () => {
+  assert.equal(
+    walletErrorMessage({
+      code: -32002,
+      message: 'Request already pending, please wait',
+    }),
+    'Request already pending, please wait (wallet error -32002)',
+  );
+  assert.equal(
+    walletErrorMessage(new Error('Request timed out')),
+    'Request timed out',
+  );
+  assert.equal(walletErrorMessage({ code: 4001 }), undefined);
+  assert.equal(walletErrorMessage(undefined), undefined);
+});
+
+void test("a viem error shows the wallet's words, not viem's wrapper", async () => {
+  const error = await viemWriteError({
+    code: -32603,
+    message: 'Internal JSON-RPC error.',
+  });
+  assert.equal(
+    walletErrorMessage(error),
+    'Internal JSON-RPC error. (wallet error -32603)',
+  );
+});
+
+void test('an unknown chain is recognised, including wrapped in -32603', () => {
+  assert.equal(
+    isUnknownChainError({ code: 4902, message: 'Unrecognized chain ID' }),
+    true,
+  );
+  assert.equal(
+    isUnknownChainError({
+      code: -32603,
+      message: 'Unrecognized chain ID "0x7a0".',
+      data: { originalError: { code: 4902 } },
+    }),
+    true,
+  );
+  assert.equal(
+    isUnknownChainError({ code: -32603, message: 'Internal JSON-RPC error.' }),
+    false,
+  );
+  assert.equal(
+    isUnknownChainError({ code: 4001, message: 'User rejected the request.' }),
+    false,
   );
 });

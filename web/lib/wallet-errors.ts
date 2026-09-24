@@ -113,3 +113,47 @@ export function isWalletRpcFailure(error: unknown): boolean {
     RPC_FAILURE_MESSAGE.test(messages)
   );
 }
+
+/**
+ * The wallet's own words for a failed request, with its error code, or
+ * undefined when it gave none. Read from the innermost record: viem wraps
+ * the wallet's error in its own multi-line ones, and wallets often reject
+ * with a plain `{ code, message }` object rather than an Error. Shown as-is
+ * so a real problem stays diagnosable.
+ */
+export function walletErrorMessage(error: unknown): string | undefined {
+  for (const record of errorChain(error).reverse()) {
+    const message = (
+      typeof record.message === 'string' ? record.message : text(record)
+    )
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!message) continue;
+    const code = Number(record.code);
+    return Number.isInteger(code) && code !== 0
+      ? `${message} (wallet error ${code})`
+      : message;
+  }
+  return undefined;
+}
+
+/**
+ * The wallet doesn't have the chain saved (EIP-3326's 4902), including the
+ * form that wraps it in -32603 with the 4902 in `data.originalError`: without
+ * this, that form was reported as a dead RPC instead of adding the chain.
+ */
+export function isUnknownChainError(error: unknown): boolean {
+  return errorChain(error).some((record) => {
+    if (Number(record.code) === 4902) return true;
+    const data = record.data;
+    if (!data || typeof data !== 'object' || !('originalError' in data)) {
+      return false;
+    }
+    const original = data.originalError;
+    return (
+      Boolean(original) &&
+      typeof original === 'object' &&
+      Number((original as Record<string, unknown>).code) === 4902
+    );
+  });
+}

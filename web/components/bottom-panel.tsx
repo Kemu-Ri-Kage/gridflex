@@ -4,9 +4,10 @@ import * as React from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { HedgeCalculator } from '@/components/hedge-calculator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PortfolioTab } from '@/components/portfolio';
 import { SettlementEvidence } from '@/components/settlement-panel';
+import { TerminalTab, TerminalTabsList } from '@/components/terminal-ui';
 import { useWeb3 } from '@/components/web3-provider';
 import { explorerTxUrl } from '@/lib/explorer';
 import {
@@ -33,6 +34,12 @@ import {
 } from '@/lib/position';
 import { onOpenPortfolio } from '@/lib/portfolio';
 import { losingSide } from '@/lib/redeemable';
+
+/** A table's column label: the landing page's small mono caps, muted. */
+const HEAD_CELL = 'py-2 font-mono text-[11px] font-normal uppercase tracking-[0.14em] text-muted-foreground';
+
+/** A table row answers the pointer, so the eye can follow it across. */
+const ROW = 'transition-colors duration-150 hover:bg-accent/25';
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -159,11 +166,11 @@ function PositionsTab() {
           <div className="space-y-2 sm:hidden">
             {cells.map((cell) => (
               <dl
-                className="grid grid-cols-2 gap-x-3 gap-y-1.5 border border-border bg-card px-3 py-2 font-mono text-xs tabular-nums"
+                className="grid grid-cols-2 items-baseline gap-x-3 gap-y-1.5 rounded-[2px] border border-border bg-card px-3 py-2.5 font-mono text-xs tabular-nums"
                 key={cell.side}
               >
-                <dt className={cell.sideClass}>{cell.side}</dt>
-                <dd className="text-right text-foreground">{cell.quantity}</dd>
+                <dt className={`text-[11px] uppercase tracking-[0.14em] ${cell.sideClass}`}>{cell.side}</dt>
+                <dd className="text-right text-base leading-none text-foreground">{cell.quantity}</dd>
                 {columns.slice(2).map((column) => (
                   <React.Fragment key={column.key}>
                     <dt className="text-muted-foreground">{column.label}</dt>
@@ -178,11 +185,11 @@ function PositionsTab() {
             ))}
           </div>
           <table className="hidden w-full font-mono text-xs tabular-nums sm:table">
-            <thead className="text-left text-muted-foreground">
-              <tr>
+            <thead className="text-left">
+              <tr className="border-b border-border">
                 {columns.map((column, i) => (
                   <th
-                    className={`py-1.5 font-normal ${i === 0 ? 'pr-4' : i === columns.length - 1 ? 'text-right' : 'pr-4 text-right'}`}
+                    className={`${HEAD_CELL} ${i === 0 ? 'pr-4' : i === columns.length - 1 ? 'text-right' : 'pr-4 text-right'}`}
                     key={column.key}
                   >
                     {column.label}
@@ -192,15 +199,15 @@ function PositionsTab() {
             </thead>
             <tbody className="divide-y divide-border text-foreground">
               {cells.map((cell) => (
-                <tr key={cell.side}>
-                  <td className={`py-1.5 pr-4 ${cell.sideClass}`}>
+                <tr className={ROW} key={cell.side}>
+                  <td className={`py-2 pr-4 ${cell.sideClass}`}>
                     {cell.side}
                   </td>
-                  <td className="py-1.5 pr-4 text-right">{cell.quantity}</td>
-                  <td className="py-1.5 pr-4 text-right">{cell.entry}</td>
-                  <td className="py-1.5 pr-4 text-right">{cell.mark}</td>
-                  <td className="py-1.5 pr-4 text-right">{cell.value}</td>
-                  <td className={`py-1.5 text-right ${cell.pnlClass}`}>
+                  <td className="py-2 pr-4 text-right">{cell.quantity}</td>
+                  <td className="py-2 pr-4 text-right">{cell.entry}</td>
+                  <td className="py-2 pr-4 text-right">{cell.mark}</td>
+                  <td className="py-2 pr-4 text-right">{cell.value}</td>
+                  <td className={`py-2 text-right ${cell.pnlClass}`}>
                     {cell.pnl}
                   </td>
                 </tr>
@@ -308,7 +315,7 @@ function HistoryTab() {
   }));
   const txLink = (txHash: string) => (
     <a
-      className="text-chart-1 hover:underline"
+      className="text-chart-1 underline-offset-2 transition-colors duration-150 hover:underline"
       href={explorerTxUrl(txHash)}
       rel="noreferrer"
       target="_blank"
@@ -320,7 +327,7 @@ function HistoryTab() {
   return (
     <div className="space-y-3 p-4 sm:p-6">
       {!history.complete && (
-        <p className="max-w-2xl border border-border bg-card px-3 py-2 text-xs leading-5 text-foreground">
+        <p className="max-w-2xl rounded-[2px] border border-border bg-card px-3 py-2 text-xs leading-5 text-foreground">
           Partial list: this wallet has more activity on this market than can be
           searched from the browser in one pass. Showing the{' '}
           {rows.length === 1 ? 'transaction' : `${rows.length} transactions`}{' '}
@@ -340,7 +347,7 @@ function HistoryTab() {
           <ul className="space-y-2 sm:hidden">
             {rows.map((row) => (
               <li
-                className="space-y-1 border border-border bg-card px-3 py-2 font-mono text-xs tabular-nums"
+                className="space-y-1 rounded-[2px] border border-border bg-card px-3 py-2.5 font-mono text-xs tabular-nums"
                 key={row.key}
               >
                 <div className="flex justify-between gap-3">
@@ -353,27 +360,27 @@ function HistoryTab() {
             ))}
           </ul>
           <table className="hidden w-full font-mono text-xs tabular-nums sm:table">
-            <thead className="text-left text-muted-foreground">
-              <tr>
-                <th className="py-1.5 pr-4 font-normal">Time</th>
-                <th className="py-1.5 pr-4 font-normal">Action</th>
-                <th className="py-1.5 pr-4 font-normal">Amount</th>
-                <th className="py-1.5 pr-4 text-right font-normal">Block</th>
-                <th className="py-1.5 font-normal">Tx</th>
+            <thead className="text-left">
+              <tr className="border-b border-border">
+                <th className={`${HEAD_CELL} pr-4`}>Time</th>
+                <th className={`${HEAD_CELL} pr-4`}>Action</th>
+                <th className={`${HEAD_CELL} pr-4`}>Amount</th>
+                <th className={`${HEAD_CELL} pr-4 text-right`}>Block</th>
+                <th className={HEAD_CELL}>Tx</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
               {rows.map((row) => (
-                <tr key={row.key}>
-                  <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground">
+                <tr className={ROW} key={row.key}>
+                  <td className="py-2 pr-4 whitespace-nowrap text-muted-foreground">
                     {row.time}
                   </td>
-                  <td className="py-1.5 pr-4 whitespace-nowrap">{row.label}</td>
-                  <td className="py-1.5 pr-4">{row.amount}</td>
-                  <td className="py-1.5 pr-4 text-right">
+                  <td className="py-2 pr-4 whitespace-nowrap">{row.label}</td>
+                  <td className="py-2 pr-4">{row.amount}</td>
+                  <td className="py-2 pr-4 text-right">
                     {blockCount(row.blockNumber)}
                   </td>
-                  <td className="py-1.5">{txLink(row.txHash)}</td>
+                  <td className="py-2">{txLink(row.txHash)}</td>
                 </tr>
               ))}
             </tbody>
@@ -406,16 +413,13 @@ export function BottomPanel() {
 
   return (
     <Tabs onValueChange={(value) => setTab(String(value))} ref={panel} value={tab}>
-      <TabsList
-        className="rounded-none border-b border-border bg-transparent px-2"
-        variant="line"
-      >
-        <TabsTrigger value="positions">Positions</TabsTrigger>
-        <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-        <TabsTrigger value="history">History</TabsTrigger>
-        <TabsTrigger value="hedge">Hedge</TabsTrigger>
-        <TabsTrigger value="settlement">Settlement</TabsTrigger>
-      </TabsList>
+      <TerminalTabsList className="px-4 sm:px-6">
+        <TerminalTab value="positions">Positions</TerminalTab>
+        <TerminalTab value="portfolio">Portfolio</TerminalTab>
+        <TerminalTab value="history">History</TerminalTab>
+        <TerminalTab value="hedge">Hedge</TerminalTab>
+        <TerminalTab value="settlement">Settlement</TerminalTab>
+      </TerminalTabsList>
       <TabsContent value="positions">
         <PositionsTab />
       </TabsContent>
@@ -426,7 +430,7 @@ export function BottomPanel() {
         <HistoryTab />
       </TabsContent>
       <TabsContent value="hedge">
-        <div className="max-w-3xl space-y-3 p-4 text-xs sm:p-6">
+        <div className="max-w-3xl space-y-4 p-4 text-xs sm:p-6">
           <HedgeCalculator />
         </div>
       </TabsContent>

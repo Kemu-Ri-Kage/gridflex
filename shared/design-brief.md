@@ -392,17 +392,30 @@ string is either a number, a label, or an honest status.
 
 - **Top:** instrument bar — plain-English name, current underlying price,
   strike, settlement date, status. See §5 for naming, §6 for the
-  settled-state rule.
+  settled-state rule. It carries the market's headline quote as large mono
+  figures: YES and NO in whole cents (`52¢`, one decimal only below 1¢ or
+  above 99¢), with a thin two-colour bar (`--up` for YES's share, `--down`
+  for NO's) and the time left to trade (`Closes in 19h 33m`). The
+  ticket's side buttons repeat the two prices as their own labels, as an
+  exchange's order buttons do; nothing else does.
 - **Left:** market selector — every listed Texas power price question,
   named and labelled from its own contract state (§5, §6). With none
   listed, an honest empty state; never a list padded with placeholders.
+  Each row is a table row (§5 copy budget): the question, its YES price in
+  cents, the same two-colour bar, and its time left or status.
 - **Centre:** the chart (§9) in two views: settlement price (the default),
   with every listed strike, and live price, with the selected question's
   strike line.
 - **Right:** a compact settlement summary (labels and numbers the
-  instrument bar doesn't already show), plus the order ticket
-  (`trade-panel.tsx` — see §12) when the ticket is configured for the
-  selected market.
+  instrument bar doesn't already show — so nothing while trading is open),
+  plus the order ticket (`trade-panel.tsx` — see §12) when the ticket is
+  configured for the selected market. The ticket leads with two large side
+  buttons (YES, NO, each with its price), then the amount with quick
+  amounts, then what the buy pays in plain money as one large figure ("To
+  win"), then one full-width action in the chosen side's colour. The
+  secondary detail (tokens out, minimum received, slippage, wallet
+  prompts) sits below it in small mono type. Only actions that can run now
+  are shown; a disabled control that can't apply yet is left out.
 - **Bottom:** tabs — positions (the connected wallet's mUSDT, YES and NO
   balances for the selected market), history (the market's real trades,
   from its `Swapped` events, shown as Buy YES / Buy NO, or "No trades
@@ -669,8 +682,10 @@ only when every item is a pass.
 25. Landing-page scroll-triggered reveals and the diagram's stage-to-stage
     animation animate only `transform` and `opacity`; landing-page hover/
     press micro-interactions may additionally animate `color` (text/
-    border only) — no other property, and no exception on `/trade` (§13).
-26. The terminal (`/trade`) has no decorative motion anywhere on it (§13).
+    border only) — no other property. `/trade` follows its own list in §13.
+26. The terminal's (`/trade`) motion is exactly §13's seven feedback
+    motions — no loop, pulse or idle movement, nothing that holds a number
+    back more than 150ms, no GSAP or Lenis.
     The landing hero's price grid (§7) animates only on its own canvas and
     stops when it's off screen; under `prefers-reduced-motion` it is drawn
     once, still.
@@ -782,10 +797,31 @@ jobs (§1). See §14 for which libraries implement this and why.
 
 **Terminal (`/trade`):**
 
-- **No decorative motion at all.** Nothing animates for the sake of
-  animating.
-- Price updates and state changes are **instant or under 150ms** — a
-  trader never waits for an animation to see a number change.
+- **Motion is feedback, never decoration.** Every animation answers a
+  trader's action or a change in live data. The complete list
+  (`web/components/terminal-ui.tsx`, keyframes in `globals.css`):
+  1. **Entrance, once.** On first load the instrument bar, market list,
+     chart and ticket rise into place (10px, 460ms, 70ms stagger),
+     transform/opacity only. Never replayed.
+  2. **A changed number ticks.** The new value slides in from below when it
+     rose, from above when it fell, and holds `--up`/`--down` for a moment
+     before returning to its own colour (900ms). It is readable within
+     150ms.
+  3. **Derived figures count.** What a buy returns counts to its new value
+     in under 300ms as the amount or side changes.
+  4. **Indicators slide.** Tab underlines and toggle boxes slide to the
+     chosen option in 200ms.
+  5. **Press and hover.** Every button scales to 0.98 on press; hover
+     changes text, border or fill colour within 150ms.
+  6. **Market swap.** When the selection changes, the content that belongs
+     to one market fades up into place (240ms).
+  7. **Receipt.** A confirmed transaction's receipt pops in (260ms) with its
+     check mark drawn once.
+- Still banned on the terminal: loops, pulses, idle movement, parallax,
+  glows, shadows and gradients (§2), and anything that holds a number back
+  more than 150ms.
+- CSS and the Web Animations API only — GSAP and Lenis are never loaded on
+  this page.
 - Smooth momentum scrolling is **off** on this page; scrolling is native
   and immediate.
 
@@ -856,9 +892,9 @@ class of technique," exactly where the license allows it.
   headline treatment calls for a word- or character-level reveal — not
   required by the current brief, but licensed and ready if a design
   decision here later needs it.
-- Neither library is loaded on `/trade`. The terminal has no decorative
-  motion (§13), so it carries none of this dependency weight — state
-  changes there are plain, instant DOM/React updates.
+- Neither library is loaded on `/trade`. The terminal's motion is feedback
+  only (§13) and needs neither: CSS keyframes and transitions, and the Web
+  Animations API, cover every case at no dependency weight.
 - What is never taken from DAQ, regardless of library: its specific
   animation sequences, timings tuned to its own copy and layout, its
   assets, its colours, or its actual copy. The libraries and the class of

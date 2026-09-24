@@ -12,16 +12,11 @@ import {
 } from '@/lib/markets';
 import { useCommittedRecord } from '@/lib/site-data';
 
-function cents(priceE18: bigint, side: 'YES' | 'NO'): string {
-  const yes = Number(priceE18) / 1e16;
-  return `${(side === 'YES' ? yes : 100 - yes).toFixed(1)}¢`;
-}
-
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
+    <div className="flex items-baseline justify-between gap-4 py-2">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right font-mono tabular-nums text-foreground">
+      <dd className="text-right font-mono text-[13px] tabular-nums text-foreground">
         {value}
       </dd>
     </div>
@@ -30,7 +25,9 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 
 /**
  * Right-column summary: only what the instrument bar above doesn't already
- * say, as labels and numbers. Everything is read from the selected
+ * say, as labels and numbers. While the market trades that is nothing -
+ * the bar carries the quote and the time left - so it shows once trading
+ * has closed (design-brief.md §8). Everything is read from the selected
  * market's contract (lib/markets.tsx).
  */
 export function SettlementSummary() {
@@ -39,54 +36,42 @@ export function SettlementSummary() {
   const status = selected ? marketStatus(selected, now) : undefined;
   const live = selected?.live;
 
+  // Nothing until the state is known either: the market selected first is
+  // one that trades, so a placeholder here would only vanish again and
+  // move the ticket up.
+  if (!selected || !live || !status || status === 'trading') return null;
+
+  const winner = live.yesWon ? 'YES' : 'NO';
+
   return (
-    <div className="border border-border bg-card p-3">
-      <div className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
+    <div className="rounded-[2px] border border-border bg-card">
+      <div className="border-b border-border px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
         Settlement
       </div>
-      {!selected || !live || !status ? (
-        <p className="mt-2 text-xs text-muted-foreground">Loading…</p>
-      ) : (
-        <dl className="mt-2 divide-y divide-border text-xs">
-          {status === 'trading' && (
-            <>
-              <Row
-                label="Trading closes"
-                value={formatUtc(selected.resolveAfter)}
-              />
-              <Row label="YES" value={cents(live.priceE18, 'YES')} />
-              <Row label="NO" value={cents(live.priceE18, 'NO')} />
-            </>
-          )}
-          {status === 'awaiting' && (
-            <>
-              <Row
-                label="Trading closed"
-                value={formatUtc(selected.resolveAfter)}
-              />
-              <Row label="Last YES" value={cents(live.priceE18, 'YES')} />
-              <Row label="Last NO" value={cents(live.priceE18, 'NO')} />
-              {/* A published reading is already in the instrument bar;
-                  only its absence needs saying here. */}
-              {reading === null && (
-                <Row label="Oracle reading" value="Not published" />
-              )}
-            </>
-          )}
-          {status === 'resolved' && (
-            <>
-              <Row label="Outcome" value={live.yesWon ? 'YES' : 'NO'} />
-              <Row
-                label="Payout"
-                value={`1 mUSDT per ${live.yesWon ? 'YES' : 'NO'}`}
-              />
-            </>
-          )}
-          {status === 'cancelled' && (
-            <Row label="Payout" value="0.5 mUSDT per YES or NO" />
-          )}
-        </dl>
-      )}
+      <dl className="divide-y divide-border px-3 text-xs">
+        {status === 'awaiting' && (
+          <>
+            <Row
+              label="Trading closed"
+              value={formatUtc(selected.resolveAfter)}
+            />
+            {/* A published reading is already in the instrument bar;
+                only its absence needs saying here. */}
+            {reading === null && (
+              <Row label="Oracle reading" value="Not published" />
+            )}
+          </>
+        )}
+        {status === 'resolved' && (
+          <>
+            {/* The outcome itself is the instrument bar's headline. */}
+            <Row label="Payout" value={`1 mUSDT per ${winner}`} />
+          </>
+        )}
+        {status === 'cancelled' && (
+          <Row label="Payout" value="0.5 mUSDT per YES or NO" />
+        )}
+      </dl>
     </div>
   );
 }

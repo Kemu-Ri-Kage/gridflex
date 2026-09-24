@@ -1,17 +1,19 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { QUIET_BUTTON, Ticker } from '@/components/terminal-ui';
 import { formatToken } from '@/lib/format';
 import {
   pairsLabel,
   paysLabel,
   type PositionSummary as Summary,
 } from '@/lib/position-summary';
+import { cn } from '@/lib/utils';
 
 /**
  * The wallet's position on the selected market, as the ticket states it:
  * what each part pays, and the only ways out. Matched YES + NO pairs are
  * netted, so a wallet holding both sides reads as pairs plus one net side.
+ * The net side leads as one large figure that ticks when a trade moves it.
  * Labels and numbers only (design-brief.md §5).
  */
 export function PositionSummary({
@@ -26,58 +28,65 @@ export function PositionSummary({
   onSwitch: () => void;
 }) {
   const { pairs, net } = summary;
-  const rows: {
-    label: string;
-    value: string;
-    detail: string;
-    tone?: string;
-  }[] = [];
-  if (pairs > 0n) {
-    rows.push({
-      label: 'Matched pairs',
-      value: formatToken(pairs),
-      detail: pairsLabel(pairs),
-    });
-  }
-  if (net) {
-    rows.push({
-      label: pairs > 0n ? 'Net' : 'Position',
-      value: `${formatToken(net.amount)} ${net.side}`,
-      detail: paysLabel(net.side, net.amount, strike),
-      tone: net.side === 'YES' ? 'text-up' : 'text-down',
-    });
-  }
+  // With YES equal to NO there is no net side; the pairs lead instead.
+  const lead = net
+    ? {
+        amount: net.amount,
+        unit: net.side,
+        detail: paysLabel(net.side, net.amount, strike),
+        tone: net.side === 'YES' ? 'text-up' : 'text-down',
+      }
+    : {
+        amount: pairs,
+        unit: 'YES + NO',
+        detail: pairsLabel(pairs),
+        tone: 'text-foreground',
+      };
 
   return (
-    <div className="space-y-2 rounded-[2px] border border-border bg-background p-3 text-xs">
-      {rows.map((row) => (
-        <div key={row.label}>
+    <div className="space-y-3 rounded-[2px] border border-border bg-background p-3 text-xs">
+      <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+        Your position
+      </div>
+      <div>
+        <div
+          className={cn(
+            'flex items-baseline gap-2 font-mono text-2xl leading-none tabular-nums',
+            lead.tone,
+          )}
+        >
+          <Ticker numeric={Number(lead.amount)} value={formatToken(lead.amount)} />
+          <span className="text-sm">{lead.unit}</span>
+        </div>
+        <div className="mt-2 font-mono text-muted-foreground">
+          {lead.detail}
+        </div>
+      </div>
+      {net && pairs > 0n && (
+        <div className="border-t border-border pt-2 font-mono">
           <div className="flex justify-between gap-3">
-            <span className="text-muted-foreground">{row.label}</span>
-            <span
-              className={`font-mono tabular-nums ${row.tone ?? 'text-foreground'}`}
-            >
-              {row.value}
+            <span className="text-muted-foreground">Matched pairs</span>
+            <span className="text-foreground tabular-nums">
+              {formatToken(pairs)}
             </span>
           </div>
-          <div className="mt-0.5 font-mono text-muted-foreground">
-            {row.detail}
+          <div className="mt-0.5 text-muted-foreground">
+            {pairsLabel(pairs)}
           </div>
         </div>
-      ))}
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
-        <span className="text-muted-foreground">Exits</span>
+        <span className="font-mono text-muted-foreground">Exits</span>
         <span className="flex flex-wrap items-center gap-2 font-mono text-foreground">
           {tradingOpen && (
             <>
-              <Button
-                className="h-7 rounded-[2px] px-2.5 font-sans shadow-none"
+              <button
+                className={cn(QUIET_BUTTON, 'h-7 px-2.5')}
                 onClick={onSwitch}
-                size="sm"
-                variant="outline"
+                type="button"
               >
                 Switch side
-              </Button>
+              </button>
               <span className="text-muted-foreground">·</span>
             </>
           )}

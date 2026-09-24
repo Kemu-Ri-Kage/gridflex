@@ -14,6 +14,7 @@ import {
 } from 'lightweight-charts';
 
 import { CaretGlyph } from '@/components/settlement-price-chart';
+import { Segmented } from '@/components/terminal-ui';
 import { formatUpdated } from '@/lib/format';
 import { DEFAULT_BARS, liveWindow, switchRange, type Timeframe } from '@/lib/live-chart-view';
 import { visibleIndices } from '@/lib/price-candles';
@@ -394,23 +395,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div className="text-xs text-muted-foreground">Texas power · $/MWh</div>
-        <div className="flex gap-1">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              className={
-                'border px-2.5 py-1 font-mono text-xs ' +
-                (timeframe === tf.id
-                  ? 'border-foreground text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground')
-              }
-              key={tf.id}
-              onClick={() => setTimeframe(tf.id)}
-              type="button"
-            >
-              {tf.label}
-            </button>
-          ))}
-        </div>
+        <Segmented label="Timeframe" onChange={setTimeframe} options={TIMEFRAMES} value={timeframe} />
       </div>
       <div className="relative min-h-[360px] flex-1">
         <div className="absolute inset-0" ref={containerRef} />

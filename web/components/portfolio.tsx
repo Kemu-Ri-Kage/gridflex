@@ -4,7 +4,7 @@ import * as React from 'react';
 import { X } from 'lucide-react';
 import type { Address } from 'viem';
 
-import { Button } from '@/components/ui/button';
+import { CtaArrow, ctaClass, PRESSABLE, QUIET_BUTTON } from '@/components/terminal-ui';
 import { useWeb3 } from '@/components/web3-provider';
 import { formatToken, formatTokenExact } from '@/lib/format';
 import {
@@ -27,6 +27,7 @@ import {
   type PortfolioRow,
   type RedeemStatus,
 } from '@/lib/portfolio';
+import { cn } from '@/lib/utils';
 
 interface PortfolioValue extends HoldingsRead {
   /** This wallet's redeems from the Portfolio tab this session, by market. */
@@ -125,7 +126,8 @@ function readDismissed(): boolean {
 
 /**
  * Below the instrument bar whenever redeem() would pay this wallet on any
- * listed market, not only the selected one. Dismissed for the session.
+ * listed market, not only the selected one. Dismissed for the session. A
+ * tile edged in --up that pops in once when the winnings appear.
  */
 export function WinningsBanner() {
   const { account } = useWeb3();
@@ -145,26 +147,28 @@ export function WinningsBanner() {
   };
 
   return (
-    <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-2 text-xs sm:px-6">
-      <p className="min-w-0 flex-1 leading-5 text-foreground">
-        {line} ·{' '}
+    <div className="border-b border-border px-4 py-3 sm:px-6">
+      <div className="terminal-pop flex items-center gap-3 rounded-[2px] border border-l-2 border-border border-l-up bg-card py-2 pr-2 pl-4 text-xs">
+        <p className="min-w-0 flex-1 leading-5 text-foreground">{line}</p>
         <button
-          className="text-chart-1 hover:underline"
+          className={cn(QUIET_BUTTON, 'h-8 shrink-0 text-foreground')}
           onClick={openPortfolio}
           type="button"
         >
           View portfolio
         </button>
-      </p>
-      <Button
-        aria-label="Dismiss"
-        className="shrink-0 rounded-[2px] text-muted-foreground shadow-none"
-        onClick={dismiss}
-        size="icon-xs"
-        variant="ghost"
-      >
-        <X />
-      </Button>
+        <button
+          aria-label="Dismiss"
+          className={cn(
+            'inline-flex size-8 shrink-0 items-center justify-center rounded-[2px] text-muted-foreground hover:text-foreground',
+            PRESSABLE,
+          )}
+          onClick={dismiss}
+          type="button"
+        >
+          <X aria-hidden="true" className="size-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -175,6 +179,12 @@ const STATUS_WORDS: Record<RedeemStatus, string> = {
   redeemed: 'Redeemed',
   failed: 'Failed',
 };
+
+/** A table's column label: the landing page's small mono caps, muted. */
+const HEAD_CELL = 'py-2 font-mono text-[11px] font-normal uppercase tracking-[0.14em] text-muted-foreground';
+
+/** A table row answers the pointer, so the eye can follow it across. */
+const ROW = 'transition-colors duration-150 hover:bg-accent/25';
 
 function quantity(value: bigint): string {
   return value === 0n ? '—' : formatTokenExact(value);
@@ -255,15 +265,14 @@ export function PortfolioTab() {
         status && status !== 'failed' ? (
           <span className="text-muted-foreground">{STATUS_WORDS[status]}</span>
         ) : row.redeemable > 0n ? (
-          <Button
-            className="h-6 rounded-[2px] px-2 shadow-none"
+          <button
+            className={cn(QUIET_BUTTON, 'h-7 px-2.5 text-foreground')}
             disabled={busy}
             onClick={() => void redeem([row.address])}
-            size="xs"
-            variant="outline"
+            type="button"
           >
             {status === 'failed' ? 'Retry' : 'Redeem'}
-          </Button>
+          </button>
         ) : status ? (
           <span className="text-down">{STATUS_WORDS[status]}</span>
         ) : null,
@@ -271,7 +280,7 @@ export function PortfolioTab() {
   });
   const questionButton = (address: string, question: string) => (
     <button
-      className="text-left text-foreground hover:underline"
+      className="text-left text-foreground underline-offset-2 hover:underline"
       onClick={() => select(address as Address)}
       type="button"
     >
@@ -288,19 +297,19 @@ export function PortfolioTab() {
       ) : (
         <>
           {toRedeem.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 border border-border bg-card px-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[2px] border border-border bg-card px-4 py-3 text-xs">
               <span className="text-foreground">
                 {winningsLine(totals)}.
               </span>
-              <Button
-                className="rounded-[2px] shadow-none"
+              <button
+                className={cn(ctaClass('up'), 'h-10 w-auto px-5 text-sm')}
                 disabled={busy}
                 onClick={() => void redeem(toRedeem)}
-                size="sm"
-                variant="outline"
+                type="button"
               >
                 Redeem all
-              </Button>
+                <CtaArrow />
+              </button>
             </div>
           )}
 
@@ -308,7 +317,7 @@ export function PortfolioTab() {
           <div className="space-y-2 sm:hidden">
             {cells.map((cell) => (
               <div
-                className="space-y-1.5 border border-border bg-card px-3 py-2 text-xs"
+                className="space-y-2 rounded-[2px] border border-border bg-card px-3 py-2.5 text-xs"
                 key={cell.row.address}
               >
                 {questionButton(cell.row.address, cell.question)}
@@ -327,7 +336,7 @@ export function PortfolioTab() {
                 {cell.action && <div className="text-right">{cell.action}</div>}
               </div>
             ))}
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 border border-border px-3 py-2 font-mono text-xs tabular-nums">
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-[2px] border border-border px-3 py-2.5 font-mono text-xs tabular-nums">
               <dt className="text-muted-foreground">Total value</dt>
               <dd className="text-right text-foreground">{totalValue}</dd>
               <dt className="text-muted-foreground">Total redeemable</dt>
@@ -340,37 +349,37 @@ export function PortfolioTab() {
           </div>
 
           <table className="hidden w-full font-mono text-xs tabular-nums sm:table">
-            <thead className="text-left text-muted-foreground">
-              <tr>
-                <th className="py-1.5 pr-4 font-normal">Market</th>
-                <th className="py-1.5 pr-4 font-normal">Status</th>
-                <th className="py-1.5 pr-4 text-right font-normal">YES</th>
-                <th className="py-1.5 pr-4 text-right font-normal">NO</th>
-                <th className="py-1.5 pr-4 text-right font-normal">Value</th>
-                <th className="py-1.5 pr-4 text-right font-normal">Redeemable</th>
-                <th className="py-1.5 font-normal">
+            <thead className="text-left">
+              <tr className="border-b border-border">
+                <th className={`${HEAD_CELL} pr-4`}>Market</th>
+                <th className={`${HEAD_CELL} pr-4`}>Status</th>
+                <th className={`${HEAD_CELL} pr-4 text-right text-up`}>YES</th>
+                <th className={`${HEAD_CELL} pr-4 text-right text-down`}>NO</th>
+                <th className={`${HEAD_CELL} pr-4 text-right`}>Value</th>
+                <th className={`${HEAD_CELL} pr-4 text-right`}>Redeemable</th>
+                <th className={HEAD_CELL}>
                   <span className="sr-only">Redeem</span>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
               {cells.map((cell) => (
-                <tr key={cell.row.address}>
-                  <td className="py-1.5 pr-4 font-sans">
+                <tr className={ROW} key={cell.row.address}>
+                  <td className="py-2 pr-4 font-sans">
                     {questionButton(cell.row.address, cell.question)}
                   </td>
-                  <td className="py-1.5 pr-4 whitespace-nowrap">
+                  <td className="py-2 pr-4 whitespace-nowrap">
                     {cell.marketStatus}
                   </td>
-                  <td className="py-1.5 pr-4 text-right">{cell.yes}</td>
-                  <td className="py-1.5 pr-4 text-right">{cell.no}</td>
-                  <td className="py-1.5 pr-4 text-right whitespace-nowrap">
+                  <td className="py-2 pr-4 text-right">{cell.yes}</td>
+                  <td className="py-2 pr-4 text-right">{cell.no}</td>
+                  <td className="py-2 pr-4 text-right whitespace-nowrap">
                     {cell.value}
                   </td>
-                  <td className="py-1.5 pr-4 text-right whitespace-nowrap">
+                  <td className="py-2 pr-4 text-right whitespace-nowrap">
                     {cell.redeemable}
                   </td>
-                  <td className="py-1.5 text-right whitespace-nowrap">
+                  <td className="py-1 text-right whitespace-nowrap">
                     {cell.action}
                   </td>
                 </tr>
@@ -378,13 +387,13 @@ export function PortfolioTab() {
             </tbody>
             <tfoot className="border-t border-border text-foreground">
               <tr>
-                <td className="py-1.5 pr-4 text-muted-foreground" colSpan={4}>
+                <td className="py-2 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground" colSpan={4}>
                   Total
                 </td>
-                <td className="py-1.5 pr-4 text-right whitespace-nowrap">
+                <td className="py-2 pr-4 text-right whitespace-nowrap">
                   {totalValue}
                 </td>
-                <td className="py-1.5 pr-4 text-right whitespace-nowrap">
+                <td className="py-2 pr-4 text-right whitespace-nowrap">
                   {totals.redeemable > 0n
                     ? `${redeemAmount(totals.redeemable)} mUSDT`
                     : '—'}

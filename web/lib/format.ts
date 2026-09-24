@@ -98,6 +98,18 @@ export function formatCentsE18(priceE18: bigint): string {
   return `${(Number(priceE18) / 1e16).toFixed(1)}¢`;
 }
 
+/**
+ * A price per token in whole cents, the terminal's headline quote, e.g.
+ * 0.5234e18 -> "52¢". Near either end, where a whole cent would round a
+ * live price to 0¢ or 100¢, it keeps one decimal: "0.4¢", "99.6¢".
+ */
+export function formatCentsShort(priceE18: bigint): string {
+  const cents = Number(priceE18) / 1e16;
+  if (cents > 0 && cents < 1) return `${cents.toFixed(1)}¢`;
+  if (cents > 99 && cents < 100) return `${Math.min(99.9, cents).toFixed(1)}¢`;
+  return `${Math.round(cents)}¢`;
+}
+
 /** A signed mUSDT amount with an explicit sign, e.g. "+1.99", "−0.42", "0.00". */
 export function formatSignedToken(value: bigint): string {
   const direction = signedTokenDirection(value);

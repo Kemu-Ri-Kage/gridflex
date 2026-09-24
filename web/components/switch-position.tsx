@@ -3,7 +3,12 @@
 import * as React from 'react';
 import { formatUnits } from 'viem';
 
-import { Button } from '@/components/ui/button';
+import {
+  CHIP_BUTTON,
+  CtaArrow,
+  ctaClass,
+  PRESSABLE,
+} from '@/components/terminal-ui';
 import { Input } from '@/components/ui/input';
 import {
   useWeb3,
@@ -18,6 +23,7 @@ import {
   percentOfBalance,
   SWITCH_PERCENTAGES,
 } from '@/lib/trade';
+import { cn } from '@/lib/utils';
 
 function tokenUnits(value: string): bigint | undefined {
   try {
@@ -120,31 +126,37 @@ export function SwitchPosition({
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
         {(['YES', 'NO'] as const).map((side) => (
-          <Button
+          <button
             aria-pressed={from === side}
-            className="h-auto flex-col items-start gap-0.5 rounded-[2px] border-border bg-background py-2 font-mono shadow-none hover:bg-muted aria-pressed:border-foreground aria-pressed:bg-muted aria-pressed:ring-0"
+            className={cn(
+              'flex h-16 flex-col items-start justify-between rounded-[2px] border px-3 py-2.5 text-left',
+              PRESSABLE,
+              from === side
+                ? 'border-foreground bg-accent text-foreground'
+                : 'border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground',
+            )}
             key={side}
             onClick={() => {
               setChosenFrom(side);
               setAmount('');
             }}
-            variant="outline"
+            type="button"
           >
-            <span className="text-foreground">
+            <span className="font-mono text-[11px] uppercase tracking-[0.14em]">
               {side} → {side === 'YES' ? 'NO' : 'YES'}
             </span>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
               {account && ready
                 ? `${formatTokenExact(held[side])} ${side} held`
                 : '—'}
             </span>
-          </Button>
+          </button>
         ))}
       </div>
 
       <div>
         <label
-          className="mb-2 block text-xs text-muted-foreground"
+          className="mb-2 block font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground"
           htmlFor="switch-amount"
         >
           Amount of {from} to switch
@@ -152,7 +164,7 @@ export function SwitchPosition({
         <div className="relative">
           <Input
             aria-invalid={amount !== '' && (units === undefined || overHeld)}
-            className="h-10 rounded-[2px] border-border bg-background pr-14 font-mono text-base text-foreground shadow-none focus-visible:ring-1"
+            className="h-12 rounded-[2px] border-border bg-background pr-14 font-mono text-xl tabular-nums text-foreground shadow-none focus-visible:border-foreground/50 focus-visible:ring-0 aria-invalid:ring-0 md:text-xl"
             disabled={!tradingOpen}
             id="switch-amount"
             inputMode="decimal"
@@ -163,49 +175,54 @@ export function SwitchPosition({
             type="number"
             value={amount}
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
             {from}
           </span>
         </div>
-        <div className="mt-2 grid grid-cols-4 gap-2">
+        <div className="mt-2 flex gap-1.5">
           {SWITCH_PERCENTAGES.map((percent) => (
-            <Button
-              className="h-8 rounded-[2px] font-mono text-xs shadow-none"
+            <button
+              aria-pressed={
+                units !== undefined &&
+                units === percentOfBalance(held[from], percent)
+              }
+              className={cn(CHIP_BUTTON, 'flex-1')}
               disabled={!tradingOpen || !account || held[from] === 0n}
               key={percent}
               onClick={() =>
                 setAmount(formatUnits(percentOfBalance(held[from], percent), 6))
               }
-              size="sm"
-              variant="outline"
+              type="button"
             >
               {percent}%
-            </Button>
+            </button>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 rounded-[2px] border border-border bg-background p-3 text-xs">
-        <div>
-          <div className="text-muted-foreground">You give</div>
-          <div className="mt-1 font-mono text-foreground">
-            {quote ? `${formatTokenExact(quote.amountIn)} ${from}` : '—'}
+      <div className="space-y-1.5 border-t border-border pt-3 font-mono text-xs">
+        <dl className="space-y-1">
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">You give</dt>
+            <dd className="text-foreground tabular-nums">
+              {quote ? `${formatTokenExact(quote.amountIn)} ${from}` : '—'}
+            </dd>
           </div>
-        </div>
-        <div>
-          <div className="text-muted-foreground">Estimated to receive</div>
-          <div className="mt-1 font-mono text-foreground">
-            {quote ? `${formatTokenExact(quote.amountOut)} ${to}` : '—'}
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">You get</dt>
+            <dd className="text-foreground tabular-nums">
+              {quote ? `${formatTokenExact(quote.amountOut)} ${to}` : '—'}
+            </dd>
           </div>
-        </div>
-        <div className="col-span-2">
-          <div className="text-muted-foreground">Minimum received</div>
-          <div className="mt-1 font-mono text-foreground">
-            {quote ? `${formatTokenExact(quote.minimumOut)} ${to}` : '—'}
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Minimum</dt>
+            <dd className="text-foreground tabular-nums">
+              {quote ? `${formatTokenExact(quote.minimumOut)} ${to}` : '—'}
+            </dd>
           </div>
-        </div>
-        <div className="col-span-2 text-muted-foreground">
-          0.50% slippage protection · 5-minute deadline
+        </dl>
+        <div className="text-[11px] text-muted-foreground">
+          Slippage 0.5% · 5-min deadline
           {quoteUnavailable && (
             <span className="ml-2 text-warning">Live quote unavailable.</span>
           )}
@@ -215,14 +232,14 @@ export function SwitchPosition({
       <p className="text-xs leading-5 text-muted-foreground">Changes side.</p>
 
       {reason && (
-        <output className="block text-xs leading-5 text-warning">
+        <output className="block border-l-2 border-warning bg-warning/5 py-1.5 pr-2 pl-3 text-xs leading-5 text-warning">
           {reason}
         </output>
       )}
 
       {account && (
-        <Button
-          className="h-10 w-full rounded-[2px] bg-primary text-primary-foreground shadow-none hover:bg-primary/85"
+        <button
+          className={ctaClass('neutral')}
           disabled={!canSwitch}
           onClick={() => {
             if (!quote) return;
@@ -234,13 +251,19 @@ export function SwitchPosition({
               },
             );
           }}
+          type="button"
         >
-          {ready && !tradingOpen
-            ? 'Trading closed'
-            : quote
-              ? `Switch ${formatTokenExact(quote.amountIn)} ${from} to ${to}`
-              : `Switch ${from} to ${to}`}
-        </Button>
+          {ready && !tradingOpen ? (
+            'Trading closed'
+          ) : (
+            <>
+              {quote
+                ? `Switch ${formatTokenExact(quote.amountIn)} ${from} to ${to}`
+                : `Switch ${from} to ${to}`}
+              <CtaArrow />
+            </>
+          )}
+        </button>
       )}
     </div>
   );

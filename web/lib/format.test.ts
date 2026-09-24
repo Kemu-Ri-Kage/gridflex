@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   formatBlockTime,
   formatCentsE18,
+  formatCentsShort,
   formatSignedPercent,
   formatSignedToken,
   formatTokenExact,
@@ -82,4 +83,13 @@ void test('signedTokenDirection: a P&L that shows as 0.00 is flat, not up or dow
 
 void test('formatBlockTime: a block time in UTC', () => {
   assert.equal(formatBlockTime(1790116275), '22 Sep 2026, 22:31 UTC');
+});
+
+void test('formatCentsShort rounds to whole cents but keeps a decimal near 0 and 100', () => {
+  assert.equal(formatCentsShort(523_400_000_000_000_000n), '52¢');
+  assert.equal(formatCentsShort(500_000_000_000_000_000n), '50¢');
+  assert.equal(formatCentsShort(4_000_000_000_000_000n), '0.4¢');
+  assert.equal(formatCentsShort(996_000_000_000_000_000n), '99.6¢');
+  assert.equal(formatCentsShort(0n), '0¢');
+  assert.equal(formatCentsShort(10n ** 18n), '100¢');
 });

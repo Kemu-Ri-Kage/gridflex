@@ -3,9 +3,36 @@
 import * as React from 'react';
 import type { Address } from 'viem';
 
+import { PRESSABLE, SplitBar, Ticker } from '@/components/terminal-ui';
 import { closesIn } from '@/lib/closes-in';
+import { formatCentsShort } from '@/lib/format';
 import { byTerm, TERM_LABELS, TERMS, termOf } from '@/lib/market-term';
-import { marketName, marketStatus, statusLabel, useMarkets, type Market } from '@/lib/markets';
+import { marketName, marketStatus, statusLabel, useMarkets, type Market, type MarketStatus } from '@/lib/markets';
+import { cn } from '@/lib/utils';
+
+/**
+ * A row's figure on the right, as wide as a price at most, so the question
+ * beside it always fits on two lines: the YES price while trading, the
+ * winning side with "won" under it once resolved, a dash while there is
+ * no price that means anything (the status line below says why).
+ */
+function RowQuote({ market, status }: { market: Market; status: MarketStatus | undefined }) {
+  const price = market.live?.priceE18;
+  if (status === 'resolved') {
+    return (
+      <>
+        <span className={cn('font-mono text-[13px]', market.live?.yesWon ? 'text-up' : 'text-down')}>
+          {market.live?.yesWon ? 'YES' : 'NO'}
+        </span>
+        <span className="font-mono text-[10px] leading-none text-muted-foreground">won</span>
+      </>
+    );
+  }
+  if (status !== 'trading' || price === undefined) {
+    return <span className="font-mono text-[13px] text-muted-foreground">—</span>;
+  }
+  return <Ticker className="font-mono text-[13px] text-up" numeric={Number(price)} value={formatCentsShort(price)} />;
+}
 
 /**
  * The listed YES/NO questions on the Texas power price, each named and
@@ -13,7 +40,9 @@ import { marketName, marketStatus, statusLabel, useMarkets, type Market } from '
  * (design-brief.md §5, §6, §8) - grouped by maturity (lib/market-term.ts):
  * next day, this week, later, then the ones waiting for their price and the
  * settled ones. The same contract at every maturity; a next-day market
- * settles the next afternoon.
+ * settles the next afternoon. Each row reads as a table row: the question,
+ * its YES price, the two-colour bar while it trades, and its time left or
+ * status.
  *
  * Below lg the list collapses to one compact dropdown directly under the
  * instrument bar, so the chart follows it on a phone (§10). The dropdown
@@ -53,7 +82,7 @@ export function MarketPanel() {
       <label className="block lg:hidden">
         <span className="sr-only">Market</span>
         <select
-          className="h-10 w-full rounded-[2px] border border-border bg-card px-3 text-sm text-foreground [color-scheme:dark] disabled:text-muted-foreground"
+          className="h-11 w-full rounded-[2px] border border-border bg-card px-3 text-sm text-foreground [color-scheme:dark] disabled:text-muted-foreground"
           disabled={!groups}
           onChange={(event) => select(event.target.value as Address)}
           value={selected?.address ?? ''}
@@ -77,9 +106,10 @@ export function MarketPanel() {
         </select>
       </label>
 
-      <div className="hidden border border-border bg-card lg:block">
-        <div className="border-b border-border px-3 py-2 font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
-          Markets
+      <div className="hidden rounded-[2px] border border-border bg-card lg:block">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          <span>Markets</span>
+          {listed && <span className="tabular-nums">{listed.length}</span>}
         </div>
         {groups ? (
           <div className="max-h-[640px] overflow-y-auto">
@@ -88,24 +118,42 @@ export function MarketPanel() {
                 <h3 className="px-3 pt-3 pb-1 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                   {TERM_LABELS[group.term]}
                 </h3>
-                <ul>
+                <ul className="divide-y divide-border">
                   {group.markets.map((market) => {
                     const active = market.address === selected?.address;
+                    const status = marketStatus(market, now);
+                    const price = market.live?.priceE18;
                     return (
                       <li key={market.address}>
                         <button
                           aria-pressed={active}
-                          className={
-                            'w-full border-l-2 px-3 py-2.5 text-left ' +
-                            (active ? 'border-foreground bg-accent/40' : 'border-transparent hover:bg-accent/20')
-                          }
+                          className={cn(
+                            'block w-full border-l-2 py-3 pr-2.5 pl-3 text-left',
+                            PRESSABLE,
+                            active ? 'border-foreground bg-accent/50' : 'border-transparent hover:bg-accent/25',
+                          )}
                           onClick={() => select(market.address)}
                           type="button"
                         >
-                          <div className="text-sm font-medium text-foreground">{marketName(market)}</div>
-                          <div className="mt-1 font-mono text-xs tabular-nums text-muted-foreground">
+                          <span className="flex items-start justify-between gap-2">
+                            <span className="line-clamp-2 text-[13px] leading-snug font-medium text-foreground">
+                              {marketName(market)}
+                            </span>
+                            <span className="flex shrink-0 flex-col items-end leading-snug tabular-nums">
+                              <RowQuote market={market} status={status} />
+                            </span>
+                          </span>
+                          {/* The bar only while the price still means
+                              something: trading, or not yet read. */}
+                          {(status === 'trading' || status === undefined) && (
+                            <SplitBar
+                              className="mt-2"
+                              yesPercent={status === 'trading' && price !== undefined ? Number(price) / 1e16 : undefined}
+                            />
+                          )}
+                          <span className="mt-1.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
                             {statusLine(market)}
-                          </div>
+                          </span>
                         </button>
                       </li>
                     );

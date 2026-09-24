@@ -3,6 +3,14 @@
 import * as React from 'react';
 import type { Address } from 'viem';
 
+import {
+  CHIP_BUTTON,
+  CountTo,
+  CtaArrow,
+  ctaClass,
+  Segmented,
+  Stat,
+} from '@/components/terminal-ui';
 import { Input } from '@/components/ui/input';
 import { formatPercent } from '@/lib/format';
 import type { HedgeScenario } from '@/lib/hedge';
@@ -24,6 +32,7 @@ import {
   type PoolReserves,
 } from '@/lib/markets';
 import { prefillTicket } from '@/lib/ticket-prefill';
+import { cn } from '@/lib/utils';
 
 /**
  * For the buyer the product is built for: a Texas bitcoin miner or data
@@ -35,6 +44,21 @@ import { prefillTicket } from '@/lib/ticket-prefill';
  * next-day market. Nothing is sent from here: the ticket quotes and sends
  * the order.
  */
+
+/** The Hedge tab's two sizes: the selected day's ladder, or the week strip. */
+const MODES = [
+  { id: 'day', label: 'One day' },
+  { id: 'strip', label: 'Week strip' },
+] as const;
+
+/** A table's column label: the landing page's small mono caps, muted. */
+const HEAD_CELL = 'py-2 font-mono text-[11px] font-normal uppercase tracking-[0.14em] text-muted-foreground';
+
+/** A table row answers the pointer, so the eye can follow it across. */
+const ROW = 'transition-colors duration-150 hover:bg-accent/25';
+
+/** A headline figure's tile on the hairline grid. */
+const FIGURE_TILE = 'bg-card px-3 py-3';
 
 /**
  * The bottom panel's Hedge tab. It sits full width below the chart rather
@@ -93,36 +117,12 @@ export function HedgeCalculator() {
 
   const inputs = (
     <div className="grid grid-cols-3 items-end gap-2">
-      <NumberField id="hedge-mw" label="Load, MW" onChange={setMw} value={mw} />
+      <NumberField id="hedge-mw" label="Load" onChange={setMw} unit="MW" value={mw} />
       <NumberField id="hedge-hours" label="Hours a day" max="24" onChange={setHours} value={hours} />
-      <NumberField id="hedge-protect" label="Protect to, $/MWh" onChange={setProtectTo} value={protectTo} />
+      <NumberField id="hedge-protect" label="Protect to" onChange={setProtectTo} unit="$/MWh" value={protectTo} />
     </div>
   );
-  const modes = (
-    <div className="flex gap-1 font-mono">
-      {(
-        [
-          ['day', 'One day'],
-          ['strip', 'Week strip'],
-        ] as const
-      ).map(([id, label]) => (
-        <button
-          aria-pressed={mode === id}
-          className={
-            'border px-2.5 py-1 ' +
-            (mode === id
-              ? 'border-foreground text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground')
-          }
-          key={id}
-          onClick={() => setMode(id)}
-          type="button"
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
+  const modes = <Segmented label="Hedge mode" onChange={setMode} options={MODES} value={mode} />;
   const terms = (
     <p className="leading-5 text-muted-foreground">
       Each day settles on that day&apos;s average Texas power price and pays 1 mUSDT per YES above
@@ -161,20 +161,26 @@ export function HedgeCalculator() {
         )}
         {!strip.problem && (
           <>
-            <div className="flex items-baseline justify-between font-mono">
-              <span className="text-muted-foreground">Daily load · days covered</span>
-              <span className="tabular-nums text-foreground">
-                {amountText(strip.mwh)} MWh · {strip.days.length}
-              </span>
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[2px] border border-border bg-border sm:grid-cols-3">
+              <Stat className={FIGURE_TILE} label="Daily load">
+                <CountTo format={amountText} value={strip.mwh} />
+                <Unit>MWh</Unit>
+              </Stat>
+              <Stat className={FIGURE_TILE} label="Days covered">
+                {strip.days.length}
+              </Stat>
+              <Stat className={cn(FIGURE_TILE, 'col-span-2 sm:col-span-1')} label="Est. cost">
+                <CostFigure cents={strip.totalCents} />
+              </Stat>
             </div>
             <table className="w-full font-mono tabular-nums">
-              <thead className="text-muted-foreground">
+              <thead>
                 <tr className="border-b border-border">
-                  <th className="py-1.5 text-left font-normal">Day</th>
-                  <th className="py-1.5 text-left font-normal">Strike</th>
-                  <th className="py-1.5 text-right font-normal">YES</th>
-                  <th className="py-1.5 text-right font-normal">Est. cost</th>
-                  <th className="py-1.5">
+                  <th className={`${HEAD_CELL} text-left`}>Day</th>
+                  <th className={`${HEAD_CELL} text-left`}>Strike</th>
+                  <th className={`${HEAD_CELL} text-right text-up`}>YES</th>
+                  <th className={`${HEAD_CELL} text-right`}>Est. cost</th>
+                  <th className={HEAD_CELL}>
                     <span className="sr-only">Order</span>
                   </th>
                 </tr>
@@ -182,14 +188,14 @@ export function HedgeCalculator() {
               <tbody className="divide-y divide-border">
                 {strip.days.flatMap(({ dayKey, view }) =>
                   view.rows.map((row, i) => (
-                    <tr key={row.address}>
-                      <td className="py-1.5 text-muted-foreground">{i === 0 ? dayLabel(dayKey) : ''}</td>
-                      <td className="py-1.5 text-foreground">{dollars(row.strike)}</td>
-                      <td className="py-1.5 text-right text-foreground">{amountText(row.tokens)}</td>
-                      <td className="py-1.5 text-right text-foreground">
+                    <tr className={ROW} key={row.address}>
+                      <td className="py-2 text-muted-foreground">{i === 0 ? dayLabel(dayKey) : ''}</td>
+                      <td className="py-2 text-foreground">{dollars(row.strike)}</td>
+                      <td className="py-2 text-right text-foreground">{amountText(row.tokens)}</td>
+                      <td className="py-2 text-right text-foreground">
                         {row.costCents === undefined ? '—' : amountText(row.costCents / 100, 2)}
                       </td>
-                      <td className="py-1 pl-2 text-right">
+                      <td className="py-1.5 pl-3 text-right">
                         <LoadButton onLoad={() => load(row)} row={row} />
                       </td>
                     </tr>
@@ -198,13 +204,13 @@ export function HedgeCalculator() {
               </tbody>
               <tfoot>
                 <tr className="border-t border-border">
-                  <td className="py-1.5 text-muted-foreground" colSpan={3}>
+                  <td className={`${HEAD_CELL} align-baseline`} colSpan={3}>
                     Total
                   </td>
-                  <td className="py-1.5 text-right text-foreground">
+                  <td className="py-2 text-right text-foreground">
                     {strip.totalCents === undefined ? '—' : amountText(strip.totalCents / 100, 2)}
                   </td>
-                  <td className="py-1.5 pl-2 text-left text-muted-foreground">mUSDT</td>
+                  <td className="py-2 pl-3 text-left text-muted-foreground">mUSDT</td>
                 </tr>
               </tfoot>
             </table>
@@ -266,39 +272,42 @@ export function HedgeCalculator() {
 
       {!view.problem && (
         <>
-          <div className="flex items-baseline justify-between font-mono">
-            <span className="text-muted-foreground">Daily load</span>
-            <span className="tabular-nums text-foreground">
-              {amountText(view.mwh)} MWh
-            </span>
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[2px] border border-border bg-border">
+            <Stat className={FIGURE_TILE} label="Daily load">
+              <CountTo format={amountText} value={view.mwh} />
+              <Unit>MWh</Unit>
+            </Stat>
+            <Stat className={FIGURE_TILE} label="Est. cost">
+              <CostFigure cents={view.totalCents} />
+            </Stat>
           </div>
 
           <table className="w-full font-mono tabular-nums">
-            <thead className="text-muted-foreground">
+            <thead>
               <tr className="border-b border-border">
-                <th className="py-1.5 text-left font-normal">Strike</th>
-                <th className="py-1.5 text-right font-normal">YES</th>
-                <th className="py-1.5 text-right font-normal">Est. cost</th>
-                <th className="py-1.5">
+                <th className={`${HEAD_CELL} text-left`}>Strike</th>
+                <th className={`${HEAD_CELL} text-right text-up`}>YES</th>
+                <th className={`${HEAD_CELL} text-right`}>Est. cost</th>
+                <th className={HEAD_CELL}>
                   <span className="sr-only">Order</span>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {view.rows.map((row) => (
-                <tr key={row.address}>
-                  <td className="py-1.5 text-foreground">
+                <tr className={ROW} key={row.address}>
+                  <td className="py-2 text-foreground">
                     {dollars(row.strike)}
                   </td>
-                  <td className="py-1.5 text-right text-foreground">
+                  <td className="py-2 text-right text-foreground">
                     {amountText(row.tokens)}
                   </td>
-                  <td className="py-1.5 text-right text-foreground">
+                  <td className="py-2 text-right text-foreground">
                     {row.costCents === undefined
                       ? '—'
                       : amountText(row.costCents / 100, 2)}
                   </td>
-                  <td className="py-1 pl-2 text-right">
+                  <td className="py-1.5 pl-3 text-right">
                     <LoadButton onLoad={() => load(row)} row={row} />
                   </td>
                 </tr>
@@ -306,15 +315,15 @@ export function HedgeCalculator() {
             </tbody>
             <tfoot>
               <tr className="border-t border-border">
-                <td className="py-1.5 text-muted-foreground" colSpan={2}>
+                <td className={`${HEAD_CELL} align-baseline`} colSpan={2}>
                   Total
                 </td>
-                <td className="py-1.5 text-right text-foreground">
+                <td className="py-2 text-right text-foreground">
                   {view.totalCents === undefined
                     ? '—'
                     : amountText(view.totalCents / 100, 2)}
                 </td>
-                <td className="py-1.5 pl-2 text-left text-muted-foreground">
+                <td className="py-2 pl-3 text-left text-muted-foreground">
                   mUSDT
                 </td>
               </tr>
@@ -340,15 +349,33 @@ export function HedgeCalculator() {
   );
 }
 
+/** A unit after a headline figure, small and muted so the number leads. */
+function Unit({ children }: { children: React.ReactNode }) {
+  return <span className="ml-1.5 text-xs text-muted-foreground">{children}</span>;
+}
+
+/** A ladder's total cost in mUSDT, counting to each new total; a dash until the pools are read. */
+function CostFigure({ cents }: { cents?: number }) {
+  if (cents === undefined) return '—';
+  return (
+    <>
+      <CountTo format={costText} value={cents} />
+      <Unit>mUSDT</Unit>
+    </>
+  );
+}
+
+/** Each rung's order, a compact YES call to action; it fills the ticket and never sends. */
 function LoadButton({ row, onLoad }: { row: HedgeRow; onLoad: () => void }) {
   return (
     <button
-      className="whitespace-nowrap rounded-[2px] border border-border px-2 py-1 text-foreground hover:bg-muted disabled:opacity-50"
+      className={cn(ctaClass('up'), 'h-8 w-auto gap-1.5 whitespace-nowrap px-3 text-xs')}
       disabled={!row.amount}
       onClick={onLoad}
       type="button"
     >
       Load in ticket
+      <CtaArrow />
     </button>
   );
 }
@@ -364,23 +391,23 @@ function ScenarioTable({
 }) {
   return (
     <div>
-      <div className="mb-1 text-muted-foreground">{caption}</div>
+      <div className="mb-2 leading-5 text-muted-foreground">{caption}</div>
       <table className="w-full font-mono tabular-nums">
-        <thead className="text-muted-foreground">
+        <thead>
           <tr className="border-b border-border">
-            <th className="py-1.5 text-left font-normal">Price</th>
-            <th className="py-1.5 text-right font-normal">Extra cost</th>
-            <th className="py-1.5 text-right font-normal">{payLabel}</th>
-            <th className="py-1.5 text-right font-normal">Covered</th>
+            <th className={`${HEAD_CELL} text-left`}>Price</th>
+            <th className={`${HEAD_CELL} text-right`}>Extra cost</th>
+            <th className={`${HEAD_CELL} text-right`}>{payLabel}</th>
+            <th className={`${HEAD_CELL} text-right`}>Covered</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border text-foreground">
           {scenarios.map((s) => (
-            <tr key={s.price}>
-              <td className="py-1.5">{dollars(s.price)}</td>
-              <td className="py-1.5 text-right">${amountText(s.extraCost)}</td>
-              <td className="py-1.5 text-right">{amountText(s.payout)}</td>
-              <td className="py-1.5 text-right">{s.covered === null ? '—' : formatPercent(s.covered, 0)}</td>
+            <tr className={ROW} key={s.price}>
+              <td className="py-2">{dollars(s.price)}</td>
+              <td className="py-2 text-right">${amountText(s.extraCost)}</td>
+              <td className="py-2 text-right">{amountText(s.payout)}</td>
+              <td className="py-2 text-right">{s.covered === null ? '—' : formatPercent(s.covered, 0)}</td>
             </tr>
           ))}
         </tbody>
@@ -449,7 +476,7 @@ function NoMarketsOnDay({
         <div className="flex flex-wrap gap-2">
           {days.map((market) => (
             <button
-              className="rounded-[2px] border border-border px-2 py-1 font-mono text-foreground hover:bg-muted"
+              className={cn(CHIP_BUTTON, 'text-foreground')}
               key={market.dayKey}
               onClick={() => onSelect(market.address)}
               type="button"
@@ -463,27 +490,38 @@ function NoMarketsOnDay({
   );
 }
 
+/** A labelled input; the unit keeps its own case under the small-caps label. */
 function NumberField({
   id,
   label,
   max,
   onChange,
+  unit,
   value,
 }: {
   id: string;
   label: string;
   max?: string;
   onChange: (value: string) => void;
+  unit?: string;
   value: string;
 }) {
   return (
     <div className="min-w-0">
-      <label className="mb-1 block text-muted-foreground" htmlFor={id}>
+      <label
+        className="mb-1.5 block font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground"
+        htmlFor={id}
+      >
         {label}
+        {unit && (
+          <>
+            , <span className="normal-case">{unit}</span>
+          </>
+        )}
       </label>
       <Input
         aria-invalid={inputNumber(value) === 0}
-        className="h-9 rounded-[2px] border-border bg-background px-2 font-mono text-sm tabular-nums text-foreground shadow-none focus-visible:ring-1"
+        className="h-10 rounded-[2px] border-border bg-background px-3 font-mono text-base tabular-nums text-foreground shadow-none focus-visible:ring-1"
         id={id}
         inputMode="decimal"
         max={max}
@@ -499,6 +537,11 @@ function NumberField({
 /** "$40", "$39.57": whole dollars without cents. */
 function dollars(value: number): string {
   return `$${amountText(value, Number.isInteger(value) ? 0 : 2)}`;
+}
+
+/** A cost in cents as mUSDT with 2 decimals, the tables' own format. */
+function costText(cents: number): string {
+  return amountText(cents / 100, 2);
 }
 
 /** Grouped, with exactly `fixed` decimals when given, otherwise up to 2. */

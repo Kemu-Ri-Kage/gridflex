@@ -137,6 +137,96 @@ body {
   }
 }
 
+/* Terminal motion (design-brief.md §13): feedback only - a region rises
+   into place once on load, a changed number ticks, a receipt pops in.
+   Transform, opacity and colour only; the reduced-motion block above
+   turns every one of these off. Keyframes with no end state settle on the
+   element's own styles. */
+@keyframes terminal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes terminal-swap {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes terminal-tick-up {
+  0% {
+    opacity: 0;
+    transform: translateY(0.45em);
+    color: var(--up);
+  }
+  30% {
+    opacity: 1;
+    transform: none;
+    color: var(--up);
+  }
+}
+
+@keyframes terminal-tick-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.45em);
+    color: var(--down);
+  }
+  30% {
+    opacity: 1;
+    transform: none;
+    color: var(--down);
+  }
+}
+
+@keyframes terminal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes terminal-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.terminal-rise {
+  animation: terminal-rise 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--rise-i, 0) * 70ms);
+}
+
+/* Content that belongs to one market (the ticket, the chart) swaps in when
+   the selection changes; key the element by market address. */
+.terminal-swap {
+  animation: terminal-swap 240ms ease-out both;
+}
+
+.terminal-tick-up {
+  animation: terminal-tick-up 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.terminal-tick-down {
+  animation: terminal-tick-down 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.terminal-pop {
+  animation: terminal-pop 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* A check mark drawn once: give the path stroke-dasharray 24. */
+.terminal-draw {
+  stroke-dasharray: 24;
+  animation: terminal-draw 360ms 120ms ease-out both;
+}
+
 ::selection {
   background: color-mix(in oklch, var(--foreground) 24%, transparent);
   color: var(--foreground);

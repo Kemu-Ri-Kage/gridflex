@@ -1,9 +1,12 @@
 import {
   dailyMwh,
+  extraCost,
   ladder,
+  ladderPayout,
   scenarios,
   yesCostFor,
   type HedgeScenario,
+  type LadderRung,
 } from './hedge.ts';
 
 /**
@@ -122,4 +125,70 @@ export function tradingDays<T extends { dayKey: number }>(markets: readonly T[])
   const first = new Map<number, T>();
   for (const market of markets) if (!first.has(market.dayKey)) first.set(market.dayKey, market);
   return [...first.values()].toSorted((a, b) => a.dayKey - b.dayKey);
+}
+
+/** Market days in a week strip. */
+export const STRIP_DAYS = 7;
+
+/** One day of a strip: its ladder, the same as the one-day view of that day. */
+export interface StripDay {
+  dayKey: number;
+  view: HedgeView;
+}
+
+export interface StripView {
+  mwh: number;
+  /** Days with a ladder, earliest first. */
+  days: StripDay[];
+  /** Days with markets but no strike below the protected price. */
+  skipped: number[];
+  /** Every day's ladder added up, in whole cents; undefined while any pool is unread. */
+  totalCents?: number;
+  /** The strip's lowest strike: every day's extra cost is measured from it. */
+  from?: number;
+  /**
+   * If every covered day settled at the price: the extra cost above `from`
+   * and what all the ladders pay, both summed over the days. One reference
+   * for every day, so a day whose strikes start higher shows as the gap it is.
+   */
+  scenarios: HedgeScenario[];
+  problem?: 'load' | 'protect';
+}
+
+/**
+ * The one-day ladder repeated on each of the first STRIP_DAYS market days:
+ * every day is its own market that settles that afternoon, so the cover
+ * rolls day by day - a week of protection from next-day contracts, the
+ * same contract at a longer term.
+ */
+export function stripView(
+  mw: number,
+  hours: number,
+  protectTo: number,
+  days: readonly { dayKey: number; markets: readonly HedgeMarket[] }[],
+): StripView {
+  const mwh = dailyMwh(mw, hours);
+  if (mwh === 0) return { mwh, days: [], skipped: [], scenarios: [], problem: 'load' };
+  const views = days
+    .slice(0, STRIP_DAYS)
+    .map(({ dayKey, markets }) => ({ dayKey, view: hedgeView(mw, hours, protectTo, markets) }));
+  const covered = views.filter(({ view }) => !view.problem);
+  const skipped = views.filter(({ view }) => view.problem).map(({ dayKey }) => dayKey);
+  if (covered.length === 0) return { mwh, days: [], skipped, scenarios: [], problem: 'protect' };
+
+  const costs = covered.map(({ view }) => view.totalCents);
+  const totalCents = costs.every((cents): cents is number => cents !== undefined)
+    ? costs.reduce((sum, cents) => sum + cents, 0)
+    : undefined;
+  const strikes = covered.flatMap(({ view }) => view.rows.map((row) => row.strike));
+  const from = Math.min(...strikes);
+  const ladders: LadderRung[][] = covered.map(({ view }) =>
+    view.rows.map(({ strike, tokens }) => ({ strike, tokens })),
+  );
+  const summed = scenarioPrices(strikes, protectTo).map((price) => {
+    const cost = covered.length * extraCost(mwh, price, from);
+    const payout = ladders.reduce((sum, rungs) => sum + ladderPayout(rungs, price), 0);
+    return { price, extraCost: cost, payout, covered: cost > 0 ? payout / cost : null };
+  });
+  return { mwh, days: covered, skipped, totalCents, from, scenarios: summed };
 }

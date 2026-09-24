@@ -5,10 +5,15 @@ import type { Address } from 'viem';
 
 import { Input } from '@/components/ui/input';
 import { formatPercent } from '@/lib/format';
+import type { HedgeScenario } from '@/lib/hedge';
 import {
   hedgeView,
   inputNumber,
+  STRIP_DAYS,
+  stripView,
   tradingDays,
+  type HedgeMarket,
+  type HedgeRow,
 } from '@/lib/hedge-view';
 import {
   dayLabel,
@@ -25,8 +30,10 @@ import { prefillTicket } from '@/lib/ticket-prefill';
  * centre whose largest cost is the Texas power price. Sizes YES on every
  * strike trading on the selected day so the payout follows the load's
  * extra power cost up to a chosen price (lib/hedge.ts), costs each rung
- * from its market's pool, and loads a rung into the order ticket. Nothing
- * is sent from here: the ticket quotes and sends the order.
+ * from its market's pool, and loads a rung into the order ticket. A week
+ * strip repeats that ladder on each of the next market days, each its own
+ * next-day market. Nothing is sent from here: the ticket quotes and sends
+ * the order.
  */
 
 /**
@@ -36,6 +43,7 @@ import { prefillTicket } from '@/lib/ticket-prefill';
  */
 export function HedgeCalculator() {
   const { markets, error, selected, select, now } = useMarkets();
+  const [mode, setMode] = React.useState<'day' | 'strip'>('day');
   const [mw, setMw] = React.useState('10');
   const [hours, setHours] = React.useState('24');
   const [protectTo, setProtectTo] = React.useState('80');
@@ -49,58 +57,200 @@ export function HedgeCalculator() {
     () => trading.filter((m) => m.dayKey === day),
     [trading, day],
   );
-  const pools = usePools(dayMarkets, now);
+  // A week strip: the first STRIP_DAYS days with a market trading.
+  const stripDays = React.useMemo(
+    () => tradingDays(trading).slice(0, STRIP_DAYS).map((m) => m.dayKey),
+    [trading],
+  );
+  const stripMarkets = React.useMemo(
+    () => trading.filter((m) => stripDays.includes(m.dayKey)),
+    [trading, stripDays],
+  );
+  const poolMarkets = mode === 'strip' ? stripMarkets : dayMarkets;
+  const pools = usePools(poolMarkets, now);
 
   if (!markets || markets.some((m) => !m.live)) {
     return <p className="text-muted-foreground">{error ?? 'Loading…'}</p>;
   }
-  if (day === undefined || dayMarkets.length === 0) {
+
+  // Strikes are in cents on chain, the same x100 scale as oracle readings.
+  const hedgeMarket = (market: Market): HedgeMarket => {
+    const reserves = pools.reserves?.[poolMarkets.indexOf(market)];
+    return {
+      address: market.address,
+      strike: market.threshold / 100,
+      yesReserve: reserves?.yes,
+      noReserve: reserves?.no,
+    };
+  };
+  const load = (row: HedgeRow) => {
+    if (!row.amount) return;
+    select(row.address as Address);
+    prefillTicket({ market: row.address, side: 'YES', amount: row.amount });
+    // The ticket is above this panel: bring it into view.
+    document.getElementById('order-ticket')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const inputs = (
+    <div className="grid grid-cols-3 items-end gap-2">
+      <NumberField id="hedge-mw" label="Load, MW" onChange={setMw} value={mw} />
+      <NumberField id="hedge-hours" label="Hours a day" max="24" onChange={setHours} value={hours} />
+      <NumberField id="hedge-protect" label="Protect to, $/MWh" onChange={setProtectTo} value={protectTo} />
+    </div>
+  );
+  const modes = (
+    <div className="flex gap-1 font-mono">
+      {(
+        [
+          ['day', 'One day'],
+          ['strip', 'Week strip'],
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          aria-pressed={mode === id}
+          className={
+            'border px-2.5 py-1 ' +
+            (mode === id
+              ? 'border-foreground text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground')
+          }
+          key={id}
+          onClick={() => setMode(id)}
+          type="button"
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+  const terms = (
+    <p className="leading-5 text-muted-foreground">
+      Each day settles on that day&apos;s average Texas power price and pays 1 mUSDT per YES above
+      its strike. Costs are indicative, from each pool now: the ticket&apos;s own quote is what&apos;s
+      sent, and large orders move the price.
+    </p>
+  );
+
+  if (mode === 'strip') {
+    const strip = stripView(
+      inputNumber(mw),
+      inputNumber(hours),
+      inputNumber(protectTo),
+      stripDays.map((dayKey) => ({
+        dayKey,
+        markets: stripMarkets.filter((m) => m.dayKey === dayKey).map(hedgeMarket),
+      })),
+    );
+    const first = strip.days[0]?.dayKey;
+    const last = strip.days.at(-1)?.dayKey;
     return (
-      <NoMarketsOnDay
-        day={day}
-        onSelect={select}
-        trading={trading}
-      />
+      <>
+        {modes}
+        <p className="leading-5 text-muted-foreground">
+          The same ladder on each of the next {stripDays.length} market days
+          {first && last ? `, ${dayLabel(first)} to ${dayLabel(last)}` : ''}. Every day is its own
+          market and settles that afternoon, so the cover rolls day by day and nothing is locked
+          up for long.
+        </p>
+        {inputs}
+        {strip.problem === 'load' && (
+          <p className="text-warning">Enter a load above 0 MW for up to 24 hours a day.</p>
+        )}
+        {strip.problem === 'protect' && (
+          <p className="text-warning">Protect to a price above the strikes on offer.</p>
+        )}
+        {!strip.problem && (
+          <>
+            <div className="flex items-baseline justify-between font-mono">
+              <span className="text-muted-foreground">Daily load · days covered</span>
+              <span className="tabular-nums text-foreground">
+                {amountText(strip.mwh)} MWh · {strip.days.length}
+              </span>
+            </div>
+            <table className="w-full font-mono tabular-nums">
+              <thead className="text-muted-foreground">
+                <tr className="border-b border-border">
+                  <th className="py-1.5 text-left font-normal">Day</th>
+                  <th className="py-1.5 text-left font-normal">Strike</th>
+                  <th className="py-1.5 text-right font-normal">YES</th>
+                  <th className="py-1.5 text-right font-normal">Est. cost</th>
+                  <th className="py-1.5">
+                    <span className="sr-only">Order</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {strip.days.flatMap(({ dayKey, view }) =>
+                  view.rows.map((row, i) => (
+                    <tr key={row.address}>
+                      <td className="py-1.5 text-muted-foreground">{i === 0 ? dayLabel(dayKey) : ''}</td>
+                      <td className="py-1.5 text-foreground">{dollars(row.strike)}</td>
+                      <td className="py-1.5 text-right text-foreground">{amountText(row.tokens)}</td>
+                      <td className="py-1.5 text-right text-foreground">
+                        {row.costCents === undefined ? '—' : amountText(row.costCents / 100, 2)}
+                      </td>
+                      <td className="py-1 pl-2 text-right">
+                        <LoadButton onLoad={() => load(row)} row={row} />
+                      </td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-border">
+                  <td className="py-1.5 text-muted-foreground" colSpan={3}>
+                    Total
+                  </td>
+                  <td className="py-1.5 text-right text-foreground">
+                    {strip.totalCents === undefined ? '—' : amountText(strip.totalCents / 100, 2)}
+                  </td>
+                  <td className="py-1.5 pl-2 text-left text-muted-foreground">mUSDT</td>
+                </tr>
+              </tfoot>
+            </table>
+            {strip.skipped.length > 0 && (
+              <p className="text-muted-foreground">
+                Not covered: {strip.skipped.map((d) => dayLabel(d)).join(', ')}, with no strike
+                below {dollars(inputNumber(protectTo))}.
+              </p>
+            )}
+            {pools.failed && (
+              <p className="text-warning">
+                Could not read the pools from X Layer; costs will fill in on the next refresh.
+              </p>
+            )}
+            <ScenarioTable
+              caption={`If every day settles at the price: the extra power cost above ${dollars(strip.from ?? 0)}/MWh against what the ladders pay, over ${strip.days.length} days, in mUSDT`}
+              payLabel="Strip pays"
+              scenarios={strip.scenarios}
+            />
+          </>
+        )}
+        {terms}
+      </>
     );
   }
 
-  // Strikes are in cents on chain, the same x100 scale as oracle readings.
+  if (day === undefined || dayMarkets.length === 0) {
+    return (
+      <>
+        {modes}
+        <NoMarketsOnDay day={day} onSelect={select} trading={trading} />
+      </>
+    );
+  }
+
   const strikes = dayMarkets.map((market) => market.threshold / 100);
-  const view = hedgeView(
-    inputNumber(mw),
-    inputNumber(hours),
-    inputNumber(protectTo),
-    dayMarkets.map((market, i) => ({
-      address: market.address,
-      strike: strikes[i],
-      yesReserve: pools.reserves?.[i]?.yes,
-      noReserve: pools.reserves?.[i]?.no,
-    })),
-  );
+  const view = hedgeView(inputNumber(mw), inputNumber(hours), inputNumber(protectTo), dayMarkets.map(hedgeMarket));
 
   return (
     <>
+      {modes}
       <p className="leading-5 text-muted-foreground">
         YES on every strike for {dayLabel(day, true)}, sized so the payout
         follows a load&apos;s extra power cost up to the price you protect.
       </p>
-
-      <div className="grid grid-cols-3 items-end gap-2">
-        <NumberField id="hedge-mw" label="Load, MW" onChange={setMw} value={mw} />
-        <NumberField
-          id="hedge-hours"
-          label="Hours a day"
-          max="24"
-          onChange={setHours}
-          value={hours}
-        />
-        <NumberField
-          id="hedge-protect"
-          label="Protect to, $/MWh"
-          onChange={setProtectTo}
-          value={protectTo}
-        />
-      </div>
+      {inputs}
 
       {view.problem === 'load' && (
         <p className="text-warning">
@@ -149,26 +299,7 @@ export function HedgeCalculator() {
                       : amountText(row.costCents / 100, 2)}
                   </td>
                   <td className="py-1 pl-2 text-right">
-                    <button
-                      className="whitespace-nowrap rounded-[2px] border border-border px-2 py-1 text-foreground hover:bg-muted disabled:opacity-50"
-                      disabled={!row.amount}
-                      onClick={() => {
-                        if (!row.amount) return;
-                        select(row.address as Address);
-                        prefillTicket({
-                          market: row.address,
-                          side: 'YES',
-                          amount: row.amount,
-                        });
-                        // The ticket is above this panel: bring it into view.
-                        document
-                          .getElementById('order-ticket')
-                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }}
-                      type="button"
-                    >
-                      Load in ticket
-                    </button>
+                    <LoadButton onLoad={() => load(row)} row={row} />
                   </td>
                 </tr>
               ))}
@@ -196,48 +327,65 @@ export function HedgeCalculator() {
             </p>
           )}
 
-          <div>
-            <div className="mb-1 text-muted-foreground">
-              Extra power cost above {dollars(view.rows[0].strike)}/MWh
-              against what the ladder pays, in mUSDT
-            </div>
-            <table className="w-full font-mono tabular-nums">
-              <thead className="text-muted-foreground">
-                <tr className="border-b border-border">
-                  <th className="py-1.5 text-left font-normal">Price</th>
-                  <th className="py-1.5 text-right font-normal">Extra cost</th>
-                  <th className="py-1.5 text-right font-normal">Ladder pays</th>
-                  <th className="py-1.5 text-right font-normal">Covered</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border text-foreground">
-                {view.scenarios.map((s) => (
-                  <tr key={s.price}>
-                    <td className="py-1.5">{dollars(s.price)}</td>
-                    <td className="py-1.5 text-right">
-                      ${amountText(s.extraCost)}
-                    </td>
-                    <td className="py-1.5 text-right">
-                      {amountText(s.payout)}
-                    </td>
-                    <td className="py-1.5 text-right">
-                      {s.covered === null ? '—' : formatPercent(s.covered, 0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ScenarioTable
+            caption={`Extra power cost above ${dollars(view.rows[0].strike)}/MWh against what the ladder pays, in mUSDT`}
+            payLabel="Ladder pays"
+            scenarios={view.scenarios}
+          />
         </>
       )}
 
-      <p className="leading-5 text-muted-foreground">
-        Settles on the day&apos;s average Texas power price and pays 1 mUSDT
-        per YES above its strike. Costs are indicative, from each pool now:
-        the ticket&apos;s own quote is what&apos;s sent, and large orders move
-        the price.
-      </p>
+      {terms}
     </>
+  );
+}
+
+function LoadButton({ row, onLoad }: { row: HedgeRow; onLoad: () => void }) {
+  return (
+    <button
+      className="whitespace-nowrap rounded-[2px] border border-border px-2 py-1 text-foreground hover:bg-muted disabled:opacity-50"
+      disabled={!row.amount}
+      onClick={onLoad}
+      type="button"
+    >
+      Load in ticket
+    </button>
+  );
+}
+
+function ScenarioTable({
+  caption,
+  payLabel,
+  scenarios,
+}: {
+  caption: string;
+  payLabel: string;
+  scenarios: readonly HedgeScenario[];
+}) {
+  return (
+    <div>
+      <div className="mb-1 text-muted-foreground">{caption}</div>
+      <table className="w-full font-mono tabular-nums">
+        <thead className="text-muted-foreground">
+          <tr className="border-b border-border">
+            <th className="py-1.5 text-left font-normal">Price</th>
+            <th className="py-1.5 text-right font-normal">Extra cost</th>
+            <th className="py-1.5 text-right font-normal">{payLabel}</th>
+            <th className="py-1.5 text-right font-normal">Covered</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border text-foreground">
+          {scenarios.map((s) => (
+            <tr key={s.price}>
+              <td className="py-1.5">{dollars(s.price)}</td>
+              <td className="py-1.5 text-right">${amountText(s.extraCost)}</td>
+              <td className="py-1.5 text-right">{amountText(s.payout)}</td>
+              <td className="py-1.5 text-right">{s.covered === null ? '—' : formatPercent(s.covered, 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

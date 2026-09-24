@@ -6,6 +6,8 @@ import {
   centsAmount,
   costCents,
   hedgeView,
+  stripView,
+  STRIP_DAYS,
   inputNumber,
   scenarioPrices,
   tradingDays,
@@ -110,4 +112,33 @@ void test('trading days are listed earliest first, each with its first market in
     { dayKey: 20260925, address: '0x2' },
     { dayKey: 20260926, address: '0x1' },
   ]);
+});
+
+void test('a week strip repeats the day ladder on each market day and adds it up', () => {
+  const pool = { yesReserve: 10_000_000_000n, noReserve: 10_000_000_000n };
+  const day = (dayKey: number, strikes: number[]) => ({
+    dayKey,
+    markets: strikes.map((strike) => ({ address: `0x${dayKey}${strike}`, strike, ...pool })),
+  });
+  const strip = stripView(10, 24, 80, [day(20260926, [35, 45]), day(20260927, [35, 45]), day(20260928, [90])]);
+  // the 28th has no strike below $80: skipped, not covered
+  assert.deepEqual(strip.skipped, [20260928]);
+  assert.equal(strip.days.length, 2);
+  const oneDay = hedgeView(10, 24, 80, day(20260926, [35, 45]).markets);
+  assert.equal(strip.totalCents, 2 * (oneDay.totalCents ?? 0));
+  // every day at $80: two days of 240 MWh x $45 extra, fully paid
+  const at80 = strip.scenarios.find((s) => s.price === 80);
+  assert.equal(at80?.extraCost, 2 * 240 * 45);
+  assert.equal(at80?.payout, 2 * 240 * 45);
+  assert.equal(at80?.covered, 1);
+  assert.equal(stripView(0, 24, 80, [day(20260926, [35])]).problem, 'load');
+  assert.equal(stripView(10, 24, 30, [day(20260926, [35])]).problem, 'protect');
+});
+
+void test('a strip covers at most a week of market days', () => {
+  const days = Array.from({ length: 9 }, (_, i) => ({
+    dayKey: 20260926 + i,
+    markets: [{ address: `0x${i}`, strike: 35 }],
+  }));
+  assert.equal(stripView(1, 24, 80, days).days.length, STRIP_DAYS);
 });

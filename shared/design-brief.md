@@ -40,7 +40,9 @@ GRIDFLEX, in any component, in any state:
 - Rounded-xl cards (radius is 2px everywhere — see §4)
 - Pill badges (fully rounded `border-radius: 9999px` chips)
 - Glassmorphism and backdrop blur
-- Stock-style illustrations, hero photography, abstract 3D renders
+- Stock-style illustrations, hero photography, abstract 3D renders (the
+  hero's price grid, §7, is a chart of real hourly prices drawn in 3D,
+  not a render: every bar is a published price and reads out on hover)
 - Slogan headlines — "The future of…", "Unlock…", "Reimagining…", "Powering
   the next generation of…", or any headline that could be pasted onto an
   unrelated product unchanged
@@ -307,6 +309,19 @@ held to the same 24-hour completeness check, and cross-checked against
 that day's published value. The page's one disclaimer line (X Layer
 testnet · MockUSDT, §5) is the hero eyebrow, not a footnote.
 
+**The price grid, beside the headline** (below it on phones): every hour
+of the last 30 published days of the day-ahead Texas power price, one bar
+per hour - hours left to right, days back to front, height the price, a
+sequential grey by price - the same hourly prices each day's settlement
+price averages. The headline's two hours are the green (cheapest) and red
+(dearest) bars in the nearest row. It rises row by row on load, sways
+slowly, turns and tilts when dragged, and reads out the hour under the
+pointer ("24 Sep 2026 · 18:00 Central · $95.33/MWh"); at rest the readout
+gives the latest day's average, the price markets settle on. Canvas 2D,
+flat-shaded, palette tokens only, no glow. Data:
+`web/public/data/price-grid.json`, written by `build_feed_data.py` from the
+same checked hours as the daily candles.
+
 **01 / Normal range.** One sentence explains $/MWh (roughly what 650
 Texas homes use in an hour) — the only place it's explained. Two
 stats: the normal range (the middle 80% of published days, 10th to 90th
@@ -340,8 +355,12 @@ Verified state (§4's MISMATCH rule applies here too) and its oracle
 transaction.
 
 **04 / Open terminal.** The call to action, restated once, not repeated
-elsewhere on the page. It names the listed YES/NO questions from chain
-state (§6).
+elsewhere on the page. Every listed question is a contract card on a
+hairline grid, read from chain state (§6): status and time left to trade,
+the question, its strike and settlement day, YES and NO in cents (what
+each side paid, once settled), and a link that opens the terminal on that
+market (`/trade?market=0x…`). A card leans a few degrees toward a mouse
+pointer (transform only, §13).
 
 **Spacing, type scale, and rhythm — DAQ's standard, given concrete
 numbers** (derived from studying daqconsulting.com, not copied from it —
@@ -651,6 +670,9 @@ only when every item is a pass.
     press micro-interactions may additionally animate `color` (text/
     border only) — no other property, and no exception on `/trade` (§13).
 26. The terminal (`/trade`) has no decorative motion anywhere on it (§13).
+    The landing hero's price grid (§7) animates only on its own canvas and
+    stops when it's off screen; under `prefers-reduced-motion` it is drawn
+    once, still.
 27. `prefers-reduced-motion` disables all animation and smooth scrolling
     completely, on both pages (§13).
 28. No motion on either page causes layout shift or delays content

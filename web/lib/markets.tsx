@@ -133,6 +133,14 @@ interface MarketsValue {
 
 const MarketsContext = React.createContext<MarketsValue | null>(null);
 
+const subscribeToNothing = () => () => {};
+
+/** The address in ?market=, when it is one. */
+function requestedMarket(): string | undefined {
+  const value = new URLSearchParams(window.location.search).get('market');
+  return value && /^0x[0-9a-fA-F]{40}$/.test(value) ? value : undefined;
+}
+
 export function MarketsProvider({ children }: { children: React.ReactNode }) {
   const addresses = useAddresses();
   const [facts, setFacts] = React.useState<MarketFacts[] | null>(null);
@@ -140,6 +148,16 @@ export function MarketsProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = React.useState<string>();
   const [selectedAddress, setSelectedAddress] = React.useState<Address>();
   const [now, setNow] = React.useState(() => Date.now());
+
+  // A link straight to one market, /trade?market=0x… (the landing page's
+  // contract cards). Read from the URL on the client only, so the server
+  // render and hydration agree; a click in the list overrides it, and a
+  // malformed or unlisted address just leaves the first market.
+  const requested = React.useSyncExternalStore(
+    subscribeToNothing,
+    requestedMarket,
+    () => undefined,
+  );
 
   React.useEffect(() => {
     if (!addresses) return;
@@ -213,11 +231,15 @@ export function MarketsProvider({ children }: { children: React.ReactNode }) {
       markets,
       error,
       selected:
-        markets?.find((m) => m.address === selectedAddress) ?? markets?.[0],
+        markets?.find(
+          (m) =>
+            m.address.toLowerCase() ===
+            (selectedAddress ?? requested)?.toLowerCase(),
+        ) ?? markets?.[0],
       select: setSelectedAddress,
       now,
     }),
-    [markets, error, selectedAddress, now],
+    [markets, error, selectedAddress, requested, now],
   );
 
   return (

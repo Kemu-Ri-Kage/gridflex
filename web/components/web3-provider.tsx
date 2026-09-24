@@ -68,7 +68,12 @@ import {
   type WalletRpcVerdict,
 } from '@/lib/wallet-health';
 import {
+  authorisedAccount,
   connectWallet as connectWithChoice,
+  findRememberedWallet,
+  forgetRememberedWallet,
+  loadRememberedWallet,
+  rememberWallet,
   watchWallets,
   type DiscoveredWallet,
   type WalletInfo,
@@ -427,6 +432,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const forgetWallet = React.useCallback(() => {
     walletRef.current = undefined;
     setWallet(undefined);
+    // Nor reconnected silently on the next load.
+    forgetRememberedWallet(browserStorage());
   }, []);
 
   const chooseWallet = React.useCallback((id?: string) => {
@@ -502,6 +509,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         }
 
         setAccount(getAddress(accounts[0]));
+        // So a reload can reconnect to it without a click.
+        rememberWallet(browserStorage(), info);
         releasePrompt();
         // Connecting and switching are answered by the wallet itself; this is
         // the first request that needs its RPC. Never awaited: it can't hold
@@ -545,6 +554,31 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       if (outcome === 'none') setConnectError(NO_WALLET_MESSAGE);
     });
   }, [connectFlight, askForWallet, connectTo]);
+
+  // After a reload, reconnect to the wallet last connected without a click,
+  // if it still lets this site see an account and is on X Layer:
+  // authorisedAccount never opens a prompt, so this can't surprise anyone
+  // with a wallet window. Tried once per page load, as soon as that wallet
+  // has announced; a Connect click made meanwhile wins.
+  const restoreTried = React.useRef(false);
+  React.useEffect(() => {
+    if (restoreTried.current || !wallets) return;
+    const remembered = loadRememberedWallet(browserStorage());
+    if (!remembered) {
+      restoreTried.current = true;
+      return;
+    }
+    const found = findRememberedWallet(wallets, remembered);
+    if (!found) return;
+    restoreTried.current = true;
+    void authorisedAccount(found.provider, xLayerTestnet.id).then((address) => {
+      if (!address || walletRef.current || connectFlight.running()) return;
+      walletRef.current = found;
+      setWallet(found.info);
+      setAccount(getAddress(address));
+      checkRpc(found.provider);
+    });
+  }, [wallets, connectFlight, checkRpc]);
 
   const disconnect = React.useCallback(() => {
     setAccount(undefined);

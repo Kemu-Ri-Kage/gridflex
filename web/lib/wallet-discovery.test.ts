@@ -2,10 +2,17 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  authorisedAccount,
   connectWallet,
   decideConnect,
+  findRememberedWallet,
+  forgetRememberedWallet,
+  loadRememberedWallet,
+  METAMASK_RDNS,
   OKX_RDNS,
+  rememberWallet,
   watchWallets,
+  type WalletStorage,
   type DiscoveredWallet,
   type DiscoveryWindow,
   type WalletProvider,
@@ -264,4 +271,91 @@ void test('an announcement without a provider is ignored', () => {
   );
   assert.deepEqual(watcher.current(), []);
   watcher.stop();
+});
+
+function memoryStorage(initial: Record<string, string> = {}): WalletStorage & { items: Map<string, string> } {
+  const items = new Map(Object.entries(initial));
+  return {
+    items,
+    getItem: (key) => items.get(key) ?? null,
+    setItem: (key, value) => void items.set(key, value),
+    removeItem: (key) => void items.delete(key),
+  };
+}
+
+void test('an announced wallet is remembered by rdns, since its uuid is new on every load', () => {
+  const storage = memoryStorage();
+  rememberWallet(storage, { id: 'uuid-from-this-load', name: 'MetaMask', rdns: METAMASK_RDNS });
+  assert.deepEqual(loadRememberedWallet(storage), { rdns: METAMASK_RDNS });
+
+  const nextLoad: DiscoveredWallet[] = [
+    { info: { id: 'okx-uuid', name: 'OKX Wallet', rdns: OKX_RDNS }, provider: fakeProvider() },
+    { info: { id: 'new-uuid', name: 'MetaMask', rdns: METAMASK_RDNS }, provider: fakeProvider() },
+  ];
+  assert.equal(findRememberedWallet(nextLoad, { rdns: METAMASK_RDNS })?.info.id, 'new-uuid');
+});
+
+void test('a wallet that did not announce is remembered by its global', () => {
+  const storage = memoryStorage();
+  rememberWallet(storage, { id: 'window.ethereum', name: 'Browser wallet' });
+  assert.deepEqual(loadRememberedWallet(storage), { id: 'window.ethereum' });
+  const legacy: DiscoveredWallet[] = [
+    { info: { id: 'window.ethereum', name: 'Browser wallet' }, provider: fakeProvider() },
+  ];
+  assert.equal(findRememberedWallet(legacy, { id: 'window.ethereum' }), legacy[0]);
+  assert.equal(findRememberedWallet(legacy, { rdns: METAMASK_RDNS }), undefined);
+});
+
+void test('a forgotten, missing, unreadable or blocked entry remembers nothing', () => {
+  const storage = memoryStorage();
+  rememberWallet(storage, { id: 'x', name: 'MetaMask', rdns: METAMASK_RDNS });
+  forgetRememberedWallet(storage);
+  assert.equal(loadRememberedWallet(storage), undefined);
+  assert.equal(loadRememberedWallet(memoryStorage({ 'gridflex:wallet': '{not json' })), undefined);
+  assert.equal(loadRememberedWallet(memoryStorage({ 'gridflex:wallet': '{"rdns":42}' })), undefined);
+  assert.equal(loadRememberedWallet(undefined), undefined);
+  const blocked: WalletStorage = {
+    getItem: () => {
+      throw new Error('SecurityError');
+    },
+    setItem: () => {
+      throw new Error('SecurityError');
+    },
+    removeItem: () => {
+      throw new Error('SecurityError');
+    },
+  };
+  assert.doesNotThrow(() => rememberWallet(blocked, { id: 'x', name: 'MetaMask', rdns: METAMASK_RDNS }));
+  assert.equal(loadRememberedWallet(blocked), undefined);
+});
+
+function answering(answers: Record<string, unknown>): FakeProvider {
+  const methods: string[] = [];
+  return {
+    methods,
+    request: async ({ method }) => {
+      methods.push(method);
+      const answer = answers[method];
+      if (answer instanceof Error) throw answer;
+      return answer;
+    },
+  };
+}
+
+const ACCOUNT = '0x1111111111111111111111111111111111111111';
+
+void test('a wallet still authorising the site on X Layer gives its account without a prompt', async () => {
+  const provider = answering({ eth_accounts: [ACCOUNT], eth_chainId: '0x7a0' });
+  assert.equal(await authorisedAccount(provider, 1952), ACCOUNT);
+  // never eth_requestAccounts or a chain switch: both open a wallet window
+  assert.deepEqual(provider.methods, ['eth_accounts', 'eth_chainId']);
+});
+
+void test('no account when the site was disconnected, the wallet is on another chain, or it errors', async () => {
+  assert.equal(await authorisedAccount(answering({ eth_accounts: [] }), 1952), undefined);
+  assert.equal(
+    await authorisedAccount(answering({ eth_accounts: [ACCOUNT], eth_chainId: '0x1' }), 1952),
+    undefined,
+  );
+  assert.equal(await authorisedAccount(answering({ eth_accounts: new Error('locked') }), 1952), undefined);
 });

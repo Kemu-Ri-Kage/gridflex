@@ -194,3 +194,78 @@ export async function connectWallet(
   await connectTo(wallet);
   return 'connected';
 }
+
+/**
+ * The wallet the site last connected to, kept in localStorage so a reload
+ * can reconnect without a click. An EIP-6963 uuid is new on every page
+ * load, so an announced wallet is found again by its rdns; a wallet that
+ * didn't announce by its global's name (`window.okxwallet`).
+ */
+export type RememberedWallet = { rdns: string } | { id: string };
+
+export const REMEMBERED_WALLET_KEY = 'gridflex:wallet';
+
+/** The parts of localStorage used here, so tests can pass a fake. */
+export type WalletStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+/** Every storage call can throw where the browser blocks site data. */
+function tryStorage<T>(action: () => T): T | undefined {
+  try {
+    return action();
+  } catch {
+    return undefined;
+  }
+}
+
+export function rememberWallet(storage: WalletStorage | undefined, info: WalletInfo): void {
+  const entry: RememberedWallet = info.rdns ? { rdns: info.rdns } : { id: info.id };
+  tryStorage(() => storage?.setItem(REMEMBERED_WALLET_KEY, JSON.stringify(entry)));
+}
+
+export function forgetRememberedWallet(storage: WalletStorage | undefined): void {
+  tryStorage(() => storage?.removeItem(REMEMBERED_WALLET_KEY));
+}
+
+/** The remembered wallet, or undefined when none is stored or the entry is unreadable. */
+export function loadRememberedWallet(storage: WalletStorage | undefined): RememberedWallet | undefined {
+  const raw = tryStorage(() => storage?.getItem(REMEMBERED_WALLET_KEY));
+  if (!raw) return undefined;
+  const parsed = tryStorage(() => JSON.parse(raw) as unknown);
+  if (!parsed || typeof parsed !== 'object') return undefined;
+  const { rdns, id } = parsed as { rdns?: unknown; id?: unknown };
+  if (typeof rdns === 'string' && rdns) return { rdns };
+  if (typeof id === 'string' && id) return { id };
+  return undefined;
+}
+
+/** The installed wallet a remembered entry names, if it has announced yet. */
+export function findRememberedWallet(
+  wallets: readonly DiscoveredWallet[],
+  remembered: RememberedWallet,
+): DiscoveredWallet | undefined {
+  return wallets.find((wallet) =>
+    'rdns' in remembered ? wallet.info.rdns === remembered.rdns : wallet.info.id === remembered.id,
+  );
+}
+
+/**
+ * The account a wallet still lets this site see, asked without a prompt:
+ * `eth_accounts` never opens a wallet window, and answers [] once the site
+ * is disconnected or the wallet is locked. Undefined too when the wallet
+ * is on another chain, since switching it needs a prompt, which only a
+ * click on Connect may open.
+ */
+export async function authorisedAccount(
+  provider: WalletProvider,
+  chainId: number,
+): Promise<string | undefined> {
+  try {
+    const accounts = await provider.request({ method: 'eth_accounts' });
+    const first = Array.isArray(accounts) ? accounts[0] : undefined;
+    if (typeof first !== 'string') return undefined;
+    const chain = await provider.request({ method: 'eth_chainId' });
+    return Number(chain) === chainId ? first : undefined;
+  } catch {
+    return undefined;
+  }
+}

@@ -6,9 +6,12 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  formatLog,
   getAddress,
+  toHex,
   type Address,
   type Hash,
+  type RpcLog,
 } from 'viem';
 
 import {
@@ -54,6 +57,11 @@ import {
   TransactionRevertedError,
 } from '@/lib/transaction-outcome';
 import { latestOnly } from '@/lib/latest-only';
+import {
+  findUserOperation,
+  watchUserOperation,
+  type LogReader,
+} from '@/lib/user-operation';
 import { singleFlight } from '@/lib/single-flight';
 import {
   isUnknownChainError,
@@ -301,6 +309,68 @@ const publicClient = createPublicClient({
   chain: xLayerTestnet,
   transport: xLayerTransport(),
 });
+
+/** The app's own RPC, for finding a user operation (lib/user-operation.ts). */
+const logReader: LogReader = {
+  getBlockNumber: () => publicClient.getBlockNumber(),
+  getLogs: async ({ address, fromBlock, toBlock, topics }) => {
+    const logs = (await publicClient.request({
+      method: 'eth_getLogs',
+      params: [{ address, fromBlock: toHex(fromBlock), toBlock: toHex(toBlock), topics }],
+    })) as RpcLog[];
+    return logs.map((log) => formatLog(log));
+  },
+};
+
+/**
+ * Bounds the wait on the hash a wallet returned, so a hash that turns out
+ * to be a user operation's doesn't keep polling for the rest of the visit.
+ */
+const RECEIPT_TIMEOUT_MS = 30 * 60_000;
+
+/**
+ * The receipt for what the wallet sent, and whether the account's own call
+ * failed inside an ERC-4337 bundle. A smart-contract account (OKX Wallet's
+ * social-login accounts) may return its user operation's hash, which has no
+ * receipt of its own, so the EntryPoint's log for that hash is searched
+ * from `sentFrom` at the same time; whichever answers first wins. A bundle
+ * transaction succeeds even when the call inside it reverts, so success is
+ * read from the operation's log wherever there is one.
+ */
+async function confirmedReceipt(
+  hash: Hash,
+  sentFrom: bigint | undefined,
+  sender: Address,
+) {
+  const watch =
+    sentFrom === undefined ? undefined : watchUserOperation(logReader, hash, sentFrom);
+  try {
+    const first = await Promise.race([
+      publicClient
+        .waitForTransactionReceipt({ hash, timeout: RECEIPT_TIMEOUT_MS })
+        .then((receipt) => ({
+          receipt,
+          operation: findUserOperation(receipt.logs, { sender }),
+        })),
+      ...(watch
+        ? [
+            watch.found.then(async (operation) => ({
+              receipt: await publicClient.waitForTransactionReceipt({
+                hash: operation.transactionHash,
+              }),
+              operation,
+            })),
+          ]
+        : []),
+    ]);
+    return {
+      receipt: first.receipt,
+      userOperationFailed: first.operation ? !first.operation.success : false,
+    };
+  } finally {
+    watch?.stop();
+  }
+}
 
 /** Show or clear the connection help; `unknown` leaves it as it is. */
 function applyRpcVerdict(
@@ -814,6 +884,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         // Only this request goes through the wallet's saved RPC; the
         // receipt and refresh below use the app's own endpoints.
         let hash: Hash;
+        // Where to start looking if the hash comes back as a user
+        // operation's; unknown only if the app's RPC can't answer.
+        const sentFrom = await publicClient.getBlockNumber().catch(() => undefined);
         // Not timed out, and the RPC isn't probed while it waits: a slow
         // answer may be the user reading the prompt, and a wallet may hold
         // reads back while its prompt is open, which looked like a dead RPC.
@@ -854,18 +927,28 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         setPendingAction(label);
         setError(undefined);
         setLastTransaction(hash);
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        const { receipt, userOperationFailed } = await confirmedReceipt(
+          hash,
+          sentFrom,
+          account,
+        );
+        // Link the transaction that ran it, never a user operation's hash,
+        // which OKLink can't open.
+        setLastTransaction(receipt.transactionHash);
         // A reverted transaction is mined too: replay it against the state
         // it ran on, so the node says why.
-        await assertTransactionSucceeded(step, receipt, () =>
-          publicClient.simulateContract({
-            account,
-            address: request.address,
-            abi: [...request.abi, ...revertAbi],
-            functionName: request.functionName,
-            args: request.args,
-            blockNumber: receipt.blockNumber - 1n,
-          }),
+        await assertTransactionSucceeded(
+          step,
+          userOperationFailed ? { ...receipt, status: 'reverted' } : receipt,
+          () =>
+            publicClient.simulateContract({
+              account,
+              address: request.address,
+              abi: [...request.abi, ...revertAbi],
+              functionName: request.functionName,
+              args: request.args,
+              blockNumber: receipt.blockNumber - 1n,
+            }),
         );
         await refresh();
         return true;

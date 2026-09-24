@@ -24,7 +24,7 @@ export function OrderColumn() {
   }, [address, selectMarket]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" id="order-ticket">
       <SettlementSummary />
       {selected && <TradePanel />}
     </div>

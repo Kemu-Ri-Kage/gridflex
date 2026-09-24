@@ -5,6 +5,7 @@ import { Footer } from '@/components/footer';
 import { InstrumentBar } from '@/components/instrument-bar';
 import { MarketChart } from '@/components/market-chart';
 import { MarketPanel } from '@/components/market-panel';
+import { MobileTradeBar } from '@/components/mobile-trade-bar';
 import { OrderColumn } from '@/components/order-column';
 import { TerminalHeader } from '@/components/site-header';
 import { MarketsProvider } from '@/lib/markets';
@@ -34,6 +35,7 @@ export default function TradePage() {
           <BottomPanel />
         </div>
         <Footer variant="terminal" />
+        <MobileTradeBar />
       </main>
     </MarketsProvider>
   );

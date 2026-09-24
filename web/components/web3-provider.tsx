@@ -30,6 +30,11 @@ import {
 import { useAddresses } from '@/lib/site-data';
 import { runBuy } from '@/lib/buy-flow';
 import {
+  approvalTarget,
+  needsApproval,
+  type ApprovalKind,
+} from '@/lib/allowance';
+import {
   buyStepLabel,
   buySteps,
   markBuyStep,
@@ -100,6 +105,13 @@ export type MarketSnapshot = {
   noBalance: bigint;
   /** The wallet's OKB, which pays gas on X Layer. */
   gasBalance: bigint;
+  /**
+   * What this market may already pull from the wallet (lib/allowance.ts),
+   * so the ticket lists only the approvals a buy will prompt for.
+   */
+  collateralAllowance: bigint;
+  yesAllowance: bigint;
+  noAllowance: bigint;
   /**
    * The wallet the balances above were read for; undefined until a read
    * for a connected wallet lands, so zero is never shown before then.
@@ -231,6 +243,9 @@ const emptySnapshot: MarketSnapshot = {
   yesBalance: 0n,
   noBalance: 0n,
   gasBalance: 0n,
+  collateralAllowance: 0n,
+  yesAllowance: 0n,
+  noAllowance: 0n,
   resolved: false,
   cancelled: false,
   yesWon: false,
@@ -524,6 +539,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       yesBalance: 0n,
       noBalance: 0n,
       gasBalance: 0n,
+      collateralAllowance: 0n,
+      yesAllowance: 0n,
+      noAllowance: 0n,
       balanceAccount: undefined,
     }));
   }, [forgetWallet]);
@@ -572,34 +590,64 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       let yesBalance = 0n;
       let noBalance = 0n;
       let gasBalance = 0n;
+      let collateralAllowance = 0n;
+      let yesAllowance = 0n;
+      let noAllowance = 0n;
       if (account && collateral) {
-        [[collateralBalance, yesBalance, noBalance], gasBalance] =
-          await Promise.all([
-            publicClient.multicall({
-              allowFailure: false,
-              contracts: [
-                {
-                  address: collateral,
-                  abi: mockUsdtAbi,
-                  functionName: 'balanceOf',
-                  args: [account],
-                },
-                {
-                  address: outcomeAddresses[0],
-                  abi: outcomeTokenAbi,
-                  functionName: 'balanceOf',
-                  args: [account],
-                },
-                {
-                  address: outcomeAddresses[1],
-                  abi: outcomeTokenAbi,
-                  functionName: 'balanceOf',
-                  args: [account],
-                },
-              ],
-            }) as Promise<[bigint, bigint, bigint]>,
-            publicClient.getBalance({ address: account }),
-          ]);
+        [
+          [
+            collateralBalance,
+            yesBalance,
+            noBalance,
+            collateralAllowance,
+            yesAllowance,
+            noAllowance,
+          ],
+          gasBalance,
+        ] = await Promise.all([
+          publicClient.multicall({
+            allowFailure: false,
+            contracts: [
+              {
+                address: collateral,
+                abi: mockUsdtAbi,
+                functionName: 'balanceOf',
+                args: [account],
+              },
+              {
+                address: outcomeAddresses[0],
+                abi: outcomeTokenAbi,
+                functionName: 'balanceOf',
+                args: [account],
+              },
+              {
+                address: outcomeAddresses[1],
+                abi: outcomeTokenAbi,
+                functionName: 'balanceOf',
+                args: [account],
+              },
+              {
+                address: collateral,
+                abi: mockUsdtAbi,
+                functionName: 'allowance',
+                args: [account, target],
+              },
+              {
+                address: outcomeAddresses[0],
+                abi: outcomeTokenAbi,
+                functionName: 'allowance',
+                args: [account, target],
+              },
+              {
+                address: outcomeAddresses[1],
+                abi: outcomeTokenAbi,
+                functionName: 'allowance',
+                args: [account, target],
+              },
+            ],
+          }) as Promise<[bigint, bigint, bigint, bigint, bigint, bigint]>,
+          publicClient.getBalance({ address: account }),
+        ]);
       }
 
       if (!current()) return;
@@ -615,6 +663,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         yesBalance,
         noBalance,
         gasBalance,
+        collateralAllowance,
+        yesAllowance,
+        noAllowance,
         balanceAccount: account && collateral ? account : undefined,
         resolved: resolved as boolean,
         cancelled: cancelled as boolean,
@@ -793,11 +844,14 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
 
   /**
    * Approve `spender` for `amount` of `token` unless the allowance already
-   * covers it. `onStatus` hears whether the approval was sent or skipped.
+   * covers it. The approval carries a buffer so repeat trades skip it: the
+   * maximum for an outcome token, at least 1,000 mUSDT for collateral
+   * (lib/allowance.ts). `onStatus` hears whether it was sent or skipped.
    */
   const ensureAllowance = React.useCallback(
     async (
       label: string,
+      kind: ApprovalKind,
       token: Address,
       abi: typeof mockUsdtAbi,
       spender: Address,
@@ -812,7 +866,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           functionName: 'allowance',
           args: [account, spender],
         })) as bigint;
-        if (allowance >= amount) {
+        if (!needsApproval(allowance, amount)) {
           onStatus?.('skipped');
           return true;
         }
@@ -824,7 +878,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         address: token,
         abi,
         functionName: 'approve',
-        args: [spender, amount],
+        args: [spender, approvalTarget(kind, amount)],
       });
     },
     [account, write],
@@ -890,6 +944,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
 
       const inputApproved = await ensureAllowance(
         track?.label('approveSwap') ?? `Approving ${inputSide}`,
+        'outcome',
         inputToken,
         outcomeTokenAbi,
         target,
@@ -958,9 +1013,44 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       }
       const units = parsed;
 
-      // Every prompt this buy can raise, named the way the wallet shows it.
+      // Read now, so the list names only the approvals this buy will send.
+      // If the read fails both stay listed; ensureAllowance checks again.
+      let needs = { collateral: true, swap: true };
+      try {
+        const inputToken = (await publicClient.readContract({
+          address: target,
+          abi: binaryMarketAbi,
+          functionName: side === 'YES' ? 'noToken' : 'yesToken',
+        })) as Address;
+        const [collateralAllowance, swapAllowance] =
+          (await publicClient.multicall({
+            allowFailure: false,
+            contracts: [
+              {
+                address: token,
+                abi: mockUsdtAbi,
+                functionName: 'allowance',
+                args: [account, target],
+              },
+              {
+                address: inputToken,
+                abi: outcomeTokenAbi,
+                functionName: 'allowance',
+                args: [account, target],
+              },
+            ],
+          })) as [bigint, bigint];
+        needs = {
+          collateral: needsApproval(collateralAllowance, units),
+          swap: needsApproval(swapAllowance, units),
+        };
+      } catch {
+        // Keep both approvals listed.
+      }
+
+      // Every prompt this buy will raise, named the way the wallet shows it.
       // The swap's line gains its estimate once the quote below lands.
-      let steps = buySteps(side, units);
+      let steps = buySteps(side, units, undefined, needs);
       const label = (key: BuyStepKey) => buyStepLabel(steps, key);
       const mark = (key: BuyStepKey, status: BuyStepStatus) =>
         setBuyProgress((current) =>
@@ -981,13 +1071,14 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           })) as bigint,
         quoteMinimumSwapOut: async () => {
           const quote = await quoteOn(target, side, units);
-          steps = buySteps(side, units, quote.swapOut);
+          steps = buySteps(side, units, quote.swapOut, needs);
           setBuyProgress((current) => current && { ...current, steps });
           return quote.minimumSwapOut;
         },
         approveCollateral: () =>
           ensureAllowance(
             label('approveCollateral'),
+            'collateral',
             token,
             mockUsdtAbi,
             target,

@@ -6,9 +6,9 @@ import type { BuyProgress, BuyStep } from '@/lib/buy-steps';
 
 /**
  * The wallet prompts a buy raises, in order (lib/buy-steps.ts). Before the
- * buy it previews them, approvals marked "if needed"; during the buy it
- * marks each one done, skipped or waiting, so the step the screen names is
- * always the prompt the wallet is showing.
+ * buy it previews them, leaving out approvals already in place; during the
+ * buy it marks each one done, skipped or waiting, so the step the screen
+ * names is always the prompt the wallet is showing.
  */
 export function BuyStepList({
   steps,
@@ -48,9 +48,6 @@ export function BuyStepList({
                 >
                   {step.label}
                 </span>
-                {step.approval && !progress && (
-                  <span className="text-muted-foreground"> · if needed</span>
-                )}
                 {status === 'skipped' && (
                   <span className="text-muted-foreground">
                     {' '}

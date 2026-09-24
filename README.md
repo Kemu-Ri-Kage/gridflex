@@ -199,6 +199,11 @@ every trade, with OKLink as the public record.
 - **Cash out before settlement.** Today a position can switch sides but not
   return to MockUSDT before the day settles. Burning a matched YES and NO
   to release their collateral adds a real exit.
+- **Single-confirmation trading.** A buy is a mint and a swap, so the
+  wallet asks twice even once its approvals are in place. A contract
+  function that mints and swaps in one call, or EIP-5792 wallet batching,
+  brings that down to one confirmation. Either needs new contracts and new
+  markets.
 - **Stop loss and take profit** orders on open positions.
 - **More markets**: more days and strikes on the Texas power price.
 - **A statewide price index**: what Texas as a whole paid for power each

@@ -16,6 +16,7 @@ import {
   type BuyQuote,
   type TradeSide,
 } from '@/components/web3-provider';
+import { needsApproval } from '@/lib/allowance';
 import { explorerTxUrl } from '@/lib/explorer';
 import { formatToken } from '@/lib/format';
 import { buySteps } from '@/lib/buy-steps';
@@ -178,9 +179,30 @@ export function TradePanel() {
   // YES-win redeem, the leftover NO pays nothing.
   const canRedeem =
     redeemablePayout(snapshot, snapshot.yesBalance, snapshot.noBalance) > 0n;
+  // The approvals this buy will prompt for, from the allowances already in
+  // place (lib/allowance.ts); both listed until a read for this wallet and
+  // market lands.
+  const allowancesKnown =
+    Boolean(account) &&
+    snapshot.balanceAccount === account &&
+    snapshot.address === market;
+  const swapAllowance =
+    side === 'YES' ? snapshot.noAllowance : snapshot.yesAllowance;
   const steps =
     buyProgress?.steps ??
-    (units !== undefined ? buySteps(side, units, quote?.swapOut) : undefined);
+    (units !== undefined
+      ? buySteps(
+          side,
+          units,
+          quote?.swapOut,
+          allowancesKnown
+            ? {
+                collateral: needsApproval(snapshot.collateralAllowance, units),
+                swap: needsApproval(swapAllowance, units),
+              }
+            : undefined,
+        )
+      : undefined);
   const yesPrice = Number(snapshot.priceE18) / 1e16;
   const noPrice = 100 - yesPrice;
 

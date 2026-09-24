@@ -1,3 +1,4 @@
+import { approvalTarget } from './allowance.ts';
 import { formatToken } from './format.ts';
 
 /**
@@ -5,6 +6,8 @@ import { formatToken } from './format.ts';
  * wallet shows (design-brief.md §5: labels, plain words). A buy mints a
  * complete YES + NO set and swaps the unwanted side into the wanted one, so
  * the wallet shows the other side's tokens mid-buy; the mint step says so.
+ * An approval the allowance already covers is left out (lib/allowance.ts),
+ * so the list is the prompts this particular buy will raise.
  * Kept free of React for the node tests.
  */
 
@@ -28,40 +31,56 @@ export interface BuyProgress {
   status: Record<BuyStepKey, BuyStepStatus>;
 }
 
-/** The four steps of buying `side` with `amountIn` mUSDT; `swapOut` from the quote. */
+/** Which approvals a buy still needs; both when the allowances are unknown. */
+export interface ApprovalNeeds {
+  collateral: boolean;
+  swap: boolean;
+}
+
+const ALL_APPROVALS: ApprovalNeeds = { collateral: true, swap: true };
+
+/**
+ * The steps of buying `side` with `amountIn` mUSDT; `swapOut` from the
+ * quote. Four on a first buy on a market, two once both approvals are in.
+ */
 export function buySteps(
   side: Side,
   amountIn: bigint,
   swapOut?: bigint,
+  needs: ApprovalNeeds = ALL_APPROVALS,
 ): BuyStep[] {
   const other: Side = side === 'YES' ? 'NO' : 'YES';
   const amount = formatToken(amountIn);
-  return [
-    {
+  const steps: BuyStep[] = [];
+  if (needs.collateral) {
+    steps.push({
       key: 'approveCollateral',
-      label: `Approve ${amount} mUSDT`,
+      label: `Approve ${formatToken(approvalTarget('collateral', amountIn))} mUSDT for this market`,
       approval: true,
-    },
-    {
-      key: 'mint',
-      label: `Mint ${amount} YES + ${amount} NO`,
-      note: `Your wallet shows ${other} tokens here; that's expected.`,
-      approval: false,
-    },
-    {
+    });
+  }
+  steps.push({
+    key: 'mint',
+    label: `Mint ${amount} YES + ${amount} NO`,
+    note: `Your wallet shows ${other} tokens here; that's expected.`,
+    approval: false,
+  });
+  if (needs.swap) {
+    steps.push({
       key: 'approveSwap',
-      label: `Approve ${amount} ${other} for the swap`,
+      label: `Approve ${other} for this market (one time)`,
       approval: true,
-    },
-    {
-      key: 'swap',
-      label:
-        swapOut === undefined
-          ? `Swap ${amount} ${other} into ${side}`
-          : `Swap ${amount} ${other} for ~${formatToken(swapOut)} ${side}`,
-      approval: false,
-    },
-  ];
+    });
+  }
+  steps.push({
+    key: 'swap',
+    label:
+      swapOut === undefined
+        ? `Swap ${amount} ${other} into ${side}`
+        : `Swap ${amount} ${other} for ~${formatToken(swapOut)} ${side}`,
+    approval: false,
+  });
+  return steps;
 }
 
 export function startBuyProgress(steps: BuyStep[]): BuyProgress {
@@ -95,8 +114,17 @@ export function markBuyStep(
   return { ...progress, status: next };
 }
 
-/** "Step 2 of 4 · Mint 100 YES + 100 NO": the spinner's words for `key`. */
+/**
+ * "Step 2 of 4 · Mint 100 YES + 100 NO": the spinner's words for `key`.
+ * An approval left out of the list but needed after all (an allowance
+ * revoked since the list was built) is named without a number.
+ */
 export function buyStepLabel(steps: BuyStep[], key: BuyStepKey): string {
   const index = steps.findIndex((step) => step.key === key);
+  if (index === -1) {
+    return key === 'approveCollateral'
+      ? 'Approving mUSDT'
+      : 'Approving the swap';
+  }
   return `Step ${index + 1} of ${steps.length} · ${steps[index].label}`;
 }

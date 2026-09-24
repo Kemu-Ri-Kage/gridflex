@@ -11,6 +11,15 @@ importers:
       '@base-ui/react':
         specifier: 1.7.0
         version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@okxweb3/x402-core':
+        specifier: 0.1.0
+        version: 0.1.0
+      '@okxweb3/x402-evm':
+        specifier: 0.2.1
+        version: 0.2.1(typescript@5.9.3)
+      '@okxweb3/x402-fetch':
+        specifier: 0.1.0
+        version: 0.1.0(typescript@5.9.3)
       '@shadcn/react':
         specifier: 0.3.0
         version: 0.3.0(@types/react@19.2.14)(react@19.2.6)
@@ -763,6 +772,15 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
+
+  '@okxweb3/x402-core@0.1.0':
+    resolution: {integrity: sha512-eXpZ51F3quf6GlDw/zwtBzirSCo9BRhdbWy4ipEoooyXE9VRpi/pRQgevKROyjNCPBAW/zpTZkqoUGfvtpyoTA==}
+
+  '@okxweb3/x402-evm@0.2.1':
+    resolution: {integrity: sha512-wdkMaoQS3dy06vQQB+a6PzBoBb5nIXTZKEYLYzmq+xtRjc+F/QzQ9dBM2+FnI31TDwN/CdI1teaPWwrcy/7LxA==}
+
+  '@okxweb3/x402-fetch@0.1.0':
+    resolution: {integrity: sha512-gwKpevwH98DOqlF0gepxtPBxf/HE177jyCDs6DGHqTf0FvtiwpVGPc/pPEr++Rc60PtYvE04frJBScPw/4qe6w==}
 
   '@oxc-project/types@0.130.0':
     resolution: {integrity: sha512-ibD2usx9JRu7f5pu2tMKMI4cpA4NgXJQoYRP4pQ7Pxmn1l6k/53qWtQWZayhYy3X4QZkt90Ot+mJEaeXouio6Q==}
@@ -4184,6 +4202,30 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
+
+  '@okxweb3/x402-core@0.1.0':
+    dependencies:
+      zod: 3.25.76
+
+  '@okxweb3/x402-evm@0.2.1(typescript@5.9.3)':
+    dependencies:
+      '@okxweb3/x402-core': 0.1.0
+      viem: 2.56.3(typescript@5.9.3)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+
+  '@okxweb3/x402-fetch@0.1.0(typescript@5.9.3)':
+    dependencies:
+      '@okxweb3/x402-core': 0.1.0
+      viem: 2.56.3(typescript@5.9.3)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
 
   '@oxc-project/types@0.130.0': {}
 

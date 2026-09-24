@@ -4,15 +4,16 @@ import { Badge } from '@/components/ui/badge';
 import { WalletButton } from '@/components/wallet-button';
 
 /**
- * Text-only wordmark, no icon - the header previously carried a bolt-icon
- * badge; a text wordmark reads as more confident at hero scale and matches
- * shared/*.md's insistence on GRIDFLEX as a derivatives venue, not a brand
- * built around a logotype.
+ * Text-only wordmark, no icon (design-brief.md §2): GRID in the foreground
+ * colour and bold, FLEX regular in the muted colour, one word read aloud.
+ * FLEX brightens on hover - a colour change, the only kind the header's
+ * links make.
  */
 function Wordmark({ prefetch }: { prefetch?: boolean }) {
   return (
-    <Link className="font-mono text-sm font-bold tracking-[-0.04em]" href="/" prefetch={prefetch}>
-      GRIDFLEX
+    <Link className="group font-mono text-[15px] tracking-[0.02em]" href="/" prefetch={prefetch}>
+      <span className="font-bold text-foreground">GRID</span>
+      <span className="text-muted-foreground transition-colors duration-200 group-hover:text-foreground">FLEX</span>
     </Link>
   );
 }

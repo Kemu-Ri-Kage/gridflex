@@ -51,8 +51,9 @@ GRIDFLEX, in any component, in any state:
 library component is restyled to this brief — no stock card, hero, button,
 or badge look. The design comes from this brief, not from a tool's defaults.
 
-**No logo, anywhere, ever.** `GRIDFLEX` is a text wordmark — mono, bold,
-tight tracking, nothing beside it. Not a bolt icon, not a monogram, not a
+**No logo, anywhere, ever.** `GRIDFLEX` is a text wordmark — mono, with
+`GRID` bold in `--foreground` and `FLEX` regular in `--muted-foreground`,
+slightly open tracking, nothing beside it. Not a bolt icon, not a monogram, not a
 mark-plus-wordmark lockup. If a design shows an icon next to the wordmark,
 that design is wrong.
 

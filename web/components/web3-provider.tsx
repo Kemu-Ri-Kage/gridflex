@@ -239,6 +239,11 @@ type Web3ContextValue = {
   resolve: () => Promise<void>;
   cancel: () => Promise<void>;
   redeem: () => Promise<void>;
+  /**
+   * redeem() on any market, not only the selected one (the Portfolio
+   * tab). Resolves whether the redeem confirmed.
+   */
+  redeemMarket: (address: Address) => Promise<boolean>;
 };
 
 const emptySnapshot: MarketSnapshot = {
@@ -1291,15 +1296,21 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     });
   }, [write]);
 
+  const redeemMarket = React.useCallback(
+    (target: Address) =>
+      write('Redeeming', {
+        address: target,
+        abi: binaryMarketAbi,
+        functionName: 'redeem',
+      }),
+    [write],
+  );
+
   const redeem = React.useCallback(async () => {
     const target = marketRef.current;
     if (!target) return;
-    await write('Redeeming', {
-      address: target,
-      abi: binaryMarketAbi,
-      functionName: 'redeem',
-    });
-  }, [write]);
+    await redeemMarket(target);
+  }, [redeemMarket]);
 
   const cancel = React.useCallback(async () => {
     const target = marketRef.current;
@@ -1344,6 +1355,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       resolve,
       cancel,
       redeem,
+      redeemMarket,
     }),
     [
       account,
@@ -1377,6 +1389,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       resolve,
       cancel,
       redeem,
+      redeemMarket,
     ],
   );
 

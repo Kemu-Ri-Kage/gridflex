@@ -466,6 +466,87 @@ export function useBalances(
   return balances.key === key ? balances.value : undefined;
 }
 
+export type Holdings = Record<Address, { yes: bigint; no: bigint }>;
+
+export interface HoldingsRead {
+  /** Keyed by market address; undefined until the first read lands. */
+  holdings?: Holdings;
+  /** The latest read failed; `holdings`, if any, is from an earlier one. */
+  error?: boolean;
+}
+
+const NO_HOLDINGS: HoldingsRead = {};
+
+/**
+ * The wallet's YES and NO on every listed market, all in one Multicall3
+ * call. Re-read on each markets poll and whenever `stamp` changes, so a
+ * caller can pass something that moves when a transaction finishes.
+ */
+export function useHoldings(
+  account: Address | undefined,
+  stamp: string,
+): HoldingsRead {
+  const { markets, now } = useMarkets();
+  const [read, setRead] = React.useState<HoldingsRead & { key?: string }>({});
+  // Primitive, so the effect re-runs on a new list, not on every poll's
+  // new markets array.
+  const tokens = markets
+    ?.map((m) => `${m.address}:${m.yesToken}:${m.noToken}`)
+    .join(',');
+  const key =
+    account && tokens !== undefined ? `${account}|${tokens}` : undefined;
+
+  React.useEffect(() => {
+    if (!account || tokens === undefined) return;
+    let cancelled = false;
+    const readKey = `${account}|${tokens}`;
+    const listed = tokens
+      ? tokens.split(',').map((entry) => entry.split(':') as Address[])
+      : [];
+    const reading =
+      listed.length === 0
+        ? Promise.resolve([])
+        : client.multicall({
+            allowFailure: false,
+            contracts: listed.flatMap(([, yesToken, noToken]) =>
+              [yesToken, noToken].map((address) => ({
+                address,
+                abi: outcomeTokenAbi,
+                functionName: 'balanceOf',
+                args: [account],
+              })),
+            ),
+          });
+    void reading
+      .then((results) => {
+        if (cancelled) return;
+        const balances = results as bigint[];
+        setRead({
+          key: readKey,
+          holdings: Object.fromEntries(
+            listed.map(([market], i) => [
+              market,
+              { yes: balances[2 * i], no: balances[2 * i + 1] },
+            ]),
+          ),
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRead((previous) =>
+          previous.key === readKey
+            ? { ...previous, error: true }
+            : { key: readKey, error: true },
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [account, tokens, now, stamp]);
+
+  return read.key === key ? read : NO_HOLDINGS;
+}
+
 export type PositionHistory =
   | { state: 'loading' }
   | { state: 'ready'; ledger: Ledger }

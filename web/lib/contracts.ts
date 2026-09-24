@@ -47,6 +47,8 @@ export const xLayerTestnet = defineChain({
   contracts: {
     multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
   },
+  // About one block a second; viem polls receipts at half this.
+  blockTime: 1_000,
   testnet: true,
 });
 

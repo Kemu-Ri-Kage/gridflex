@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isWalletRpcFailure } from './wallet-errors.ts';
+import {
+  CONNECTION_ALREADY_PENDING_MESSAGE,
+  isWalletRpcFailure,
+  REQUEST_ALREADY_PENDING_MESSAGE,
+  walletRequestAlreadyPending,
+} from './wallet-errors.ts';
 
 function wrapped(cause: object) {
   return Object.assign(new Error('Transaction failed.'), { cause });
@@ -131,4 +136,66 @@ void test('the user rejecting in the wallet is not an RPC failure', async () => 
     message: 'User rejected the request.',
   });
   assert.equal(isWalletRpcFailure(error), false);
+});
+
+// MetaMask uses -32002 both for a failing RPC and for a prompt already
+// open for this site (@metamask/approval-controller); only the wording
+// tells them apart.
+const PENDING_PERMISSIONS = {
+  code: -32002,
+  message:
+    "Request of type 'wallet_requestPermissions' already pending for origin https://gridflex.pages.dev. Please wait.",
+};
+
+void test('an already-pending permissions prompt is not an RPC failure', () => {
+  assert.equal(isWalletRpcFailure(PENDING_PERMISSIONS), false);
+  assert.equal(isWalletRpcFailure(wrapped(PENDING_PERMISSIONS)), false);
+  assert.equal(
+    walletRequestAlreadyPending(wrapped(PENDING_PERMISSIONS)),
+    'A wallet connection request is already open. Open MetaMask and complete or reject it.',
+  );
+});
+
+void test("older MetaMask's already-processing eth_requestAccounts is a pending connection", () => {
+  const error = {
+    code: -32002,
+    message: 'Already processing eth_requestAccounts. Please wait.',
+  };
+  assert.equal(isWalletRpcFailure(error), false);
+  assert.equal(
+    walletRequestAlreadyPending(error),
+    CONNECTION_ALREADY_PENDING_MESSAGE,
+  );
+});
+
+void test('other prompt types already pending get the general message', () => {
+  for (const type of [
+    'wallet_switchEthereumChain',
+    'wallet_addEthereumChain',
+  ]) {
+    const error = {
+      code: -32002,
+      message: `Request of type '${type}' already pending for origin https://gridflex.pages.dev. Please wait.`,
+    };
+    assert.equal(isWalletRpcFailure(error), false);
+    assert.equal(
+      walletRequestAlreadyPending(error),
+      REQUEST_ALREADY_PENDING_MESSAGE,
+    );
+  }
+});
+
+void test('a -32002 without the pending wording is still an RPC failure', () => {
+  const error = { code: -32002, message: 'Resource unavailable' };
+  assert.equal(walletRequestAlreadyPending(error), undefined);
+  assert.equal(isWalletRpcFailure(error), true);
+});
+
+void test("a pending prompt is recognised through viem's wrapping of a write", async () => {
+  const error = await viemWriteError(PENDING_PERMISSIONS);
+  assert.equal(isWalletRpcFailure(error), false);
+  assert.equal(
+    walletRequestAlreadyPending(error),
+    CONNECTION_ALREADY_PENDING_MESSAGE,
+  );
 });

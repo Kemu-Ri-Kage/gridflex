@@ -88,7 +88,7 @@ OKX contribution to the OKX ecosystem
 | 1:17 | "Same day, two strikes: forty or forty-five." | Click **Will Texas power cost more than $45 on 30 Sep?** The $45.00 line turns amber, the shading moves up to it, past frequency reads *7 of 30 · 12 of 90*. | UV, COMP |
 | 1:21 | "Will Texas power cost more than forty-five dollars on 2 October? YES is fifty cents." | Click **Will Texas power cost more than $45 on 2 Oct?** Order ticket: YES in cents with its implied percentage underneath. Say the cents the ticket shows. | UV, COMP |
 | 1:27 | "Connect a wallet." | Click **Connect wallet to trade**. Approve the connection in the wallet. | COMP |
-| 1:30 | "Take a thousand demo tokens to trade with." | Click **Get 1,000 demo mUSDT**, confirm. *Transaction confirmed*. | COMP |
+| 1:30 | "Take a thousand demo tokens to trade with." | Click **Get 1,000 test mUSDT**, confirm. *Transaction confirmed*. | COMP |
 | 1:35 | "Buy YES, a hundred." | YES selected, Amount `100`, *Estimated output* about 198.8 YES. Click **Buy YES**. | UV, COMP |
 | 1:38 | "A first buy asks for four confirmations: two permissions, then the trade in two steps." | Wallet prompt 1. Status *Approving mUSDT…* | COMP, TECH |
 | 1:44 | "Each one is its own transaction on X Layer." | Prompts 2–4. Status *Buying YES…*, *Approving NO…*, *Buying YES…*, then *Transaction confirmed*. **Edit:** jump-cut the gaps, keep each status line on screen for at least a second. | XL, COMP |
@@ -96,7 +96,7 @@ OKX contribution to the OKX ecosystem
 | 1:54 | "Positions: what I paid, and what it's worth right now." | **Positions** tab: YES row, *Avg entry*, *Current price*, *Current value*, *Indicative unrealised P&L*. | COMP, UV |
 | **2:01** | "Change your mind? Switch a quarter of it to NO." | Order ticket, **Switch position**. **YES → NO**, click **25%**, then **Switch … YES to NO**. Two prompts: *Approving YES…*, *Switching to NO…*. | COMP |
 | 2:07 | "That changes side. It doesn't turn the position back into cash." | Hold on the line *Changes side. Not a sale: no mUSDT is returned before settlement.* Then **Positions**: YES and NO rows. | COMP |
-| **2:11** | "Now one market, start to finish." | Markets list, click **Will Texas power cost more than $25 on 11 Sep?** (bottom row, *Trading*). | TECH |
+| **2:11** | "Now one market, start to finish." | Markets list, click **Will Texas power cost more than $25 on 11 Sep 2025?** (top of the list, under *Next day*: it closes soonest). | TECH |
 | 2:15 | "It replays 11 September 2025, a day that has already settled." | Pay line: *Pays 1 mUSDT per YES if the Texas power price for 11 Sep 2025 settles above $25.00/MWh.* | TECH |
 | 2:20 | "So the answer is already public. That's the one thing a live market never allows." | Settlement summary: *Trading closes …* | TECH |
 | 2:25 | "Live markets stop trading an hour before the price is published." | Click the 2 Oct market for one second: *Trading closes 1 Oct 2026 17:30 UTC*. Click back to 11 Sep. | TECH, UV |
@@ -202,7 +202,7 @@ Load every OKLink tab once before recording, so none of them loads on camera.
   - **Alternatively,** any wallet that already holds test OKB can send it. It
     has to be a plain OKB transfer: no mUSDT, no approvals, nothing on any
     market. The script's value is that it can't send anything else.
-- **mUSDT: 0. No script.** The *Get 1,000 demo mUSDT* button calls
+- **mUSDT: 0. No script.** The *Get 1,000 test mUSDT* button calls
   `MockUSDT.mint`, which any account may call, and it's on camera at 1:30.
   1,000 covers 100 on 2 Oct, 100 on the replay, and 100 more if the spare is
   needed.
@@ -235,8 +235,8 @@ clock by accident. There are two:
 
 | Row | Question on screen | Strike | Published price | Result | Create with |
 |---|---|---|---|---|---|
-| 1 | Will Texas power cost more than $25 on 11 Sep? | $25.00 | $26.38 | YES | `--market 1` |
-| 5 (spare) | Will Texas power cost more than $20 on 10 Sep? | $20.00 | $22.62 | YES | `--market 5`, only if market 1's take fails |
+| 1 | Will Texas power cost more than $25 on 11 Sep 2025? | $25.00 | $26.38 | YES | `--market 1` |
+| 5 (spare) | Will Texas power cost more than $20 on 10 Sep 2025? | $20.00 | $22.62 | YES | `--market 5`, only if market 1's take fails |
 
 Both readings were confirmed published and finalized on chain by the dry run
 on 23 September. 10 Sep 2025 is the only other Texas power price day with a
@@ -252,7 +252,7 @@ everything else while the clock runs.
 | T−2 min | Off camera: `python3 create_markets.py --market 1 --live`. Write down the close time it prints, in Texas and London. | about 1–2 min (mint, approve, `createMarket`) |
 | **T0** | `createMarket` confirmed. The 45 minutes start here. | |
 | T0 → T+8 | `./refresh_data.sh --no-fetch`. It republishes `addresses.json`, commits and pushes the data files on this branch, builds and deploys. Commit `shared/addresses.json` afterwards; the script only commits the data files. | build and deploy; time it in the rehearsal |
-| T+8 | Hard-reload `/trade`. **Will Texas power cost more than $25 on 11 Sep?** is listed as *Trading*, and its close matches what you wrote down. Then select **30 Sep $40** again, so the terminal opens on it. | |
+| T+8 | Hard-reload `/trade`. **Will Texas power cost more than $25 on 11 Sep 2025?** is listed as *Trading* under *Next day*, and its close matches what you wrote down. Then select **30 Sep $40** again, so the terminal opens on it. | |
 | **T+10** | **Record 1:06–2:10**: the chart beat, connect, get demo mUSDT, the 2 Oct buy, History, Positions, the switch. | about 5–8 min with retakes |
 | **T+20** | **Record 2:11–2:37**: select the replay market, Buy YES, four prompts. **The buy must be confirmed by T+40.** Don't start it after T+38. | about 1 min |
 | T+22 → T+44 | Record 0:00–1:05, then 3:01–3:43. | as long as needed |

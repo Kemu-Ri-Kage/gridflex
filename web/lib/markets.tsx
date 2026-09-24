@@ -331,6 +331,12 @@ export interface Balances {
 export function useBalances(
   account?: Address,
   market?: Market,
+  /**
+   * Changes whenever the wallet's own balances may have moved without the
+   * pool price moving - a redeem, a cancel payout, a lone mint - so the
+   * read is repeated then too, not only on a price change.
+   */
+  refreshKey = '',
 ): Balances | undefined {
   const addresses = useAddresses();
   const [balances, setBalances] = React.useState<{
@@ -342,7 +348,9 @@ export function useBalances(
   const noToken = market?.noToken;
   const price = market?.live?.priceE18.toString();
   const key =
-    account && yesToken ? `${account}:${yesToken}:${price}` : undefined;
+    account && yesToken
+      ? `${account}:${yesToken}:${price}:${refreshKey}`
+      : undefined;
 
   React.useEffect(() => {
     if (!account || !collateral || !yesToken || !noToken) return;
@@ -365,7 +373,7 @@ export function useBalances(
       .then(([collateralBalance, yes, no]) => {
         if (!cancelled) {
           setBalances({
-            key: `${account}:${yesToken}:${price}`,
+            key: `${account}:${yesToken}:${price}:${refreshKey}`,
             value: { collateral: collateralBalance, yes, no },
           });
         }
@@ -376,7 +384,7 @@ export function useBalances(
     return () => {
       cancelled = true;
     };
-  }, [account, collateral, yesToken, noToken, price]);
+  }, [account, collateral, yesToken, noToken, price, refreshKey]);
 
   return balances.key === key ? balances.value : undefined;
 }

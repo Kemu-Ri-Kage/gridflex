@@ -67,9 +67,16 @@ function pnlClass(pnl?: bigint): string {
  * settlement - and at the payout once it settles.
  */
 function PositionsTab() {
-  const { account } = useWeb3();
+  const { account, snapshot } = useWeb3();
   const { selected } = useMarkets();
-  const balances = useBalances(account, selected);
+  // The order ticket's snapshot is re-read after every confirmed wallet
+  // transaction. A redeem moves the wallet's balances but not the pool
+  // price, so without this the tab kept showing the redeemed position.
+  const walletBalances =
+    snapshot.address === selected?.address
+      ? `${snapshot.yesBalance}:${snapshot.noBalance}:${snapshot.collateralBalance}`
+      : '';
+  const balances = useBalances(account, selected, walletBalances);
   const history = usePosition(account, selected, balances);
 
   if (!account) {

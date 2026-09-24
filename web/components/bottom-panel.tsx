@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PortfolioTab } from '@/components/portfolio';
 import { SettlementEvidence } from '@/components/settlement-panel';
 import { useWeb3 } from '@/components/web3-provider';
 import { explorerTxUrl } from '@/lib/explorer';
@@ -29,6 +30,7 @@ import {
   type PositionRow,
   type UndeterminedReason,
 } from '@/lib/position';
+import { onOpenPortfolio } from '@/lib/portfolio';
 import { losingSide } from '@/lib/redeemable';
 
 function shortAddress(address: string) {
@@ -381,18 +383,35 @@ function HistoryTab() {
 }
 
 export function BottomPanel() {
+  const [tab, setTab] = React.useState('positions');
+  const panel = React.useRef<HTMLDivElement>(null);
+  // The winnings banner's "View portfolio": open the tab and bring it into
+  // view, since the panel sits below the chart.
+  React.useEffect(
+    () =>
+      onOpenPortfolio(() => {
+        setTab('portfolio');
+        panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }),
+    [],
+  );
+
   return (
-    <Tabs defaultValue="positions">
+    <Tabs onValueChange={(value) => setTab(String(value))} ref={panel} value={tab}>
       <TabsList
         className="rounded-none border-b border-border bg-transparent px-2"
         variant="line"
       >
         <TabsTrigger value="positions">Positions</TabsTrigger>
+        <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
         <TabsTrigger value="history">History</TabsTrigger>
         <TabsTrigger value="settlement">Settlement</TabsTrigger>
       </TabsList>
       <TabsContent value="positions">
         <PositionsTab />
+      </TabsContent>
+      <TabsContent value="portfolio">
+        <PortfolioTab />
       </TabsContent>
       <TabsContent value="history">
         <HistoryTab />

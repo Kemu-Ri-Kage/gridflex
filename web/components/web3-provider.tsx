@@ -31,6 +31,15 @@ import {
 import { useAddresses } from '@/lib/site-data';
 import { runBuy } from '@/lib/buy-flow';
 import {
+  buyStepLabel,
+  buySteps,
+  markBuyStep,
+  startBuyProgress,
+  type BuyProgress,
+  type BuyStepKey,
+  type BuyStepStatus,
+} from '@/lib/buy-steps';
+import {
   DEFAULT_SLIPPAGE_BPS,
   minimumOutputForQuote,
   parsePositiveTokenAmount,
@@ -140,6 +149,11 @@ type Web3ContextValue = {
    * succeeds. Never stops a request being sent.
    */
   walletRpcFailed: boolean;
+  /**
+   * The buy in progress, step by step (lib/buy-steps.ts), so the ticket
+   * names the prompt the wallet is showing; undefined when no buy runs.
+   */
+  buyProgress?: BuyProgress;
   lastTransaction?: Hash;
   /** The reverted transaction behind `error`, linked beside it. */
   failedTransaction?: Hash;
@@ -315,6 +329,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [connectError, setConnectError] = React.useState<string>();
   const [connecting, setConnecting] = React.useState(false);
   const [walletRpcFailed, setWalletRpcFailed] = React.useState(false);
+  const [buyProgress, setBuyProgress] = React.useState<BuyProgress>();
   const [lastTransaction, setLastTransaction] = React.useState<Hash>();
   const [failedTransaction, setFailedTransaction] = React.useState<Hash>();
   // Held in state as well as localStorage, so an unfinished order still
@@ -661,7 +676,10 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     [account, refresh],
   );
 
-  /** Approve `spender` for `amount` of `token` unless the allowance already covers it. */
+  /**
+   * Approve `spender` for `amount` of `token` unless the allowance already
+   * covers it. `onStatus` hears whether the approval was sent or skipped.
+   */
   const ensureAllowance = React.useCallback(
     async (
       label: string,
@@ -669,6 +687,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       abi: typeof mockUsdtAbi,
       spender: Address,
       amount: bigint,
+      onStatus?: (status: 'current' | 'skipped') => void,
     ): Promise<boolean> => {
       if (!account) return false;
       try {
@@ -678,10 +697,14 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           functionName: 'allowance',
           args: [account, spender],
         })) as bigint;
-        if (allowance >= amount) return true;
+        if (allowance >= amount) {
+          onStatus?.('skipped');
+          return true;
+        }
       } catch {
         // Fall through and approve; a failed read must not block the trade.
       }
+      onStatus?.('current');
       return write(label, {
         address: token,
         abi,
@@ -717,7 +740,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
    * re-quotes, and swaps. With `protectedMinimum` (a fresh buy, or the
    * switch quote shown before confirming) the swap is refused if the price
    * moved past it; without it (finishing an unfinished order) the minimum
-   * comes from the quote taken just before the swap. Returns whether it
+   * comes from the quote taken just before the swap. `track` names a buy's
+   * approve and swap steps and hears their status. Returns whether it
    * confirmed.
    */
   const swapInto = React.useCallback(
@@ -727,6 +751,10 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       units: bigint,
       protectedMinimum?: bigint,
       label = `Buying ${side}`,
+      track?: {
+        label: (key: BuyStepKey) => string;
+        mark: (key: BuyStepKey, status: BuyStepStatus) => void;
+      },
     ): Promise<boolean> => {
       const yesForNo = side === 'NO';
       const inputSide: TradeSide = yesForNo ? 'YES' : 'NO';
@@ -746,11 +774,12 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       }
 
       const inputApproved = await ensureAllowance(
-        `Approving ${inputSide}`,
+        track?.label('approveSwap') ?? `Approving ${inputSide}`,
         inputToken,
         outcomeTokenAbi,
         target,
         units,
+        track && ((status) => track.mark('approveSwap', status)),
       );
       if (!inputApproved) return false;
 
@@ -774,8 +803,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
+      track?.mark('swap', 'current');
       return write(
-        label,
+        track?.label('swap') ?? label,
         {
           address: target,
           abi: binaryMarketAbi,
@@ -813,6 +843,16 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       }
       const units = parsed;
 
+      // Every prompt this buy can raise, named the way the wallet shows it.
+      // The swap's line gains its estimate once the quote below lands.
+      let steps = buySteps(side, units);
+      const label = (key: BuyStepKey) => buyStepLabel(steps, key);
+      const mark = (key: BuyStepKey, status: BuyStepStatus) =>
+        setBuyProgress((current) =>
+          current ? markBuyStep(current, key, status) : current,
+        );
+      setBuyProgress(startBuyProgress(steps));
+
       setFailedTransaction(undefined);
       await runBuy(units, {
         // Read now rather than from the snapshot, so a stale or skipped
@@ -824,13 +864,25 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
             functionName: 'balanceOf',
             args: [account],
           })) as bigint,
-        quoteMinimumSwapOut: async () =>
-          (await quoteOn(target, side, units)).minimumSwapOut,
+        quoteMinimumSwapOut: async () => {
+          const quote = await quoteOn(target, side, units);
+          steps = buySteps(side, units, quote.swapOut);
+          setBuyProgress((current) => current && { ...current, steps });
+          return quote.minimumSwapOut;
+        },
         approveCollateral: () =>
-          ensureAllowance('Approving mUSDT', token, mockUsdtAbi, target, units),
-        mintPair: () =>
-          write(
-            `Buying ${side}`,
+          ensureAllowance(
+            label('approveCollateral'),
+            token,
+            mockUsdtAbi,
+            target,
+            units,
+            (status) => mark('approveCollateral', status),
+          ),
+        mintPair: () => {
+          mark('mint', 'current');
+          return write(
+            label('mint'),
             {
               address: target,
               abi: binaryMarketAbi,
@@ -838,8 +890,13 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
               args: [units],
             },
             'Minting the YES + NO pair',
-          ),
-        swap: (minimumSwapOut) => swapInto(target, side, units, minimumSwapOut),
+          );
+        },
+        swap: (minimumSwapOut) =>
+          swapInto(target, side, units, minimumSwapOut, undefined, {
+            label,
+            mark,
+          }),
         recordPendingOrder: () => {
           const recorded: PendingOrder = {
             market: target,
@@ -858,7 +915,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         forgetPendingOrder,
         fail: (message, cause) =>
           setError(cause ? `${message}: ${errorMessage(cause)}` : message),
-      });
+      }).finally(() => setBuyProgress(undefined));
     },
     [account, ensureAllowance, forgetPendingOrder, swapInto, write],
   );
@@ -1019,6 +1076,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       connectError,
       connecting,
       walletRpcFailed,
+      buyProgress,
       lastTransaction,
       failedTransaction,
       connect,
@@ -1048,6 +1106,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       connectError,
       connecting,
       walletRpcFailed,
+      buyProgress,
       lastTransaction,
       failedTransaction,
       connect,

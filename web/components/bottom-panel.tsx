@@ -201,7 +201,7 @@ function PositionsTab() {
           <p>
             {settled
               ? 'Marked at the settlement payout. Redeem in the order ticket to collect it.'
-              : 'Indicative: marked at the pool price. There is no exit into mUSDT before settlement, so this value is only realised by holding to settlement and redeeming.'}
+              : 'Indicative: marked at the pool price.'}
           </p>
         </div>
       )}

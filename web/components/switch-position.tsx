@@ -212,9 +212,7 @@ export function SwitchPosition({
         </div>
       </div>
 
-      <p className="text-xs leading-5 text-muted-foreground">
-        Changes side. Not a sale: no mUSDT is returned before settlement.
-      </p>
+      <p className="text-xs leading-5 text-muted-foreground">Changes side.</p>
 
       {reason && (
         <output className="block text-xs leading-5 text-warning">

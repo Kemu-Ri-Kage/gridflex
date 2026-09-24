@@ -3,7 +3,9 @@
 import * as React from 'react';
 import { ArrowUpRight, ExternalLink, Loader2 } from 'lucide-react';
 
+import { BuyStepList } from '@/components/buy-step-list';
 import { ConnectionHelp } from '@/components/connection-help';
+import { PositionSummary } from '@/components/position-summary';
 import { SwitchPosition } from '@/components/switch-position';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,8 +18,10 @@ import {
 } from '@/components/web3-provider';
 import { explorerTxUrl } from '@/lib/explorer';
 import { formatToken } from '@/lib/format';
-import { marketName, useMarkets } from '@/lib/markets';
+import { buySteps } from '@/lib/buy-steps';
+import { marketName, strikeLabel, useMarkets } from '@/lib/markets';
 import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
+import { oppositeBuyWarning, positionSummary } from '@/lib/position-summary';
 import { ticketState } from '@/lib/ticket-state';
 import { parsePositiveTokenAmount } from '@/lib/trade';
 import { collateralShortfall } from '@/lib/transaction-outcome';
@@ -40,7 +44,8 @@ function validTokenAmount(value: string): boolean {
  * read from that market's contract through the Web3Provider, which the
  * order column points at the selection. Buy opens a position; Switch
  * position moves it between YES and NO. There is no sell: the contract has
- * no exit into mUSDT before settlement.
+ * no exit into mUSDT before settlement, so the position block names the
+ * only exits and warns before a buy that would open the other side.
  */
 export function TradePanel() {
   const {
@@ -53,6 +58,7 @@ export function TradePanel() {
     connectError,
     connecting,
     walletRpcFailed,
+    buyProgress,
     lastTransaction,
     failedTransaction,
     connect,
@@ -67,6 +73,7 @@ export function TradePanel() {
     redeem,
   } = useWeb3();
   const { markets, select, now } = useMarkets();
+  const [tab, setTab] = React.useState('buy');
   const [side, setSide] = React.useState<TradeSide>('YES');
   const [amount, setAmount] = React.useState('100');
   const [quoteState, setQuoteState] = React.useState<{
@@ -133,6 +140,19 @@ export function TradePanel() {
       !busy &&
       !gate.blocked,
   );
+  const selectedMarket = markets?.find(
+    (m) => m.address.toLowerCase() === (market ?? '').toLowerCase(),
+  );
+  // What the wallet holds here, netted into pairs and a side; buying the
+  // other side adds pairs, it never closes the position.
+  const position =
+    account && ready && !settled
+      ? positionSummary(snapshot.yesBalance, snapshot.noBalance)
+      : undefined;
+  const oppositeWarning = oppositeBuyWarning(position, side);
+  const steps =
+    buyProgress?.steps ??
+    (units !== undefined ? buySteps(side, units, quote?.swapOut) : undefined);
   const yesPrice = Number(snapshot.priceE18) / 1e16;
   const noPrice = 100 - yesPrice;
 
@@ -211,7 +231,16 @@ export function TradePanel() {
           </div>
         )}
 
-        <Tabs defaultValue="buy">
+        {position && selectedMarket && (
+          <PositionSummary
+            onSwitch={() => setTab('switch')}
+            strike={strikeLabel(selectedMarket)}
+            summary={position}
+            tradingOpen={tradingOpen}
+          />
+        )}
+
+        <Tabs onValueChange={(value) => setTab(String(value))} value={tab}>
           <TabsList
             className="w-full justify-start rounded-none border-b border-border bg-transparent px-0"
             variant="line"
@@ -322,6 +351,23 @@ export function TradePanel() {
                 )}
               </div>
             </div>
+
+            {account && tradingOpen && steps && (
+              <BuyStepList progress={buyProgress} steps={steps} />
+            )}
+
+            {account && tradingOpen && oppositeWarning && !buyProgress && (
+              <p className="text-xs leading-5 text-warning">
+                {oppositeWarning}{' '}
+                <button
+                  className="font-semibold text-foreground underline underline-offset-4"
+                  onClick={() => setTab('switch')}
+                  type="button"
+                >
+                  Switch to change sides
+                </button>
+              </p>
+            )}
 
             {account && (
               <Button

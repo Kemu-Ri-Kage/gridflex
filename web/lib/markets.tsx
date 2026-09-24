@@ -237,6 +237,36 @@ function readLiveAll(addresses: readonly Address[]): Promise<MarketLive[]> {
   );
 }
 
+/** A market pool's YES and NO, in 6-decimal units. */
+export interface PoolReserves {
+  yes: bigint;
+  no: bigint;
+}
+
+/**
+ * Each market's pool in one Multicall3 call, so the hedge calculator costs
+ * every strike from the same block.
+ */
+export async function readPoolReserves(
+  addresses: readonly Address[],
+): Promise<PoolReserves[]> {
+  if (addresses.length === 0) return [];
+  const results = await client.multicall({
+    contracts: addresses.flatMap((address) =>
+      (['yesReserve', 'noReserve'] as const).map((functionName) => ({
+        address,
+        abi: binaryMarketAbi,
+        functionName,
+      })),
+    ),
+    allowFailure: false,
+  });
+  return addresses.map((_, i) => ({
+    yes: results[i * 2] as bigint,
+    no: results[i * 2 + 1] as bigint,
+  }));
+}
+
 interface MarketsValue {
   /** null while loading; [] when none are listed. */
   markets: Market[] | null;

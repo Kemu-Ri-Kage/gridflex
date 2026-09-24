@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 
+import { HedgeCalculator } from '@/components/hedge-calculator';
 import { SettlementSummary } from '@/components/settlement-panel';
 import { TradePanel } from '@/components/trade-panel';
 import { useWeb3 } from '@/components/web3-provider';
@@ -27,6 +28,7 @@ export function OrderColumn() {
     <div className="space-y-3">
       <SettlementSummary />
       {selected && <TradePanel />}
+      <HedgeCalculator />
     </div>
   );
 }

@@ -5,15 +5,19 @@ from the live site (<https://gridflex-web.teslenko-platon.workers.dev>) and its
 source on 23 September 2026. Every transaction shown that already exists is in
 `shared/demo-evidence.md`. The rest are made on camera by the demo wallet.
 
-**Figures that can move before you record.** The hero figures ($23.08, $97.03)
-change only if `./refresh_data.sh` runs with a fetch. The YES/NO cents on
+**Figures that can move before you record.** The hero figures ($19.26, $95.33,
+from the 24 September refresh) change only if `./refresh_data.sh` runs with a
+fetch; don't run one between now and recording. The YES/NO cents on
 2 Oct change whenever anyone trades. Say what the screen shows, not what's
 written here.
 
 ## Changes from the brief, and why
 
-- **"Twelve hours" is now "nine hours".** The cheapest hour starts at 09:00
-  and the dearest at 18:00 Central (`web/lib/generated/price-summary.json`).
+- **The opening figures are 24 September's.** The 24 September refresh
+  moved the hero to that day: cheapest hour $19.26 at 11:00, dearest
+  $95.33 at 18:00 Central, 4.95 times as much and seven hours apart
+  (`web/lib/generated/price-summary.json`). The lines say "five times" and
+  "seven hours".
 - **"Nobody outside the industry" is now "without a futures broker".** ICE
   sells these contracts to anyone with a broker, so the original is a claim a
   judge can knock down.
@@ -66,9 +70,9 @@ OKX contribution to the OKX ecosystem
 | Time | What I say | What's on screen | Serves |
 |---|---|---|---|
 | **0:00** | *(silent, 2s)* | Landing page loads. The hero headline reveals word by word. | UV |
-| 0:02 | "Texas power cost twenty-three dollars at nine in the morning." | Hero: **Texas power cost $23.08 at 9am and $97.03 at 6pm.** | UV |
-| 0:06 | "And ninety-seven dollars at six that evening. Same day." | Cursor under the mono line: *22 Sep 2026 · cheapest and dearest hour, Central time · $/MWh* | UV |
-| 0:11 | "Four times the price, nine hours apart." | Hero, still. | UV |
+| 0:02 | "Texas power cost nineteen dollars at eleven in the morning." | Hero: **Texas power cost $19.26 at 11am and $95.33 at 6pm.** | UV |
+| 0:06 | "And ninety-five dollars at six that evening. Same day." | Cursor under the mono line: *24 Sep 2026 · cheapest and dearest hour, Central time · $/MWh* | UV |
+| 0:11 | "Five times the price, seven hours apart." | Hero, still. | UV |
 | 0:15 | "Bitcoin miners in Texas pay that price. Electricity is their single largest cost." | Hero, still. | UV, GRO |
 | 0:20 | "And AI data centres now compete for the same power. This September cost a third more than last." | Scroll to **01 / Normal range**, click **Full year**. Say it over the chart, then hold. | UV, GRO |
 | **0:26** | "Miners have no way to hedge it onchain. Institutions do, on ICE." | ICE tab: the product page for ICE's monthly ERCOT North peak future. | INN, GRO |

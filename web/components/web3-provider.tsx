@@ -329,6 +329,25 @@ const logReader: LogReader = {
 const RECEIPT_TIMEOUT_MS = 30 * 60_000;
 
 /**
+ * Blocks to let pass after a user operation lands before the next prompt.
+ * OKX Wallet simulates each call on its own node before it lets the user
+ * confirm; straight after an approval, a node a block or two behind ran
+ * the swap without it and greyed Confirm out ("Third-party contract
+ * execution error", 24 Sep 2026). About three seconds on X Layer.
+ */
+const USER_OPERATION_SETTLE_BLOCKS = 3n;
+
+/** Wait until the chain is `blocks` past `blockNumber`, for at most 15 seconds. */
+async function settlePast(blockNumber: bigint, blocks: bigint) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const latest = await publicClient.getBlockNumber().catch(() => undefined);
+    if (latest !== undefined && latest >= blockNumber + blocks) return;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+}
+
+/**
  * The receipt for what the wallet sent, and whether the account's own call
  * failed inside an ERC-4337 bundle. A smart-contract account (OKX Wallet's
  * social-login accounts) may return its user operation's hash, which has no
@@ -363,6 +382,9 @@ async function confirmedReceipt(
           ]
         : []),
     ]);
+    if (first.operation) {
+      await settlePast(first.receipt.blockNumber, USER_OPERATION_SETTLE_BLOCKS);
+    }
     return {
       receipt: first.receipt,
       userOperationFailed: first.operation ? !first.operation.success : false,

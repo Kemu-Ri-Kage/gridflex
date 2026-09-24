@@ -7,12 +7,14 @@ import {
   type Address,
 } from 'viem';
 
-import { EXPLORER_BASE_URL } from '@/lib/explorer';
-import binaryMarketAbiJson from '@/lib/abi/BinaryMarket.json';
-import gridOracleAbiJson from '@/lib/abi/GridOracle.json';
-import marketFactoryAbiJson from '@/lib/abi/MarketFactory.json';
-import mockUsdtAbiJson from '@/lib/abi/MockUSDT.json';
-import outcomeTokenAbiJson from '@/lib/abi/OutcomeToken.json';
+// Relative, extension-qualified imports so scripts/hedge-agent.ts can load
+// this file straight into Node as well as through Vite.
+import { EXPLORER_BASE_URL } from './explorer.ts';
+import binaryMarketAbiJson from './abi/BinaryMarket.json' with { type: 'json' };
+import gridOracleAbiJson from './abi/GridOracle.json' with { type: 'json' };
+import marketFactoryAbiJson from './abi/MarketFactory.json' with { type: 'json' };
+import mockUsdtAbiJson from './abi/MockUSDT.json' with { type: 'json' };
+import outcomeTokenAbiJson from './abi/OutcomeToken.json' with { type: 'json' };
 
 /**
  * X Layer testnet RPC endpoints, in the order they are tried. Both reject

@@ -29,6 +29,7 @@ import { marketName, strikeLabel, useMarkets } from '@/lib/markets';
 import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
 import { oppositeBuyWarning, positionSummary } from '@/lib/position-summary';
 import { redeemablePayout } from '@/lib/redeemable';
+import { payoutLine } from '@/lib/ticket-figures';
 import { ticketState } from '@/lib/ticket-state';
 import { parsePositiveTokenAmount } from '@/lib/trade';
 
@@ -441,6 +442,18 @@ export function TradePanel() {
                       ? `${formatToken(quote.minimumTotalOut)} ${side}`
                       : '—'}
                   </div>
+                </div>
+                {/* The estimate above in plain money, redrawn with every
+                    quote (lib/ticket-figures.ts). */}
+                <div className="col-span-2 font-mono leading-5 text-foreground">
+                  {payoutLine({
+                    side,
+                    units,
+                    totalOut: quote?.totalOut,
+                    ready,
+                    tradingOpen,
+                    quoteUnavailable,
+                  })}
                 </div>
                 <div className="col-span-2 text-muted-foreground">
                   0.50% slippage protection · 5-minute deadline

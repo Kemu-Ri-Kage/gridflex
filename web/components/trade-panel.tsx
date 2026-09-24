@@ -30,6 +30,11 @@ import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
 import { oppositeBuyWarning, positionSummary } from '@/lib/position-summary';
 import { redeemablePayout } from '@/lib/redeemable';
 import { payoutLine } from '@/lib/ticket-figures';
+import {
+  onTicketPrefill,
+  takeTicketPrefill,
+  type TicketPrefill,
+} from '@/lib/ticket-prefill';
 import { ticketState } from '@/lib/ticket-state';
 import { parsePositiveTokenAmount } from '@/lib/trade';
 
@@ -107,6 +112,23 @@ export function TradePanel() {
     quote?: BuyQuote;
     unavailable: boolean;
   }>({ key: '', unavailable: false });
+
+  // An order loaded from another panel (lib/ticket-prefill.ts): one waiting
+  // for this market when it's selected, or one sent while it is. It fills
+  // the Buy tab in; only the viewer's own press of Buy sends anything.
+  React.useEffect(() => {
+    const load = (prefill: TicketPrefill) => {
+      setTab('buy');
+      setSide(prefill.side);
+      setAmount(prefill.amount);
+    };
+    const waiting = takeTicketPrefill(market);
+    if (waiting) load(waiting);
+    return onTicketPrefill(() => {
+      const next = takeTicketPrefill(market);
+      if (next) load(next);
+    });
+  }, [market]);
 
   const ticket = ticketState(snapshot, market, Math.floor(now / 1000));
   const { ready, settled, closed, cancellable, tradingOpen } = ticket;

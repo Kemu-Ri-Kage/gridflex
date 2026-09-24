@@ -86,8 +86,17 @@ export function strikeLabel(
 }
 
 /** The product as a question: "Will Texas power cost more than $30 on 8 Sep?" */
-export function marketName(market: MarketFacts): string {
-  return `Will ${METRIC_WORDS[market.metricId].short} cost more than ${strikeLabel(market)} on ${dayLabel(market.dayKey)}?`;
+/**
+ * "Will Texas power cost more than $45 on 2 Oct?" - with the year when the
+ * day is in an earlier year than `currentYear`, so a replay of a settled
+ * 2025 day never reads as an upcoming one.
+ */
+export function marketName(
+  market: MarketFacts,
+  currentYear = new Date().getUTCFullYear(),
+): string {
+  const pastYear = Math.floor(market.dayKey / 10_000) < currentYear;
+  return `Will ${METRIC_WORDS[market.metricId].short} cost more than ${strikeLabel(market)} on ${dayLabel(market.dayKey, pastYear)}?`;
 }
 
 export function payLine(market: MarketFacts): string {

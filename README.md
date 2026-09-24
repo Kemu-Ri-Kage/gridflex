@@ -218,8 +218,11 @@ cast call 0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07 'yesWon()(bool)' --rpc-url 
    from. The metric file in [`data/metrics/`](data/metrics/) lists those
    files by name and order, so anyone holding them can recompute the hash
    with `shasum -a 256`.
-3. **Finalize.** After a one-hour dispute window, anyone can finalize the
-   reading. Until then no market can use it.
+3. **Finalize.** A reading waits one hour before it can be final. In that
+   hour only the publisher can correct it, and a correction restarts the
+   hour; after it, anyone can finalize the reading, and nobody can change
+   it again. Until then no market can use it. Open disputes, where anyone
+   can challenge a reading, need more than one publisher and come later.
 4. **Resolve.** Anyone can call `resolve()` on a market once trading has
    closed and its reading is final. YES wins if the price is strictly above
    the strike. Winners redeem 1 MockUSDT per token.
@@ -256,7 +259,7 @@ same.
   day with its source hash. `refresh_budget.py` keeps every refresh inside
   the free plan's row allowance.
 - **Publisher and finalizer**: `publish.py` submits readings to the oracle;
-  `finalize.py` finalizes them after the dispute window. Both dry-run unless
+  `finalize.py` finalizes them after the one-hour correction window. Both dry-run unless
   given `--live`, and both check the chain before sending.
 - **Contracts** (Solidity, [`contracts/`](contracts/)): `GridOracle` stores
   one reading per metric per day; `MarketFactory` creates markets;

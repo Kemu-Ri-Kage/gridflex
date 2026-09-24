@@ -9,7 +9,7 @@ nothing here is redeemable for electricity. Markets run on X Layer
 testnet and settle in mUSDT.
 
 - Base URL: `https://gridflex-web.teslenko-platon.workers.dev/api/v1`
-- Methods: `GET` only (plus CORS preflight `OPTIONS`)
+- Methods: `GET` or `POST` (a POST may carry the parameters as a JSON object body; the query string wins where both name one), plus CORS preflight `OPTIONS`
 - Network: `eip155:1952` (X Layer testnet) unless `X402_NETWORK` says otherwise
 
 ## Endpoints

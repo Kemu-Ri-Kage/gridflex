@@ -21,7 +21,7 @@ import { paymentConfig, paymentGate, type Handler, type PaymentConfig } from '@/
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'PAYMENT-SIGNATURE, X-PAYMENT, Content-Type, Accept',
   'Access-Control-Expose-Headers': 'PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-GRIDFLEX-Payment',
   'Access-Control-Max-Age': '86400',
@@ -61,9 +61,11 @@ function gateFor(config: PaymentConfig) {
     config.network,
     new ExactEvmScheme(),
   );
+  // GET and POST alike: marketplaces probe endpoints with either.
   const routes = Object.fromEntries(
-    ENDPOINTS.map((endpoint) => [
-      `GET ${endpoint.path}`,
+    ENDPOINTS.flatMap((endpoint) =>
+      ['GET', 'POST'].map((method) => [
+        `${method} ${endpoint.path}`,
       {
         accepts: {
           scheme: 'exact',
@@ -75,6 +77,7 @@ function gateFor(config: PaymentConfig) {
         mimeType: 'application/json',
       },
     ]),
+    ),
   );
   gate = { key, run: paymentGate(new x402HTTPResourceServer(resourceServer, routes)) };
   return gate.run;
@@ -97,6 +100,31 @@ export function apiRoute(handler: Handler, options: { paid: boolean; maxAge: num
     );
     return new Response(response.body, { status: response.status, headers });
   };
+}
+
+/**
+ * A call's parameters: the query string, plus the fields of a JSON object
+ * body on a POST (the query string wins where both name one). Agents and
+ * marketplaces call with either method; a body that isn't a JSON object
+ * is ignored.
+ */
+export async function requestQuery(request: Request): Promise<URLSearchParams> {
+  const query = new URL(request.url).searchParams;
+  if (request.method !== 'POST') return query;
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return query;
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return query;
+  const merged = new URLSearchParams(query);
+  for (const [name, value] of Object.entries(body)) {
+    if (!merged.has(name) && (typeof value === 'string' || typeof value === 'number')) {
+      merged.set(name, String(value));
+    }
+  }
+  return merged;
 }
 
 export function preflight(): Response {

@@ -4,10 +4,11 @@ import { apiRoute, currentNetwork, paymentInfo, preflight } from './payment';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/v1: what the API offers and how it is paid for. Always free. */
+/** GET or POST /api/v1: what the API offers and how it is paid for. Always free. */
 export const GET = apiRoute(() => Response.json(apiIndex(paymentInfo(), currentNetwork())), {
   paid: false,
   maxAge: 300,
 });
 
+export const POST = GET;
 export const OPTIONS = preflight;

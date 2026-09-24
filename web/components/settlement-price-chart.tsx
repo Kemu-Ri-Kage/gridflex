@@ -187,7 +187,7 @@ function Legend() {
 }
 
 /** The caret used on a capped wick, for the caption line that explains it. */
-function CaretGlyph() {
+export function CaretGlyph() {
   return (
     <svg aria-hidden="true" className="shrink-0" height={CARET_HEIGHT + 2} width={CARET_WIDTH + 2}>
       <path

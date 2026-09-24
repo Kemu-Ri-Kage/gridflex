@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import type { CommittedRecord, FeedMetricId } from '@/lib/feed-data';
 import type { PriceCandles } from '@/lib/price-candles';
+import type { PriceGrid } from '@/lib/price-grid';
 
 /**
  * Generic per-metric committed-record fetch, shared by the landing page's
@@ -115,6 +116,26 @@ export function useAddresses(): PublicAddresses | null {
  * build_feed_data.py's write_price_candles(). An empty file (no candles, no
  * skipped days) when it can't be read, so the chart falls back to the line.
  */
+/** The landing hero's grid of hourly prices (lib/price-grid.ts); null while loading or if it can't load. */
+export function usePriceGrid(): PriceGrid | null {
+  const [grid, setGrid] = React.useState<PriceGrid | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void fetch('/data/price-grid.json')
+      .then((response) => (response.ok ? (response.json() as Promise<PriceGrid>) : null))
+      .then((data) => {
+        if (!cancelled && data && data.days.length > 0) setGrid(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return grid;
+}
+
 export function usePriceCandles(): PriceCandles | null {
   const [candles, setCandles] = React.useState<PriceCandles | null>(null);
 

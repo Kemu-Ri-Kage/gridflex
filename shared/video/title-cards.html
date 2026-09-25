@@ -150,7 +150,7 @@
 <section class="card" data-name="verify">
   <div class="section-row"><span class="section-num fade" style="--d:0">01 /</span><span class="headline"><span class="w" style="--d:120">Verify</span></span></div>
   <div class="rule"></div>
-  <div class="sub fade" style="--d:500">24 hourly prices → one SHA-256 fingerprint of the source files → the oracle on X Layer. Anyone can recompute it.</div>
+  <div class="sub fade" style="--d:500">24 hourly prices → one daily average → a SHA-256 fingerprint of its source files → the oracle on X Layer, where any contract can read it.</div>
 </section>
 
 <section class="card" data-name="trade">
@@ -162,22 +162,22 @@
 <section class="card" data-name="hedge">
   <div class="section-row"><span class="section-num fade" style="--d:0">03 /</span><span class="headline"><span class="w" style="--d:120">Hedge</span></span></div>
   <div class="rule"></div>
-  <div class="sub fade" style="--d:500">A 10 MW bitcoin miner types its load. GRIDFLEX builds a ladder of strikes that pays back the extra power bill when prices spike.</div>
+  <div class="sub fade" style="--d:500">A 10 MW bitcoin miner types its load. GRIDFLEX builds a ladder of strikes that pays back the extra power bill, up to the price it protects to.</div>
 </section>
 
 <section class="card" data-name="settle">
   <div class="section-row"><span class="section-num fade" style="--d:0">04 /</span><span class="headline"><span class="w" style="--d:120">Settle</span></span></div>
   <div class="rule"></div>
-  <div class="sub fade" style="--d:500">Trading stops before the price exists. The contract reads the oracle itself. Anyone can resolve; winners redeem 1 mUSDT per token.</div>
+  <div class="sub fade" style="--d:500">Live markets stop trading before the price is published. The contract reads the oracle itself. Anyone can resolve; winners redeem 1 mUSDT per token.</div>
 </section>
 
 <section class="card" data-name="agents">
   <div class="section-row"><span class="section-num fade" style="--d:0">05 /</span><span class="headline"><span class="w" style="--d:120">Agents</span></span></div>
   <div class="rule"></div>
-  <div class="sub fade" style="--d:500">The verified price is an API that AI agents pay per call, then act on.</div>
+  <div class="sub fade" style="--d:500">The Texas power price is an API that AI agents call, then act on. Free today; x402 payments are built in.</div>
   <div class="figures fade" style="--d:900">
-    <div class="figure"><div class="label">Per call</div><div class="value">$0.01</div><div class="note">USDT0 · OKX x402 Payment SDK</div></div>
-    <div class="figure"><div class="label">Settles on</div><div class="value">X Layer</div><div class="note">payment and hedge, same chain</div></div>
+    <div class="figure"><div class="label">Per call</div><div class="value">$0.01</div><div class="note">x402-ready · free today</div></div>
+    <div class="figure"><div class="label">Settles on</div><div class="value">X Layer</div><div class="note">the agent buys its hedge on chain</div></div>
     <div class="figure"><div class="label">Registered on</div><div class="value">OKX AI</div><div class="note">agent #13881 · 3 A2MCP services</div></div>
   </div>
 </section>
@@ -188,14 +188,14 @@
   <div class="figures fade" style="--d:600">
     <div class="figure"><div class="label">Buys YES</div><div class="value up">Miners</div><div class="note">lose when power is dear</div></div>
     <div class="figure"><div class="label">Buys NO</div><div class="value down">Wind &amp; solar</div><div class="note">lose when power is cheap</div></div>
-    <div class="figure"><div class="label">Revenue</div><div class="value">API + fees</div><div class="note">per-call data · pool fees</div></div>
+    <div class="figure"><div class="label">Revenue</div><div class="value">API + fees</div><div class="note">per-call data · swap fees (next contracts)</div></div>
   </div>
 </section>
 
 <!-- 8. End card. -->
 <section class="card end" data-name="end">
   <div class="wordmark fade" style="--d:0"><b>GRID</b><span>FLEX</span></div>
-  <div class="sub fade" style="--d:400; margin-top:2vh">Texas sets the price. GRIDFLEX proves it. X Layer settles.</div>
+  <div class="sub fade" style="--d:400; margin-top:2vh">Hedge the grid. Or trade it.</div>
   <div class="links fade" style="--d:900">
     <div><span class="k">Live</span> gridflex-web.teslenko-platon.workers.dev</div>
     <div><span class="k">Code</span> github.com/Kemu-Ri-Kage/gridflex</div>

@@ -1,17 +1,62 @@
 # Submission answers
 
+## The form, field by field
+
+Paste these into the OKX Dev Day 2026 submission form (due 25 September
+2026, 23:59 UTC; 00:59 on 26 September in the UK). Fields in *italics* are
+yours to fill.
+
+| Field | Answer |
+|---|---|
+| Team Name | *your team name* |
+| Team Size | *1–4* |
+| Team Members' Names | *full names exactly as on your IDs* |
+| Track | **Build a Market – build with X Layer** |
+| Participation Route | **In-Person (7 Oct 2026)** if you can be in Singapore, otherwise Remote. An in-person entry that isn't shortlisted is judged for Best Remote Build anyway. |
+| Able to attend the finale (0–4) | *your answer* |
+| Team Display Picture | `shared/video/gridflex-avatar.png` (1024×1024, 0.9 MB) |
+| Project Name | **GRIDFLEX** |
+| Project Summary | The three points below |
+| Repository Link | `https://github.com/Kemu-Ri-Kage/gridflex` once `main` is updated. Until then `https://github.com/Kemu-Ri-Kage/gridflex/tree/feat/judging-sprint`: `main` is 120 commits behind and has the old README. |
+| Demo Video | *the YouTube link* (Public or Unlisted) |
+| Product Link | `https://gridflex-web.teslenko-platon.workers.dev` |
+| New project? | **Yes, new project** (first commit 9 September 2026) |
+
+### Project Summary (paste as is)
+
+1. **Product.** GRIDFLEX lists YES/NO markets on the daily Texas power
+   price, such as "Will Texas power cost more than $45 on 2 Oct?". Each YES
+   pays 1 test USDT if that day's average ERCOT North Hub day-ahead price
+   settles above the strike. Each price is published to an oracle on X
+   Layer with a SHA-256 fingerprint of its source files, and markets
+   resolve against it on chain. A Hedge tab turns a power load in megawatts
+   into a ladder of YES positions with dollar payouts.
+2. **Intended user.** Bitcoin miners and AI data centres in Texas, whose
+   largest cost is this price and who hold wallets, not futures accounts;
+   wind and solar farms, who take the other side; traders; and AI agents
+   that need the price.
+3. **Core integration.** X Layer: the `GridOracle`, `MarketFactory` and
+   `BinaryMarket` contracts on X Layer testnet, with 17 markets, and every
+   trade, resolve and redeem an X Layer transaction; OKX Wallet first. OKX
+   AI: registered as agent #13881 with three A2MCP services (price,
+   markets, hedge quote), with OKX's x402 Payment SDK built in (free on
+   testnet today).
+
+---
+
 Project summary in three lengths, written in the design brief's plain-language
 dictionary (`shared/design-brief.md` §5). Every fact matches
 `README.md` and `shared/addresses.json` as of 23 September 2026. Cashing out
 before settlement, automated orders and dated futures don't exist yet and
 appear only as roadmap.
 
-## Three short paragraphs
+## Longer versions
+
+### Three short paragraphs
 
 Bitcoin miners in Texas pay one of the most volatile power prices in the
 world, and electricity is their largest cost. They have no way to hedge it
-onchain. Institutions can, on ICE, through a futures broker, in contracts of
-hundreds of megawatt-hours.
+onchain. Institutions can, on ICE, through a futures broker, with margin to post.
 
 GRIDFLEX lists YES/NO questions on that price, such as "Will Texas power cost
 more than $45 on 2 Oct 2026?" Each YES pays 1 MockUSDT if that day's price
@@ -32,22 +77,21 @@ payments switch on). Next: cashing out before settlement,
 an AI agent that keeps a load hedged, and dated futures on a week or month
 of prices.
 
-## Under 100 words
+### Under 100 words
 
 Bitcoin miners in Texas pay one of the world's most volatile power prices,
 and electricity is their largest cost, but they can't hedge it
-onchain. Institutions can, on ICE, through a broker, in contracts of hundreds
-of megawatt-hours. GRIDFLEX lists YES/NO questions on that price, such as
+onchain. Institutions can, on ICE, through a broker, with margin to post. GRIDFLEX lists YES/NO questions on that price, such as
 "Will Texas power cost more than $45 on 2 Oct?" Each YES pays 1 MockUSDT if
 the official published price settles above the strike. On X Layer testnet,
 `GridOracle` publishes each day's price with a source hash;
 `MarketFactory` creates markets; `BinaryMarket` holds fully collateralised
 YES/NO tokens and resolves against the oracle.
 
-## Under 50 words
+### Under 50 words
 
 Bitcoin miners in Texas can't hedge their largest cost, one of the world's
 most volatile power prices, onchain; institutions do, on ICE, through a
-broker, in contracts of hundreds of megawatt-hours. GRIDFLEX lists YES/NO
+broker, with margin to post. GRIDFLEX lists YES/NO
 questions on that price, settled in MockUSDT on X Layer testnet against a
 hash-verified oracle.

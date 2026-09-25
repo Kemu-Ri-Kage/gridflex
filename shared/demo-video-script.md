@@ -1,5 +1,36 @@
 # GRIDFLEX demo video script: v4, the submission cut
 
+## As submitted (25 September)
+
+The submitted cut is on YouTube: <https://www.youtube.com/watch?v=9nZG6C00s3I>
+(3:51, 1080p60). It follows the plan below with the wording tightened, read
+by a professional narrator. It opens on a 3D Texas grid with the settled
+8 September market's numbers, and each cut and camera move lands on the word
+it illustrates. The narration as recorded, with the time each line starts:
+
+| Time | Line |
+|---|---|
+| 0:19 | This market has already settled on X Layer: $39.57 against a $30 strike. YES won. |
+| 0:27 | GRIDFLEX lists YES-or-NO markets on the daily price of Texas electricity. Miners and data centres carry that risk every day. Now they can hedge it from a wallet, for cents. |
+| 0:42 | We hedge the day, not the hour. Each market settles on one day's average price. A normal day runs from $19 to $42. On the 26th of January, it hit $694. |
+| 0:54 | The prices come from ERCOT's day-ahead market, through GridStatus. We check all 24 hours and average them, then we fingerprint the exact source files with SHA-256. |
+| 1:05 | The price and its fingerprint go to GridOracle on X Layer. One publisher today: us. After a one-hour correction window, the price is final. |
+| 1:19 | The terminal shows every past settlement price, every strike, and how often each one was beaten. |
+| 1:25 | Will Texas power cost more than $45 on October the 2nd? YES costs 52 cents. It pays one test dollar if the answer is yes. |
+| 1:36 | I connect a fresh OKX Wallet and mint a thousand test dollars. They have no real value. |
+| 1:45 | 100 on YES. If it wins, it pays 190. |
+| 1:50 | Under the hood, the contract mints a fully backed pair: one YES, one NO. Then it swaps the NO into more YES, with a slippage limit and a five-minute deadline. |
+| 2:03 | Positions and profit and loss are read straight from the chain. No account, no custody. The wallet and the contracts are the source of truth. |
+| 2:15 | Now the real customer: a 10-megawatt bitcoin miner, running all day. |
+| 2:21 | GRIDFLEX buys YES on every strike. If the day averages $80, it pays back the extra cost above $35. Today, that cover costs about $6,450. |
+| 2:36 | Settlement needs no one's permission. Once trading has closed and the price is final, anyone can resolve. The contract reads the oracle itself: $39.57, above $30. YES won. |
+| 2:50 | Here's that resolve, confirmed on X Layer. Winners redeem one for one, and live markets stop trading an hour before the grid publishes the price. |
+| 3:01 | AI agents get the same data. Here it's read live from OKX AI through Onchain OS: GRIDFLEX, agent 13881, with three services. |
+| 3:10 | This agent has its own X Layer wallet. It calls those three endpoints, free today, with OKX's x402 payments already built in. Then it buys the hedge itself, on X Layer. |
+| 3:26 | Miners lose when power is expensive. Wind and solar farms lose when it's cheap. Each side hedges the other. Revenue comes from a cent per agent call, and a trading fee in the next contracts. |
+
+The rest of this file is the plan the cut was made from.
+
 v4 merges David's proposal (proof first, the research chart, how a buy
 works, Positions and P&L, no custody) into v3 (the promo bookends, the
 Hedge tab, OKX AI and the honest framings the judge review asked for).

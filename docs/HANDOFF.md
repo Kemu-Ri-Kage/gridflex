@@ -88,8 +88,8 @@ free until the Worker has the OKX facilitator secrets
 What remains is operational, not code: each live market needs its reading
 published and finalized on the evening its day's prices appear, then
 `resolve_markets.py`; only three of the 378 committed price days are on the
-oracle, and the site's Proof section says so; and the demo video link in
-the README is still to be added.
+oracle, and the site's Proof section says so. The demo video is linked from
+the README.
 
 Detailed operator commands are in `shared/deployment.md`,
 `shared/publish-spec.md`, and `shared/finalize-spec.md`.

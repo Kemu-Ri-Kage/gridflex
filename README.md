@@ -14,7 +14,7 @@ YES/NO contract, at any size.
 Live on X Layer testnet, settled in MockUSDT.
 
 - **Live site:** <https://gridflex-web.teslenko-platon.workers.dev>
-- **Demo video:** `[DEMO VIDEO LINK — TO ADD]`
+- **Demo video:** <https://www.youtube.com/watch?v=9nZG6C00s3I>
 
 ---
 

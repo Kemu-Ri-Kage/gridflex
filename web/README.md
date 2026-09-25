@@ -9,9 +9,12 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Without contract addresses the app intentionally runs in preview mode. Copy `.env.example` to
-`.env.local` after deployment and fill the four public addresses to enable wallet transactions.
-Never put a private key in the web environment.
+The app needs no environment to run. Contract addresses and the list of markets come from
+`public/data/addresses.json`, written from `shared/addresses.json` by `build_feed_data.py` at the
+repository root; run that script after creating a market so the site lists it. `.env.example`
+documents the optional overrides. Never put a private key or an API key in the web environment:
+every `NEXT_PUBLIC_*` value is compiled into the public bundle. The price API's payment secrets
+(`OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_PASSPHRASE`, `X402_PAY_TO`) are Worker secrets, never files.
 
 ## Validate
 

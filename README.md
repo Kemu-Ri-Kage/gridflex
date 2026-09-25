@@ -20,16 +20,16 @@ Live on X Layer testnet, settled in MockUSDT.
 
 ## The problem
 
-Texas power swings several-fold within a single day. On 22 September 2026,
-the latest day in our data, the cheapest hour cost **$23.08/MWh** (9:00 Texas
-time) and the dearest cost **$97.03/MWh** (18:00), 4.2 times as much
+Texas power swings several-fold within a single day. On 24 September 2026,
+the latest day in our data, the cheapest hour cost **$19.26/MWh** (11:00 Texas
+time) and the dearest cost **$95.33/MWh** (18:00), 4.9 times as much
 ([`price-summary.json`](web/lib/generated/price-summary.json)). A MWh is roughly
 what 650 Texas homes use in an hour.
 
 Some days are far worse. On **26 January 2026** the Texas power price
 averaged **$694.03/MWh** across the day
 ([metric file](data/metrics/ERCOT_HBNORTH_DA_AVG__2026-01-26.json)), against
-a typical $20–45: the median day over the last 376 is $28.55, so that day
+a typical $20–45: the median day over the last 378 is $28.60, so that day
 cost 24 times a normal one.
 
 Institutions already trade this risk. ICE lists futures and options on the
@@ -327,8 +327,9 @@ every trade, with OKLink as the public record.
 - **Stop loss and take profit** orders on open positions.
 - **More markets**: more days and strikes on the Texas power price.
 - **A statewide price index**: what Texas as a whole paid for power each
-  day, weighted by where it was used. It's already computed and published to
-  the oracle; a market on it is the next listing.
+  day, weighted by where it was used. It's already computed for the full
+  year and one day of it is on the oracle; a market on it is the next
+  listing.
 - **Dated futures**: contracts on a week or month of prices, not just one
   day.
 - **More US grids.** GridStatus already carries PJM, CAISO, MISO, NYISO,

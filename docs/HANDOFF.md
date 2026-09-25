@@ -67,13 +67,29 @@ The trade-safe factory was deployed in transaction
 Its runtime bytecode matches the current local build exactly; the previous
 factory is retained only as a superseded audit record in `shared/addresses.json`.
 
-The next end-to-end milestone is to:
+The end-to-end lifecycle has been run on X Layer testnet: past-day markets
+created and seeded through `MarketFactory`, resolved against finalized
+oracle readings (`shared/demo-evidence.md`), and a live position bought on
+the 2 October market through the site. Seventeen markets are listed
+(`shared/addresses.json`): a ladder of $35 and $45 strikes for every day
+from 26 September to 1 October, $40 and $45 on 30 September, $38 and $45 on
+2 October, and the two resolved ones.
 
-1. finalise the eligible demo readings;
-2. create and seed a past-day market through `CreateDemoMarket.s.sol`;
-3. execute the complete mint, swap, resolve, and redeem lifecycle;
-4. record every public transaction hash;
-5. run `build_feed_data.py` so `web/public/data/addresses.json` lists the market, and verify the live UI.
+Since then the site gained: EIP-6963 wallet discovery with a picker and a
+remembered wallet (`web/lib/wallet-discovery.ts`,
+`web/components/wallet-picker.tsx`); first-use funding guidance for test
+OKB and test mUSDT (`web/lib/funding-state.ts`); a hedge calculator that
+sizes a YES ladder for a load (`web/lib/hedge.ts`,
+`web/components/hedge-calculator.tsx`); a portfolio view with Redeem all
+(`web/lib/portfolio.ts`); and a JSON price API with an x402 payment gate,
+free until the Worker has the OKX facilitator secrets
+(`web/app/api/v1/`, `shared/price-api.md`).
+
+What remains is operational, not code: each live market needs its reading
+published and finalized on the evening its day's prices appear, then
+`resolve_markets.py`; only three of the 378 committed price days are on the
+oracle, and the site's Proof section says so; and the demo video link in
+the README is still to be added.
 
 Detailed operator commands are in `shared/deployment.md`,
 `shared/publish-spec.md`, and `shared/finalize-spec.md`.

@@ -271,9 +271,22 @@ python3 scripts/export_abi.py
 run: contract addresses and the list of markets come from
 `web/public/data/addresses.json`, written from `shared/addresses.json` by
 `build_feed_data.py`. The order ticket trades whichever listed market is
-selected. With a wallet on X Layer testnet it can get demo collateral, buy YES
-or NO (a complete set is minted and the other side swapped in, in one action),
-resolve or cancel after trading closes, and redeem. Switch position swaps
+selected. Connect finds every installed wallet through EIP-6963
+(`lib/wallet-discovery.ts`): with one wallet it connects to it, with several
+it shows a picker (`components/wallet-picker.tsx`), and every later request,
+event listener and health check goes to the chosen wallet's own provider,
+never to whichever extension owns `window.ethereum`. The last wallet used is
+remembered in localStorage and reconnected on reload without a prompt when
+it still authorises the site. A wallet with no OKB is linked to the X Layer
+faucet and one with no mUSDT is led to `Get 1,000 test mUSDT`
+(`lib/funding-state.ts`); minting stays disabled until the wallet has gas.
+With a wallet on X Layer testnet it can then buy YES or NO (a complete set
+is minted and the other side swapped in, in one action), switch sides,
+resolve or cancel after trading closes, and redeem. No RPC check runs before
+a transaction is sent. The Hedge tab sizes a YES ladder for a load
+(`lib/hedge.ts`) and the Portfolio tab lists positions across every market
+with Redeem all (`lib/portfolio.ts`). The same hedge and market logic backs
+the JSON price API under `app/api/v1/` (`shared/price-api.md`). Switch position swaps
 YES for NO or NO for YES with the same slippage protection and deadline; it
 changes side and is not a sale, because the markets have no exit into mUSDT
 before settlement. `web/.env.example` lists the optional overrides.

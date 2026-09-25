@@ -14,4 +14,3 @@ web/.env*
 !web/.env.example
 logs/
 .scratch/
-docs/agents/

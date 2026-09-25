@@ -85,7 +85,7 @@ table below.
 
 | Time | Screen | Say |
 |---|---|---|
-| **0:00** | `GRIDFLEX-promo-v3.mp4`, **0.00 → 19.00**: a thin line draws 24 Sep's hourly price (*$19 at 11am. $95 at 6pm.*), *Mid-September: up 32.5%*, the year with 26 January's $694 spike (*About 24× a normal day*), *AI data centres. Bitcoin miners.*, *Few can hedge its price.*, then the GRIDFLEX reveal and *No broker. No minimum. Just a wallet.*, held still from 17.8 s | *(nothing: the film carries it)* |
+| **0:00** | `GRIDFLEX-promo.mp4`, **0.00 → 19.00**: the day's 24 price bars rise, $19 at 11am, $95 at 6pm, the 30-day field, *Who pays the swing: Bitcoin miners. AI data centres.*, *Hedging it takes: Futures broker. Exchange account. Margin calls.* struck out, *Wallets: locked out.*, then the GRIDFLEX drop, the YES/NO question and *Just a wallet. No minimum.* | *(nothing: the film carries it)* |
 | 0:18.5 | Last half-second of the promo | Fade the promo's music out over 18.5 → 19.3, under the first line |
 
 Cut on **19.00** exactly, the downbeat where the promo would start *How it
@@ -160,7 +160,7 @@ works*.
 
 | Time | Screen | Say |
 |---|---|---|
-| **3:41** | `GRIDFLEX-promo-v3.mp4`, **34.45 → 40.00**: *Hedge the grid.* / *Or trade it.* on the heat field, then the end card: wordmark, *Hedge Texas power from your wallet.*, *Try it on X Layer testnet →*, the URL, *BUILT ON X LAYER · OKX WALLET · REGISTERED ON OKX AI*. | *(nothing: the film's hits carry it)* |
+| **3:41** | `GRIDFLEX-promo.mp4`, **34.45 → 40.00**: *Hedge the grid.* / *Or trade it.* on the heat field, then the end card: wordmark, *Hedge Texas power from your wallet.*, *Try it on X Layer testnet →*, the URL, *BUILT ON X LAYER · OKX WALLET · REGISTERED ON OKX AI*. | *(nothing: the film's hits carry it)* |
 | **3:47** | *End* | |
 
 ---
@@ -171,8 +171,8 @@ works*.
   Cap: smooth zoom onto each click and a smoothed cursor. That's most of the
   "produced" look. Record the browser at 1440×900; export 1920×1080 at
   60 fps, to match the promo.
-- **The promo bookends** come from `~/Desktop/GRIDFLEX-promo-v3.mp4` (the
-  calm v3 film). Trim 0.00–19.00 for the open and
+- **The promo bookends** come from `~/Desktop/GRIDFLEX-promo.mp4` (today's
+  render, with *Margin calls.*). Trim 0.00–19.00 for the open and
   34.45–40.00 for the close, and keep their sound at full level.
 - **Chapter cards** (TC 2–7): record each full screen for 3 seconds and use
   the last settled second. Record them from today's `title-cards.html`; the

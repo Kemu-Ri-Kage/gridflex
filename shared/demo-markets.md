@@ -120,11 +120,11 @@ those strikes: see "Choosing the ladder strikes" below.
 - Trading close: **2026-10-01 12:30 CDT (Texas) / 18:30 BST (London)**.
   It stays open for trading through the judges' review period, which runs
   until 30 September.
-- Resolution: `fetch_ercot.py` stops at "yesterday in UTC", so 2 October
-  can be fetched once UTC reaches 2026-10-03 (08:00 SGT on 3 October; see
-  the note at the end). After that come publish and finalize, and then
+- Resolution: `fetch_ercot.py` reads market days up to and including today
+  in UTC, so 2 October can be fetched once UTC reaches 2026-10-02 (see the
+  note at the end). After that come publish and finalize, and then
   `resolve()` works. That leaves time for it to settle before the
-  6 October finale.
+  7 October finale.
 
 ### 6. Texas power, 30 September 2026, above $40
 
@@ -281,19 +281,14 @@ and `finalize.py --verify` no longer checks them by default. Use
 
 ---
 
-## Note: why a market day D can't resolve on day D
+## Note: when a market day D can be read
 
-`fetch_ercot.py`'s own date arithmetic:
-
-```python
-end_date = datetime.now(timezone.utc).date()
-start_date = end_date - timedelta(days=args.days)
-```
-
-`end_date` is always *today in UTC*, and the fetch window excludes that
-end. So the pipeline only reaches "yesterday" relative to its own UTC run
-time. ERCOT publishes day D's prices at 13:30 Central on D−1, but the
-pipeline can't include D until UTC reaches D+1 00:00. Anchoring the cutoff
-to when Central data is available would remove this gap. That is a
-post-hackathon change: this arithmetic decides which market days exist at
-all, and it deserves its own testing pass, not a same-week retrofit.
+`fetch_window()` in `fetch_ercot.py` ends the window at tomorrow, exclusive,
+so today's market day (UTC) is included. ERCOT publishes day D's day-ahead
+prices at 13:30 Central on D-1, 18:30 UTC in summer, which is before 00:00
+UTC of day D; so on any UTC date that day's prices already exist and the
+pipeline picks them up. A market on day D closes at 12:30 Central on D-1
+and can be settled once UTC reaches D: for the 2 October market that is
+00:00 UTC on 2 October, 19:00 Central on 1 October, 01:00 in London. The
+cycle after that is publish, a one-hour dispute window, finalize, then
+`resolve()`.

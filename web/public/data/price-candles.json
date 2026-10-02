@@ -3023,6 +3023,70 @@
       "high": 9533,
       "low": 1926,
       "open": 3492
+    },
+    {
+      "average": 3339,
+      "close": 3160,
+      "dayKey": 20260925,
+      "high": 6614,
+      "low": 1937,
+      "open": 3047
+    },
+    {
+      "average": 3175,
+      "close": 3240,
+      "dayKey": 20260926,
+      "high": 6387,
+      "low": 1686,
+      "open": 3049
+    },
+    {
+      "average": 4354,
+      "close": 3618,
+      "dayKey": 20260927,
+      "high": 10618,
+      "low": 1895,
+      "open": 3111
+    },
+    {
+      "average": 4167,
+      "close": 2731,
+      "dayKey": 20260928,
+      "high": 8398,
+      "low": 2430,
+      "open": 4120
+    },
+    {
+      "average": 2954,
+      "close": 2616,
+      "dayKey": 20260929,
+      "high": 5212,
+      "low": 2028,
+      "open": 2542
+    },
+    {
+      "average": 3487,
+      "close": 4581,
+      "dayKey": 20260930,
+      "high": 6939,
+      "low": 1997,
+      "open": 2505
+    },
+    {
+      "average": 4325,
+      "close": 3431,
+      "dayKey": 20261001,
+      "high": 6440,
+      "low": 3025,
+      "open": 4589
+    },
+    {
+      "average": 3353,
+      "close": 4522,
+      "dayKey": 20261002,
+      "high": 5016,
+      "low": 2485,
+      "open": 3378
     }
   ],
   "metricId": "ERCOT_HBNORTH_DA_AVG",

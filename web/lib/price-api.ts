@@ -298,7 +298,16 @@ function wholeTokens(units: bigint): number {
 
 export function marketRow(market: MarketSnapshot, nowMs: number) {
   const status = marketStatus(market, nowMs) as MarketStatus;
-  const yesPrice = round(Number(formatUnits(market.live.priceE18, 18)), 4);
+  // A settled market's price is what a token now redeems for (1/0, or 0.5
+  // each if cancelled), not the pool price frozen at the close.
+  const yesPrice =
+    status === 'resolved'
+      ? market.live.yesWon
+        ? 1
+        : 0
+      : status === 'cancelled'
+        ? 0.5
+        : round(Number(formatUnits(market.live.priceE18, 18)), 4);
   return {
     address: market.address,
     question: marketName(market),

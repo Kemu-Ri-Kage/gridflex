@@ -14,7 +14,7 @@ export const TERM_LABELS: Record<Term, string> = {
   next: 'Next day',
   week: 'This week',
   later: 'Later',
-  awaiting: 'Awaiting the price',
+  awaiting: 'Awaiting settlement',
   settled: 'Settled',
 };
 

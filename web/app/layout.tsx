@@ -19,6 +19,15 @@ export const metadata: Metadata = {
   title: 'GRIDFLEX — Will Texas power cost more?',
   description:
     'YES/NO questions on the Texas power price, settled against prices published onchain with a hash of their source.',
+  // A text-only link card for X and Telegram (no image: GRIDFLEX has no logo).
+  openGraph: {
+    title: 'GRIDFLEX — Will Texas power cost more?',
+    description:
+      'YES/NO questions on the Texas power price, settled on X Layer against prices published onchain with a hash of their source.',
+    url: 'https://gridflex-web.teslenko-platon.workers.dev',
+    siteName: 'GRIDFLEX',
+    type: 'website',
+  },
   // A plain near-black tile, no mark - GRIDFLEX has no logo (design-brief.md §2).
   icons: {
     icon: [

@@ -5,6 +5,7 @@ import { useAddresses } from '@/lib/site-data';
 
 const REPO_URL = 'https://github.com/Kemu-Ri-Kage/gridflex';
 const GRIDSTATUS_URL = 'https://www.gridstatus.io';
+const VIDEO_URL = 'https://www.youtube.com/watch?v=9nZG6C00s3I';
 
 function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -57,6 +58,12 @@ export function Footer({ variant }: { variant: 'landing' | 'terminal' }) {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-x-4">
+          <a className={linkClass} href="/api/v1" rel="noreferrer" target="_blank">
+            API for agents · OKX AI #13881
+          </a>
+          <a className={linkClass} href={VIDEO_URL} rel="noreferrer" target="_blank">
+            Demo video
+          </a>
           <a className={linkClass} href={GRIDSTATUS_URL} rel="noreferrer" target="_blank">
             Data: GridStatus
           </a>

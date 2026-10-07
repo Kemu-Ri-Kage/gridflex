@@ -173,6 +173,9 @@ void test('markets list trading ones by default, in dollars, whole tokens and 0.
   const resolved = (all.body as { markets: Record<string, unknown>[] }).markets[1];
   assert.equal(resolved.status, 'resolved');
   assert.equal(resolved.yesWon, true);
+  // Settled: the price is what a token redeems for, not the frozen pool price.
+  assert.equal(resolved.yesPrice, 1);
+  assert.equal(resolved.noPrice, 0);
 });
 
 void test('a bad status is a 400 before any chain read, and a failed read a 503', async () => {

@@ -79,6 +79,7 @@ from zoneinfo import ZoneInfo
 from hexbytes import HexBytes
 from web3 import Web3
 from web3.exceptions import BadFunctionCallOutput, TimeExhausted
+from web3.logs import DISCARD  # the receipt's token Transfer/Approval logs aren't MarketCreated
 
 from finalize import (
     DEMO_MARKETS_PATH,
@@ -611,6 +612,12 @@ def preflight(w3: Web3, addresses: dict[str, Any], account) -> tuple[int, int]:
     return chain_id, balance
 
 
+# The nonce after the last transaction this run sent, per signer (see send_tx).
+_next_nonce: dict[str, int] = {}
+ESTIMATE_ATTEMPTS = 4
+ESTIMATE_RETRY_SECONDS = 2
+
+
 def send_tx(w3: Web3, account, function, label: str, log_path: Path) -> tuple[Any, int]:
     """One transaction, estimate -> sign -> send -> wait, matching publish.py's
     build_transaction/sign_transaction shape. No gas-bump retry loop: this
@@ -619,11 +626,25 @@ def send_tx(w3: Web3, account, function, label: str, log_path: Path) -> tuple[An
     unattended nightly-scale batch - a stuck transaction here is meant to
     stop the run and be looked at, not be silently retried around.
     """
-    nonce = w3.eth.get_transaction_count(account.address, "pending")
-    try:
-        estimated_gas = function.estimate_gas({"from": account.address})
-    except Exception as exc:
-        raise PublisherError(f"{label}: gas estimation failed ({exc}); aborting.") from exc
+    # X Layer testnet's public RPC is load-balanced: a node that hasn't seen
+    # the transaction just confirmed still reports the old count, for
+    # "pending" and "latest" alike (7 Oct: "nonce too low" twice in one run).
+    # So never go below the nonce after the last one this run sent.
+    nonce = max(
+        w3.eth.get_transaction_count(account.address, "pending"),
+        w3.eth.get_transaction_count(account.address, "latest"),
+        _next_nonce.get(account.address, 0),
+    )
+    # The same lag can make a lagging node estimate against state from before
+    # the last transaction (e.g. without the approval just made): retry briefly.
+    for attempt in range(ESTIMATE_ATTEMPTS):
+        try:
+            estimated_gas = function.estimate_gas({"from": account.address})
+            break
+        except Exception as exc:
+            if attempt == ESTIMATE_ATTEMPTS - 1:
+                raise PublisherError(f"{label}: gas estimation failed ({exc}); aborting.") from exc
+            time.sleep(ESTIMATE_RETRY_SECONDS)
     gas_limit = max(int(estimated_gas * 1.2), estimated_gas + 10_000)
     gas_price = w3.eth.gas_price
     tx = function.build_transaction(
@@ -637,6 +658,7 @@ def send_tx(w3: Web3, account, function, label: str, log_path: Path) -> tuple[An
     )
     signed = account.sign_transaction(tx)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    _next_nonce[account.address] = nonce + 1
     hex_hash = "0x" + tx_hash.hex().removeprefix("0x")
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as handle:
@@ -726,7 +748,7 @@ def create_one_market(
     )
     receipt, create_cost = send_tx(w3, account, create_function, label, log_path)
 
-    events = factory_contract.events.MarketCreated().process_receipt(receipt)
+    events = factory_contract.events.MarketCreated().process_receipt(receipt, errors=DISCARD)
     if not events:
         raise PublisherError(
             f"{candidate.key}: createMarket confirmed but emitted no MarketCreated event; "
@@ -835,7 +857,7 @@ def event_from_known_tx_hash(
     except Exception:
         return None
     checksum_market = Web3.to_checksum_address(market_address)
-    for event in factory_contract.events.MarketCreated().process_receipt(receipt):
+    for event in factory_contract.events.MarketCreated().process_receipt(receipt, errors=DISCARD):
         if Web3.to_checksum_address(event["args"]["market"]) == checksum_market:
             return event
     return None
@@ -1197,7 +1219,16 @@ def main(argv: list[str] | None = None) -> int:
             created.append(record)
             print(f"CREATED {candidate.key} -> {record['market']}")
 
-        write_addresses_file(created + recorded)
+        # A run that stopped part-way saved its markets to the ledger but not to
+        # addresses.json (written only here); add any of those now. Markets
+        # already in addresses.json are skipped by write_addresses_file.
+        backfilled = {e.candidate.key for e in to_backfill}
+        earlier = [
+            ledger[e.candidate.key] for e in evaluations
+            if e.status == STATUS_EXISTS and e.candidate.key not in backfilled
+            and record_is_complete(ledger.get(e.candidate.key))
+        ]
+        write_addresses_file(created + recorded + earlier)
         write_web_env(created + recorded)
         print_summary(created, recorded, evaluations, started)
         return 0

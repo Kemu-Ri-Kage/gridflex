@@ -91,6 +91,49 @@ def make_candidate(
     )
 
 
+class TestSendTxNonce(unittest.TestCase):
+    def setUp(self):
+        create_markets._next_nonce.clear()
+        self.addCleanup(create_markets._next_nonce.clear)
+
+    def _send(self, counts, times=1, estimate=None):
+        w3 = MagicMock()
+        w3.eth.get_transaction_count.side_effect = lambda _address, block: counts[block]
+        w3.eth.gas_price = 1
+        w3.eth.send_raw_transaction.return_value = HexBytes("0x" + "11" * 32)
+        w3.eth.wait_for_transaction_receipt.return_value = SimpleNamespace(status=1, gasUsed=21_000)
+        account = MagicMock(address="0x" + "aa" * 20)
+        function = MagicMock()
+        function.estimate_gas.side_effect = estimate or (lambda _tx: 50_000)
+        function.build_transaction.side_effect = lambda tx: tx
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.object(create_markets, "LOGS_DIR", Path(tmp)),
+            patch.object(create_markets.time, "sleep"),
+        ):
+            for _ in range(times):
+                create_markets.send_tx(w3, account, function, "label", Path(tmp) / "log.txt")
+        return [c[0][0]["nonce"] for c in function.build_transaction.call_args_list]
+
+    def test_uses_latest_when_the_rpc_pending_count_lags_behind(self):
+        self.assertEqual(self._send({"pending": 86, "latest": 87}), [87])
+
+    def test_never_reuses_a_nonce_when_a_lagging_node_reports_the_old_count(self):
+        # 7 Oct: a mint confirmed at 90, then every count still said 90.
+        self.assertEqual(self._send({"pending": 90, "latest": 90}, times=2), [90, 91])
+
+    def test_retries_a_gas_estimate_that_a_lagging_node_rejects(self):
+        replies = iter([RuntimeError("execution reverted: allowance"), 50_000])
+
+        def estimate(_tx):
+            reply = next(replies)
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+
+        self.assertEqual(self._send({"pending": 5, "latest": 5}, estimate=estimate), [5])
+
+
 class TestCallWithRetry(unittest.TestCase):
     """RPC-lag recovery for a view call against a market just returned by
     createMarket's own receipt - not a decoding bug, not a wrong address."""
@@ -712,7 +755,7 @@ class TestDemoMarketsDocument(unittest.TestCase):
     def setUp(self):
         self.candidates = create_markets.parse_demo_markets_candidates()
 
-    def test_parses_two_replay_and_fifteen_live_texas_power_markets(self):
+    def test_parses_two_replay_and_thirty_six_live_texas_power_markets(self):
         self.assertEqual(
             [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates],
             [
@@ -734,6 +777,28 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (15, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 3500),
                 (16, "live", "ERCOT_HBNORTH_DA_AVG", 20261001, 3500),
                 (17, "live", "ERCOT_HBNORTH_DA_AVG", 20261001, 4500),
+                # the October ladder: $35, $40 and $45 on each day, 6 - 12 Oct
+                (18, "live", "ERCOT_HBNORTH_DA_AVG", 20261006, 3500),
+                (19, "live", "ERCOT_HBNORTH_DA_AVG", 20261006, 4000),
+                (20, "live", "ERCOT_HBNORTH_DA_AVG", 20261006, 4500),
+                (21, "live", "ERCOT_HBNORTH_DA_AVG", 20261007, 3500),
+                (22, "live", "ERCOT_HBNORTH_DA_AVG", 20261007, 4000),
+                (23, "live", "ERCOT_HBNORTH_DA_AVG", 20261007, 4500),
+                (24, "live", "ERCOT_HBNORTH_DA_AVG", 20261008, 3500),
+                (25, "live", "ERCOT_HBNORTH_DA_AVG", 20261008, 4000),
+                (26, "live", "ERCOT_HBNORTH_DA_AVG", 20261008, 4500),
+                (27, "live", "ERCOT_HBNORTH_DA_AVG", 20261009, 3500),
+                (28, "live", "ERCOT_HBNORTH_DA_AVG", 20261009, 4000),
+                (29, "live", "ERCOT_HBNORTH_DA_AVG", 20261009, 4500),
+                (30, "live", "ERCOT_HBNORTH_DA_AVG", 20261010, 3500),
+                (31, "live", "ERCOT_HBNORTH_DA_AVG", 20261010, 4000),
+                (32, "live", "ERCOT_HBNORTH_DA_AVG", 20261010, 4500),
+                (33, "live", "ERCOT_HBNORTH_DA_AVG", 20261011, 3500),
+                (34, "live", "ERCOT_HBNORTH_DA_AVG", 20261011, 4000),
+                (35, "live", "ERCOT_HBNORTH_DA_AVG", 20261011, 4500),
+                (36, "live", "ERCOT_HBNORTH_DA_AVG", 20261012, 3500),
+                (37, "live", "ERCOT_HBNORTH_DA_AVG", 20261012, 4000),
+                (38, "live", "ERCOT_HBNORTH_DA_AVG", 20261012, 4500),
             ],
         )
 
@@ -1007,7 +1072,7 @@ class TestMainDryRunByKind(unittest.TestCase):
             "2026-09-22 07:45 CDT (Texas) / 13:45 BST (London)",
             output,
         )
-        self.assertIn("Eligible to create:           17", output)
+        self.assertIn("Eligible to create:           38", output)
         self.assertIn("DRY RUN ONLY", output)
 
     def test_unknown_market_row_is_an_error(self):

@@ -340,7 +340,24 @@ def load_addresses() -> dict[str, Any]:
         raise PublisherError(
             f"Deployment config has chainId {chain_id}; expected {EXPECTED_CHAIN_ID}."
         )
-    return {"chainId": chain_id, "oracle": oracle, "factory": factory, "collateral": collateral}
+    # Superseded factories still hold markets that must stay resolvable and
+    # redeemable (shared/merge-set-spec.md §8.1); resolve_markets.py walks
+    # them too. Recorded under legacyDeployments.MarketFactory[].
+    legacy: list[str] = []
+    for entry in config.get("legacyDeployments", {}).get("MarketFactory", []) or []:
+        try:
+            legacy.append(Web3.to_checksum_address(entry["address"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise PublisherError(
+                f"Invalid legacyDeployments.MarketFactory entry in {ADDRESSES_PATH}: {entry!r}"
+            ) from exc
+    return {
+        "chainId": chain_id,
+        "oracle": oracle,
+        "factory": factory,
+        "collateral": collateral,
+        "legacyFactories": legacy,
+    }
 
 
 def load_abi(name: str) -> Any:
@@ -348,16 +365,46 @@ def load_abi(name: str) -> Any:
     return load_json(path)
 
 
-def load_market_ledger() -> dict[str, dict[str, Any]]:
-    """The local ledger, keyed like CandidateMarket.key. Entries written
-    before the strike joined the key are named "metric:dayKey"; they are
-    renamed from their own recorded threshold on load, so an existing market
-    is still found (and never re-created) under the new key."""
+def current_factory_address() -> str | None:
+    """The MarketFactory shared/addresses.json names today, or None when the
+    file is unreadable (the ledger then loads without factory migration)."""
+    try:
+        return load_addresses()["factory"]
+    except (PublisherError, OSError, ValueError):
+        return None
+
+
+def legacy_ledger_key(key: str, factory: str) -> str:
+    """Ledger key for a market created by a superseded factory: the logical
+    key with the factory address appended, so a market re-created with the
+    same metric, day and strike by a newer factory gets its own record and
+    never overwrites its predecessor's (shared/merge-set-spec.md §8.1)."""
+    return f"{key}:{factory}"
+
+
+def load_market_ledger(current_factory: str | None = None) -> dict[str, dict[str, Any]]:
+    """The local ledger, keyed like CandidateMarket.key for markets created
+    by the current factory.
+
+    Two migrations happen on load, so older files keep working unchanged:
+
+    - Entries written before the strike joined the key are named
+      "metric:dayKey"; they are renamed from their own recorded threshold.
+    - New entries carry a "factory" field (the MarketFactory that created the
+      market). Entries without one were written when there was only ever one
+      factory and are left exactly as they are; they belong to the current
+      factory. Entries whose factory is not the current one are moved under
+      legacy_ledger_key(), so the logical key is free for the current
+      factory's market and the old record is preserved rather than
+      overwritten. Entries are never modified on load.
+    """
     if not MARKET_LEDGER_PATH.exists():
         return {}
     ledger = load_json(MARKET_LEDGER_PATH)
     if not isinstance(ledger, dict):
         raise PublisherError(f"Ledger must be a JSON object: {MARKET_LEDGER_PATH}")
+    if current_factory is None:
+        current_factory = current_factory_address()
     normalized: dict[str, dict[str, Any]] = {}
     for key, entry in ledger.items():
         if key.count(":") == 1:
@@ -366,6 +413,11 @@ def load_market_ledger() -> dict[str, dict[str, Any]]:
                     f"{MARKET_LEDGER_PATH}: entry {key!r} has no threshold to key it by."
                 )
             key = f"{key}:{int(entry['threshold'])}"
+        if isinstance(entry, dict) and current_factory is not None:
+            factory = entry.get("factory")
+            if factory is not None and key.count(":") == 2 \
+                    and Web3.to_checksum_address(factory) != current_factory:
+                key = legacy_ledger_key(key, Web3.to_checksum_address(factory))
         if key in normalized:
             raise PublisherError(f"{MARKET_LEDGER_PATH}: two entries for {key!r}.")
         normalized[key] = entry
@@ -373,8 +425,16 @@ def load_market_ledger() -> dict[str, dict[str, Any]]:
 
 
 def save_market_ledger(ledger: dict[str, dict[str, Any]]) -> None:
+    """Atomic write (temp file, fsync, rename), like publish.save_ledger, so
+    a crash mid-write can never leave a truncated ledger behind."""
     MARKET_LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    MARKET_LEDGER_PATH.write_text(json.dumps(ledger, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp_path = MARKET_LEDGER_PATH.with_suffix(MARKET_LEDGER_PATH.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as handle:
+        json.dump(ledger, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp_path, MARKET_LEDGER_PATH)
 
 
 def chain_oracle_reading(oracle_contract, candidate: CandidateMarket) -> dict[str, Any] | None:
@@ -764,6 +824,7 @@ def create_one_market(
         "metricId": candidate.metric_id,
         "dayKey": candidate.day_key,
         "threshold": candidate.threshold,
+        "factory": addresses["factory"],
         "market": market_address,
         "resolveAfter": resolve_after,
         "disputeWindow": dispute_window,
@@ -783,6 +844,7 @@ def create_one_market(
         "metricId": candidate.metric_id,
         "dayKey": candidate.day_key,
         "threshold": candidate.threshold,
+        "factory": addresses["factory"],
         "market": market_address,
         "yesToken": yes_token,
         "noToken": no_token,
@@ -955,13 +1017,16 @@ def write_addresses_file(created: list[dict[str, Any]]) -> None:
     markets = config.get("markets")
     if not isinstance(markets, list):
         markets = []
-    existing_keys = {f"{m.get('metricId')}:{m.get('dayKey')}:{m.get('threshold')}" for m in markets}
+    # Deduplicate by market address, not by (metric, day, strike): a market
+    # re-created by a newer factory with the same terms is a different
+    # contract and gets its own record; its predecessor's is never touched.
+    existing_markets = {str(m.get("market", "")).lower() for m in markets}
     for record in created:
-        key = f"{record['metricId']}:{record['dayKey']}:{record['threshold']}"
-        if key in existing_keys:
+        address = str(record["market"]).lower()
+        if address in existing_markets:
             continue
         markets.append(record)
-        existing_keys.add(key)
+        existing_markets.add(address)
         if record["metricId"] == "ERCOT_HBNORTH_DA_AVG" and record["dayKey"] == 20260908:
             config["BinaryMarket"] = record["market"]
             config["YesToken"] = record["yesToken"]

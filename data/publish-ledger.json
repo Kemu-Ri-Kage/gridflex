@@ -5,7 +5,7 @@
     "metricId": "ERCOT_HBNORTH_DA_AVG",
     "nonce": 3,
     "sourceHash": "1b3ead66d0d30a6fdf6d479c4835c28ba5047c2ad6ebce37b1a2b88adbdd7c43",
-    "status": "confirmed",
+    "status": "finalized",
     "submittedAt": "2026-09-15T17:17:28Z",
     "txHash": "0x2ab0512f3c0846a4548dc2c6ca756aa1bee9f370921249d2db768379514ce6d6",
     "value": 2262
@@ -16,7 +16,7 @@
     "metricId": "ERCOT_HBNORTH_DA_AVG",
     "nonce": 7,
     "sourceHash": "1b3ead66d0d30a6fdf6d479c4835c28ba5047c2ad6ebce37b1a2b88adbdd7c43",
-    "status": "confirmed",
+    "status": "finalized",
     "submittedAt": "2026-09-17T22:35:09Z",
     "txHash": "0x82690293380c761b5c9a09b01983ff836a577e657a1659b455bc3145b442e193",
     "value": 2638
@@ -27,10 +27,87 @@
     "metricId": "ERCOT_HBNORTH_DA_AVG",
     "nonce": 9,
     "sourceHash": "75999d0173983de904ad23e09e4b2de1536fa0929e23ae4700359d53593913c4",
-    "status": "confirmed",
+    "status": "finalized",
     "submittedAt": "2026-09-17T22:47:44Z",
     "txHash": "0xf6bdfc4e4c775eca150fff4d380f915411d6bf4e5389d8e3228dfbeff00cb44f",
     "value": 3957
+  },
+  "ERCOT_HBNORTH_DA_AVG:20260926": {
+    "blockNumber": 42781192,
+    "dayKey": 20260926,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 21,
+    "sourceHash": "27e07150b228506a34a8da8453f580795e97729ddd07479f4aac5cdd0a7f7d87",
+    "status": "finalized",
+    "submittedAt": "2026-10-05T22:40:28Z",
+    "txHash": "0x1b007d87fa11ab592617d1f8cd01aef1313d0483ba5cb599985517fe070144e6",
+    "value": 3175
+  },
+  "ERCOT_HBNORTH_DA_AVG:20260927": {
+    "blockNumber": 42781196,
+    "dayKey": 20260927,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 22,
+    "sourceHash": "27e07150b228506a34a8da8453f580795e97729ddd07479f4aac5cdd0a7f7d87",
+    "status": "finalized",
+    "submittedAt": "2026-10-05T22:40:31Z",
+    "txHash": "0xba51449b19820afeaf69dd7b83418153a0df958955fd02de21adac2a61a13d54",
+    "value": 4354
+  },
+  "ERCOT_HBNORTH_DA_AVG:20260928": {
+    "blockNumber": 42781198,
+    "dayKey": 20260928,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 23,
+    "sourceHash": "27e07150b228506a34a8da8453f580795e97729ddd07479f4aac5cdd0a7f7d87",
+    "status": "finalized",
+    "submittedAt": "2026-10-05T22:40:33Z",
+    "txHash": "0x6f07982e15ebc17b67d5c5b9ba53f7ba3d832d7857a1eb63cfecdf0bdb93f255",
+    "value": 4167
+  },
+  "ERCOT_HBNORTH_DA_AVG:20260929": {
+    "blockNumber": 42781201,
+    "dayKey": 20260929,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 24,
+    "sourceHash": "27e07150b228506a34a8da8453f580795e97729ddd07479f4aac5cdd0a7f7d87",
+    "status": "finalized",
+    "submittedAt": "2026-10-05T22:40:36Z",
+    "txHash": "0x1485086adfe18b1469ed8a1a40141a3c9d6d5763a6aea11148d1e0a342d40bba",
+    "value": 2954
+  },
+  "ERCOT_HBNORTH_DA_AVG:20260930": {
+    "blockNumber": 42781204,
+    "dayKey": 20260930,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 25,
+    "sourceHash": "27e07150b228506a34a8da8453f580795e97729ddd07479f4aac5cdd0a7f7d87",
+    "status": "finalized",
+    "submittedAt": "2026-10-05T22:40:39Z",
+    "txHash": "0x95cc6004e54d04c456af8892cd927bafeae5da04750f158fc3acfdf0211f859a",
+    "value": 3487
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261001": {
+    "blockNumber": 42781208,
+    "dayKey": 20261001,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 26,
+    "sourceHash": "27e07150b228506a34a8da8453f580795e97729ddd07479f4aac5cdd0a7f7d87",
+    "status": "finalized",
+    "submittedAt": "2026-10-05T22:40:43Z",
+    "txHash": "0xad1a9bdb344ef7d305c3272edd5273f547079a75e7bcd4b91981de1f5eaa7730",
+    "value": 4325
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261002": {
+    "blockNumber": 42781212,
+    "dayKey": 20261002,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 27,
+    "sourceHash": "27e07150b228506a34a8da8453f580795e97729ddd07479f4aac5cdd0a7f7d87",
+    "status": "finalized",
+    "submittedAt": "2026-10-05T22:40:47Z",
+    "txHash": "0xccfd429a739ea15e5b22a6cb9c4cda637d27fe0148bffa0fac63514764fd2250",
+    "value": 3353
   },
   "ERCOT_HBWEST_NEG_INTERVALS:20250910": {
     "blockNumber": 41033816,
@@ -38,7 +115,7 @@
     "metricId": "ERCOT_HBWEST_NEG_INTERVALS",
     "nonce": 4,
     "sourceHash": "6ceb0f4f1f5046c9d3cbb3fad2eee43ba1a7a0906d4ee1386e7caea7013f7eb4",
-    "status": "confirmed",
+    "status": "finalized",
     "submittedAt": "2026-09-15T17:17:31Z",
     "txHash": "0x2b89635c2fc3564008005f7ae14ca6cefa930814142f12d8a10ba0e8449f049c",
     "value": 0
@@ -49,7 +126,7 @@
     "metricId": "ERCOT_HBWEST_NEG_INTERVALS",
     "nonce": 8,
     "sourceHash": "6ceb0f4f1f5046c9d3cbb3fad2eee43ba1a7a0906d4ee1386e7caea7013f7eb4",
-    "status": "confirmed",
+    "status": "finalized",
     "submittedAt": "2026-09-17T22:35:12Z",
     "txHash": "0xc7cfe26abda4313c2340bb34bcad205343505f4a060d06b77d7b28f4f5f86d60",
     "value": 0
@@ -71,7 +148,7 @@
     "metricId": "ERCOT_WEST_NORTH_DA_BASIS",
     "nonce": 6,
     "sourceHash": "4261d4f5a665594c0285008125b7fef07ff6b48db7f714929fff26f3cbf5e9d3",
-    "status": "confirmed",
+    "status": "finalized",
     "submittedAt": "2026-09-17T22:35:05Z",
     "txHash": "0x12cd40321f85d5fd70dfbd57ece3152cbb7596cb683ce3f6ed36efd0519eea03",
     "value": 474
@@ -82,7 +159,7 @@
     "metricId": "ERCOT_WEST_NORTH_DA_BASIS",
     "nonce": 10,
     "sourceHash": "cf1d4eef3bb74d65150876b090197cd41c00c74c3ed1f02a5b7a909f3d821df0",
-    "status": "confirmed",
+    "status": "finalized",
     "submittedAt": "2026-09-17T22:48:04Z",
     "txHash": "0x9931b0c453c4de0367027e7024b3fd1832fa11dd02832701b00049194fecfc37",
     "value": -1032

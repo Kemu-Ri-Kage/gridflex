@@ -108,6 +108,8 @@ class MarketState:
     # None when nothing is published for (metricId, dayKey).
     reading_value: int | None
     reading_final: bool
+    # The MarketFactory that created it; None for the current factory.
+    legacy_factory: str | None = None
 
     @property
     def metric_name(self) -> str:
@@ -169,7 +171,7 @@ def pinned_call(function, block_number: int):
 
 
 def read_market(w3: Web3, oracle_contract, address: str, binary_market_abi: Any,
-                block_number: int) -> MarketState:
+                block_number: int, legacy_factory: str | None = None) -> MarketState:
     market = w3.eth.contract(address=address, abi=binary_market_abi)
 
     def read(name: str):
@@ -192,18 +194,27 @@ def read_market(w3: Web3, oracle_contract, address: str, binary_market_abi: Any,
         # The flag resolve() checks, not getReading's copy of it.
         reading_final=bool(pinned_call(oracle_contract.functions.isFinal(metric_hash, day_key), block_number))
         if published else False,
+        legacy_factory=legacy_factory,
     )
 
 
 def list_market_states(w3: Web3, addresses: dict[str, Any], block_number: int) -> list[MarketState]:
-    """Every market MarketFactory has created, all read at block_number."""
+    """Every market the current MarketFactory and every superseded factory
+    in shared/addresses.json (legacyDeployments) have created, all read at
+    block_number. A redeploy replaces the factory address but the old
+    factory's markets stay on chain and must remain resolvable
+    (shared/merge-set-spec.md §8.1)."""
     binary_market_abi = load_abi("BinaryMarket")
-    factory = w3.eth.contract(address=addresses["factory"], abi=load_abi("MarketFactory"))
+    factory_abi = load_abi("MarketFactory")
     oracle = w3.eth.contract(address=addresses["oracle"], abi=load_abi("GridOracle"))
+    factories: list[tuple[str, str | None]] = [(addresses["factory"], None)]
+    factories += [(legacy, legacy) for legacy in addresses.get("legacyFactories", [])]
     states = []
-    for address in pinned_call(factory.functions.getMarkets(), block_number):
-        states.append(read_market(w3, oracle, address, binary_market_abi, block_number))
-        time.sleep(RPC_COURTESY_SLEEP)
+    for factory_address, legacy in factories:
+        factory = w3.eth.contract(address=factory_address, abi=factory_abi)
+        for address in pinned_call(factory.functions.getMarkets(), block_number):
+            states.append(read_market(w3, oracle, address, binary_market_abi, block_number, legacy))
+            time.sleep(RPC_COURTESY_SLEEP)
     return states
 
 
@@ -246,6 +257,8 @@ def describe(state: MarketState, status: str) -> list[str]:
         f"    {metric} dayKey {state.day_key}, strike {format_value(state.threshold, metric)}",
         f"    trading close {format_close(state.resolve_after)}",
     ]
+    if state.legacy_factory:
+        lines.append(f"    created by superseded factory {state.legacy_factory}")
     if state.resolved:
         lines.append(f"    outcome on chain: {'YES' if state.yes_won else 'NO'}")
     elif state.reading_value is None:

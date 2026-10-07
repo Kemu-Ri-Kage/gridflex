@@ -5,18 +5,16 @@
   "marketDayStartUtc": 1790571600,
   "marketDayEndUtc": 1790658000,
   "value": 4167,
-  "sourceHash": "058d4a57f8507f58490b8600fae86213d518efcc517af5e2f00a55437b4a1e6d",
+  "sourceHash": "27e07150b228506a34a8da8453f580795e97729ddd07479f4aac5cdd0a7f7d87",
   "sourceFiles": [
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-09-26.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-26__2026-09-27.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-27__2026-09-28.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-28__2026-09-29.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-29__2026-09-30.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-30__2026-10-01.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json",
     "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-01__2026-10-02.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-02__2026-10-03.json"
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-02__2026-10-03.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-03__2026-10-04.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-04__2026-10-05.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-05__2026-10-06.json"
   ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-10-02T18:45:53.058972+00:00",
+  "computedAt": "2026-10-05T21:59:11.356066+00:00",
   "hoursUsed": 24
 }

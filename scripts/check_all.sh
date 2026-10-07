@@ -45,7 +45,11 @@ PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/gridflex-pycache" \
     "$repo_root/build_feed_data.py" \
     "$repo_root/create_markets.py" \
     "$repo_root/publish.py" \
-    "$repo_root/finalize.py"
+    "$repo_root/finalize.py" \
+    "$repo_root/resolve_markets.py" \
+    "$repo_root/refresh_budget.py" \
+    "$repo_root/fund_demo_wallet.py" \
+    "$repo_root/scripts/state_report.py"
 (
   cd "$repo_root"
   PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/gridflex-pycache" \

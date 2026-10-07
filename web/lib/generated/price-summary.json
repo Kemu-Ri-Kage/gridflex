@@ -1,26 +1,26 @@
 {
   "latestDay": {
     "cheapest": {
-      "hourStartCentral": "14:00",
-      "hourStartUtc": 1790967600,
-      "value": 2485
+      "hourStartCentral": "09:00",
+      "hourStartUtc": 1791381600,
+      "value": 2000
     },
-    "dayKey": 20261002,
+    "dayKey": 20261007,
     "dearest": {
-      "hourStartCentral": "21:00",
-      "hourStartUtc": 1790992800,
-      "value": 5016
+      "hourStartCentral": "18:00",
+      "hourStartUtc": 1791414000,
+      "value": 17041
     },
-    "marketDay": "2026-10-02",
-    "value": 3353
+    "marketDay": "2026-10-07",
+    "value": 5739
   },
   "range": {
-    "days": 386,
+    "days": 391,
     "firstDayKey": 20250910,
-    "high": 4309,
-    "lastDayKey": 20261002,
-    "low": 1910,
-    "median": 2875,
+    "high": 4354,
+    "lastDayKey": 20261007,
+    "low": 1916,
+    "median": 2895,
     "peak": {
       "dayKey": 20260126,
       "timesMedian": 24,

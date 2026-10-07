@@ -3087,6 +3087,46 @@
       "high": 5016,
       "low": 2485,
       "open": 3378
+    },
+    {
+      "average": 4229,
+      "close": 5300,
+      "dayKey": 20261003,
+      "high": 6700,
+      "low": 3044,
+      "open": 4204
+    },
+    {
+      "average": 3703,
+      "close": 4326,
+      "dayKey": 20261004,
+      "high": 6876,
+      "low": 1792,
+      "open": 6876
+    },
+    {
+      "average": 4851,
+      "close": 4544,
+      "dayKey": 20261005,
+      "high": 9631,
+      "low": 2365,
+      "open": 5152
+    },
+    {
+      "average": 4093,
+      "close": 3441,
+      "dayKey": 20261006,
+      "high": 10067,
+      "low": 1706,
+      "open": 3903
+    },
+    {
+      "average": 5739,
+      "close": 4560,
+      "dayKey": 20261007,
+      "high": 17041,
+      "low": 2000,
+      "open": 3240
     }
   ],
   "metricId": "ERCOT_HBNORTH_DA_AVG",

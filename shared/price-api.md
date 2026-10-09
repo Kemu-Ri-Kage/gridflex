@@ -213,7 +213,7 @@ identified by its `sourceHash`.
 }
 ```
 
-`GET /api/v1/hedge-quote?mw=10&hours=24&day=2026-09-30&protectTo=80`
+`GET /api/v1/hedge-quote?mw=10&hours=24&protectTo=80`
 
 ```json
 {

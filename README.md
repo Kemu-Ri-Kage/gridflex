@@ -20,17 +20,18 @@ Live on X Layer testnet, settled in MockUSDT.
 
 ## The problem
 
-Texas power swings several-fold within a single day. On 24 September 2026,
-the latest day in our data, the cheapest hour cost **$19.26/MWh** (11:00 Texas
-time) and the dearest cost **$95.33/MWh** (18:00), 4.9 times as much
-([`price-summary.json`](web/lib/generated/price-summary.json)). A MWh is roughly
+Texas power swings several-fold within a single day. On 9 October 2026 the
+cheapest hour cost **$19.37/MWh** (10:00 Texas time) and the dearest cost
+**$117.16/MWh** (18:00), six times as much
+([`price-summary.json`](web/lib/generated/price-summary.json) at the 9 October
+refresh). A MWh is roughly
 what 650 Texas homes use in an hour.
 
 Some days are far worse. On **26 January 2026** the Texas power price
 averaged **$694.03/MWh** across the day
 ([metric file](data/metrics/ERCOT_HBNORTH_DA_AVG__2026-01-26.json)), against
-a typical $20–45: the median day over the last 378 is $28.60, so that day
-cost 24 times a normal one.
+a typical $20–45: the median day over the 393 to 9 October is $28.96, so
+that day cost 24 times a normal one.
 
 Institutions already trade this risk. ICE lists futures and options on the
 same price point, ERCOT North Hub. Its
@@ -78,28 +79,37 @@ with blocks and raw values, is in
 
 ### Every market
 
-The factory has created seventeen markets (`marketCount()` reads `17`): a
-ladder of next-day strikes from 26 Sep to 2 Oct 2026, and two resolved.
+The factory has created thirty markets (`marketCount()` reads `30`).
 
-| Question | Status | Market |
-|---|---|---|
-| Will Texas power cost more than $45 on 26 Sep 2026? | trading | [`0xb1FaDd61…2F94`](https://www.oklink.com/x-layer-testnet/address/0xb1FaDd618FFC37E26bf75143E6C852d6D3992F94) |
-| Will Texas power cost more than $35 on 26 Sep 2026? | trading | [`0x18F08cde…785B`](https://www.oklink.com/x-layer-testnet/address/0x18F08cde8e86CdF1D718945f764d6286E593785B) |
-| Will Texas power cost more than $45 on 27 Sep 2026? | trading | [`0xc21098ac…2c3e`](https://www.oklink.com/x-layer-testnet/address/0xc21098ac81244d8452F7Cf4b419A096Db0a42c3e) |
-| Will Texas power cost more than $35 on 27 Sep 2026? | trading | [`0x38538d2C…eb9b`](https://www.oklink.com/x-layer-testnet/address/0x38538d2C4184AaAF1167866868CFe7389499eb9b) |
-| Will Texas power cost more than $45 on 28 Sep 2026? | trading | [`0x93b3Ecf8…6299`](https://www.oklink.com/x-layer-testnet/address/0x93b3Ecf868dE3592208eE6368A898F9748626299) |
-| Will Texas power cost more than $35 on 28 Sep 2026? | trading | [`0x68128fCF…3e5f`](https://www.oklink.com/x-layer-testnet/address/0x68128fCFf3f74bF7447C21c642e9a34106363e5f) |
-| Will Texas power cost more than $45 on 29 Sep 2026? | trading | [`0x39B21c15…03a2`](https://www.oklink.com/x-layer-testnet/address/0x39B21c15dC35ACB0b854892B5b766d24B80203a2) |
-| Will Texas power cost more than $35 on 29 Sep 2026? | trading | [`0x4FF8e049…00AB`](https://www.oklink.com/x-layer-testnet/address/0x4FF8e0499a8CcBD73cE3f6bd831E444a1c5400AB) |
-| Will Texas power cost more than $45 on 30 Sep 2026? | trading | [`0x204Ef087…73af`](https://www.oklink.com/x-layer-testnet/address/0x204Ef0871892c52b7Abf00AC4755333c5e7F73af) |
-| Will Texas power cost more than $40 on 30 Sep 2026? | trading | [`0x4f8eCF1f…b13d`](https://www.oklink.com/x-layer-testnet/address/0x4f8eCF1f34727d57797158634576DC8dbFF7b13d) |
-| Will Texas power cost more than $35 on 30 Sep 2026? | trading | [`0xB2a8354F…c99D`](https://www.oklink.com/x-layer-testnet/address/0xB2a8354F503A953a969d6A709B8438A6A343c99D) |
-| Will Texas power cost more than $45 on 1 Oct 2026? | trading | [`0x67D94eE6…d3Bf`](https://www.oklink.com/x-layer-testnet/address/0x67D94eE6518ABBE28f854f811B0f89c22fd0d3Bf) |
-| Will Texas power cost more than $35 on 1 Oct 2026? | trading | [`0x647b07a3…02C5`](https://www.oklink.com/x-layer-testnet/address/0x647b07a362D4EeDbD6216E0C44d9Fa48f33902C5) |
-| Will Texas power cost more than $45 on 2 Oct 2026? | trading, first live trade | [`0xb22A449c…E604`](https://www.oklink.com/x-layer-testnet/address/0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604) |
-| Will Texas power cost more than $38 on 2 Oct 2026? | trading | [`0x845A0500…1D77`](https://www.oklink.com/x-layer-testnet/address/0x845A05007aD577f37eDC8779afF28169a7321D77) |
-| Will Texas power cost more than $30 on 8 Sep 2026? | **resolved YES** | [`0x1b89e1dC…B8c1`](https://www.oklink.com/x-layer-testnet/address/0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1) |
-| Will West Texas power cost more than North Texas power on 12 Aug 2026? | **resolved NO** | [`0x62D65F4e…BE07`](https://www.oklink.com/x-layer-testnet/address/0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07) |
+The first seventeen have all settled: a ladder of next-day strikes from 26 Sep
+to 2 Oct 2026, each resolved against the price published to the oracle for
+its day, and two earlier demonstrations.
+
+| Question | Price published | Result | Market |
+|---|---|---|---|
+| Will Texas power cost more than $45 on 26 Sep 2026? | $31.75/MWh | **NO** | [`0xb1FaDd61…2F94`](https://www.oklink.com/x-layer-testnet/address/0xb1FaDd618FFC37E26bf75143E6C852d6D3992F94) |
+| Will Texas power cost more than $35 on 26 Sep 2026? | $31.75/MWh | **NO** | [`0x18F08cde…785B`](https://www.oklink.com/x-layer-testnet/address/0x18F08cde8e86CdF1D718945f764d6286E593785B) |
+| Will Texas power cost more than $45 on 27 Sep 2026? | $43.54/MWh | **NO** | [`0xc21098ac…2c3e`](https://www.oklink.com/x-layer-testnet/address/0xc21098ac81244d8452F7Cf4b419A096Db0a42c3e) |
+| Will Texas power cost more than $35 on 27 Sep 2026? | $43.54/MWh | **YES** | [`0x38538d2C…eb9b`](https://www.oklink.com/x-layer-testnet/address/0x38538d2C4184AaAF1167866868CFe7389499eb9b) |
+| Will Texas power cost more than $45 on 28 Sep 2026? | $41.67/MWh | **NO** | [`0x93b3Ecf8…6299`](https://www.oklink.com/x-layer-testnet/address/0x93b3Ecf868dE3592208eE6368A898F9748626299) |
+| Will Texas power cost more than $35 on 28 Sep 2026? | $41.67/MWh | **YES** | [`0x68128fCF…3e5f`](https://www.oklink.com/x-layer-testnet/address/0x68128fCFf3f74bF7447C21c642e9a34106363e5f) |
+| Will Texas power cost more than $45 on 29 Sep 2026? | $29.54/MWh | **NO** | [`0x39B21c15…03a2`](https://www.oklink.com/x-layer-testnet/address/0x39B21c15dC35ACB0b854892B5b766d24B80203a2) |
+| Will Texas power cost more than $35 on 29 Sep 2026? | $29.54/MWh | **NO** | [`0x4FF8e049…00AB`](https://www.oklink.com/x-layer-testnet/address/0x4FF8e0499a8CcBD73cE3f6bd831E444a1c5400AB) |
+| Will Texas power cost more than $45 on 30 Sep 2026? | $34.87/MWh | **NO** | [`0x204Ef087…73af`](https://www.oklink.com/x-layer-testnet/address/0x204Ef0871892c52b7Abf00AC4755333c5e7F73af) |
+| Will Texas power cost more than $40 on 30 Sep 2026? | $34.87/MWh | **NO** | [`0x4f8eCF1f…b13d`](https://www.oklink.com/x-layer-testnet/address/0x4f8eCF1f34727d57797158634576DC8dbFF7b13d) |
+| Will Texas power cost more than $35 on 30 Sep 2026? | $34.87/MWh | **NO** | [`0xB2a8354F…c99D`](https://www.oklink.com/x-layer-testnet/address/0xB2a8354F503A953a969d6A709B8438A6A343c99D) |
+| Will Texas power cost more than $45 on 1 Oct 2026? | $43.25/MWh | **NO** | [`0x67D94eE6…d3Bf`](https://www.oklink.com/x-layer-testnet/address/0x67D94eE6518ABBE28f854f811B0f89c22fd0d3Bf) |
+| Will Texas power cost more than $35 on 1 Oct 2026? | $43.25/MWh | **YES** | [`0x647b07a3…02C5`](https://www.oklink.com/x-layer-testnet/address/0x647b07a362D4EeDbD6216E0C44d9Fa48f33902C5) |
+| Will Texas power cost more than $45 on 2 Oct 2026? | $33.53/MWh | **NO**, first live trade | [`0xb22A449c…E604`](https://www.oklink.com/x-layer-testnet/address/0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604) |
+| Will Texas power cost more than $38 on 2 Oct 2026? | $33.53/MWh | **NO** | [`0x845A0500…1D77`](https://www.oklink.com/x-layer-testnet/address/0x845A05007aD577f37eDC8779afF28169a7321D77) |
+| Will Texas power cost more than $30 on 8 Sep 2026? | $39.57/MWh | **YES** | [`0x1b89e1dC…B8c1`](https://www.oklink.com/x-layer-testnet/address/0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1) |
+| Will West Texas power cost more than North Texas power on 12 Aug 2026? | −$10.32/MWh | **NO** | [`0x62D65F4e…BE07`](https://www.oklink.com/x-layer-testnet/address/0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07) |
+
+The other thirteen run from 8 to 12 Oct: $35 on 8 Oct, and $35, $40 and $45
+on each day from 9 to 12 Oct. Each trades until 12:30 Texas time the
+day before and settles the same way; the terminal and
+[`/api/v1/markets?status=all`](https://gridflex-web.teslenko-platon.workers.dev/api/v1/markets?status=all)
+show where each one stands.
 
 The machine-readable list, with each market's YES and NO tokens and creation
 transaction, is [`shared/addresses.json`](shared/addresses.json).
@@ -115,9 +125,14 @@ A wallet bought YES on the 2 October market, 22 September 2026:
 
 After it the wallet held 19.990009 YES (read at block `41658789`), which
 pays 19.99 MockUSDT if the Texas power price for 2 October settles above
-$45.00/MWh. On the site steps 2 and 3 are one button: **Buy YES**.
+$45.00/MWh. On the site steps 2 and 3 are one button: **Buy YES**. The 2
+October price settled at $33.53/MWh, so the market resolved NO and those
+YES tokens pay nothing.
 
-### Both resolved markets
+### The two demonstration markets
+
+Both were created after their price day, to show settlement end to end
+before the live ladder existed.
 
 | Market | Price published | Result |
 |---|---|---|
@@ -154,7 +169,7 @@ Every endpoint answers GET or POST:
 | `GET /api/v1` | What the API sells and how it's paid (always free) |
 | `GET /api/v1/price?day=2026-09-08` | The day's price, its source hash, and the oracle reading on X Layer, re-read and compared |
 | `GET /api/v1/markets` | Every trading market: strike, day, YES price, pool depth, trading close |
-| `GET /api/v1/hedge-quote?mw=10&day=2026-09-30&protectTo=80` | The YES ladder for a load, its cost from the pools, and payout scenarios |
+| `GET /api/v1/hedge-quote?mw=10&protectTo=80` | The YES ladder for a load, its cost from the pools, and payout scenarios |
 
 Each paid call is priced at $0.01 in USDT0 on X Layer through OKX's x402
 Payment SDK. Payment switches on once the OKX facilitator credentials are
@@ -246,7 +261,7 @@ cast call 0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07 'yesWon()(bool)' --rpc-url 
    YES and NO redeems for 0.5 MockUSDT, so no position is trapped.
 
 **Trading closes an hour before the answer exists.** ERCOT publishes the
-next day's day-ahead prices at 13:30 Texas time. Every market stops trading
+next day's day-ahead prices at 13:30 Texas time. Every live market stops trading
 at 12:30 Texas time on the day before, and the contract enforces it: buying
 and swapping revert with `TradingClosed()` from that moment. Nobody can buy
 a known answer ([`shared/demo-markets.md`](shared/demo-markets.md)).

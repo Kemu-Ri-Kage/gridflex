@@ -3033,62 +3033,6 @@
       "open": 3047
     },
     {
-      "average": 3175,
-      "close": 3240,
-      "dayKey": 20260926,
-      "high": 6387,
-      "low": 1686,
-      "open": 3049
-    },
-    {
-      "average": 4354,
-      "close": 3618,
-      "dayKey": 20260927,
-      "high": 10618,
-      "low": 1895,
-      "open": 3111
-    },
-    {
-      "average": 4167,
-      "close": 2731,
-      "dayKey": 20260928,
-      "high": 8398,
-      "low": 2430,
-      "open": 4120
-    },
-    {
-      "average": 2954,
-      "close": 2616,
-      "dayKey": 20260929,
-      "high": 5212,
-      "low": 2028,
-      "open": 2542
-    },
-    {
-      "average": 3487,
-      "close": 4581,
-      "dayKey": 20260930,
-      "high": 6939,
-      "low": 1997,
-      "open": 2505
-    },
-    {
-      "average": 4325,
-      "close": 3431,
-      "dayKey": 20261001,
-      "high": 6440,
-      "low": 3025,
-      "open": 4589
-    },
-    {
-      "average": 3353,
-      "close": 4522,
-      "dayKey": 20261002,
-      "high": 5016,
-      "low": 2485,
-      "open": 3378
-    },
-    {
       "average": 4229,
       "close": 5300,
       "dayKey": 20261003,
@@ -3127,6 +3071,22 @@
       "high": 17041,
       "low": 2000,
       "open": 3240
+    },
+    {
+      "average": 5970,
+      "close": 5266,
+      "dayKey": 20261008,
+      "high": 15228,
+      "low": 2000,
+      "open": 4325
+    },
+    {
+      "average": 4555,
+      "close": 3200,
+      "dayKey": 20261009,
+      "high": 11716,
+      "low": 1937,
+      "open": 4602
     }
   ],
   "metricId": "ERCOT_HBNORTH_DA_AVG",
@@ -3138,6 +3098,34 @@
     {
       "dayKey": 20260308,
       "reason": "2026-03-08: 23/24 hours (no published price)"
+    },
+    {
+      "dayKey": 20260926,
+      "reason": "File /Users/platonteslenko/Desktop/gridflex/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+    },
+    {
+      "dayKey": 20260927,
+      "reason": "File /Users/platonteslenko/Desktop/gridflex/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+    },
+    {
+      "dayKey": 20260928,
+      "reason": "File /Users/platonteslenko/Desktop/gridflex/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+    },
+    {
+      "dayKey": 20260929,
+      "reason": "File /Users/platonteslenko/Desktop/gridflex/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+    },
+    {
+      "dayKey": 20260930,
+      "reason": "File /Users/platonteslenko/Desktop/gridflex/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+    },
+    {
+      "dayKey": 20261001,
+      "reason": "File /Users/platonteslenko/Desktop/gridflex/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+    },
+    {
+      "dayKey": 20261002,
+      "reason": "File /Users/platonteslenko/Desktop/gridflex/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     }
   ]
 }

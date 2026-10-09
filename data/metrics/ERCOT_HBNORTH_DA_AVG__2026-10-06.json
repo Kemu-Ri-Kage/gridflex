@@ -5,15 +5,14 @@
   "marketDayStartUtc": 1791262800,
   "marketDayEndUtc": 1791349200,
   "value": 4093,
-  "sourceHash": "0b6a9ca9ba0cb7ebfb4c4a67aa06cb8b84678fc443b7636b8e7c85e6fe145c0e",
+  "sourceHash": "dbb307619441617e1f9977208236780f7bc593b59e61c8ba069606a97d8afae8",
   "sourceFiles": [
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-03__2026-10-04.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-04__2026-10-05.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-05__2026-10-06.json",
     "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-06__2026-10-07.json",
-    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-07__2026-10-08.json"
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-07__2026-10-08.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-08__2026-10-09.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-10-09__2026-10-10.json"
   ],
   "hashAlgorithm": "sha256",
-  "computedAt": "2026-10-07T12:01:23.017441+00:00",
+  "computedAt": "2026-10-09T15:58:53.398520+00:00",
   "hoursUsed": 24
 }

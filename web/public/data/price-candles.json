@@ -3087,6 +3087,30 @@
       "high": 11716,
       "low": 1937,
       "open": 4602
+    },
+    {
+      "average": 2276,
+      "close": 2001,
+      "dayKey": 20261010,
+      "high": 5221,
+      "low": 980,
+      "open": 2673
+    },
+    {
+      "average": 1872,
+      "close": 2065,
+      "dayKey": 20261011,
+      "high": 4219,
+      "low": 162,
+      "open": 1900
+    },
+    {
+      "average": 3010,
+      "close": 3081,
+      "dayKey": 20261012,
+      "high": 7022,
+      "low": 1684,
+      "open": 1975
     }
   ],
   "metricId": "ERCOT_HBNORTH_DA_AVG",

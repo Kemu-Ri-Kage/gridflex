@@ -142,6 +142,17 @@
     "txHash": "0x7b51cfa29d6ea4fb65591647395ce34706f7b3788b9482e51b8850f6a6cea57a",
     "value": 2276
   },
+  "ERCOT_HBNORTH_DA_AVG:20261011": {
+    "blockNumber": 43388720,
+    "dayKey": 20261011,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 59,
+    "sourceHash": "e5e89f7206bd8a5783ad70246935ca49ba42f1da3ac40271a5cb6d6986ee30ff",
+    "status": "confirmed",
+    "submittedAt": "2026-10-12T23:25:55Z",
+    "txHash": "0xdda7503c76e8de9ef7b70d0726160513a01e85b55c957fa16f6012fd400f07df",
+    "value": 1872
+  },
   "ERCOT_HBWEST_NEG_INTERVALS:20250910": {
     "blockNumber": 41033816,
     "dayKey": 20250910,

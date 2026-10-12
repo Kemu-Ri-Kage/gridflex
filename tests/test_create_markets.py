@@ -755,7 +755,7 @@ class TestDemoMarketsDocument(unittest.TestCase):
     def setUp(self):
         self.candidates = create_markets.parse_demo_markets_candidates()
 
-    def test_parses_two_replay_and_thirty_six_live_texas_power_markets(self):
+    def test_parses_two_replay_and_fifty_seven_live_texas_power_markets(self):
         self.assertEqual(
             [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates],
             [
@@ -799,6 +799,28 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (36, "live", "ERCOT_HBNORTH_DA_AVG", 20261012, 3500),
                 (37, "live", "ERCOT_HBNORTH_DA_AVG", 20261012, 4000),
                 (38, "live", "ERCOT_HBNORTH_DA_AVG", 20261012, 4500),
+                # the mid-October ladder: $40, $50 and $60 on each day, 14 - 20 Oct
+                (39, "live", "ERCOT_HBNORTH_DA_AVG", 20261014, 4000),
+                (40, "live", "ERCOT_HBNORTH_DA_AVG", 20261014, 5000),
+                (41, "live", "ERCOT_HBNORTH_DA_AVG", 20261014, 6000),
+                (42, "live", "ERCOT_HBNORTH_DA_AVG", 20261015, 4000),
+                (43, "live", "ERCOT_HBNORTH_DA_AVG", 20261015, 5000),
+                (44, "live", "ERCOT_HBNORTH_DA_AVG", 20261015, 6000),
+                (45, "live", "ERCOT_HBNORTH_DA_AVG", 20261016, 4000),
+                (46, "live", "ERCOT_HBNORTH_DA_AVG", 20261016, 5000),
+                (47, "live", "ERCOT_HBNORTH_DA_AVG", 20261016, 6000),
+                (48, "live", "ERCOT_HBNORTH_DA_AVG", 20261017, 4000),
+                (49, "live", "ERCOT_HBNORTH_DA_AVG", 20261017, 5000),
+                (50, "live", "ERCOT_HBNORTH_DA_AVG", 20261017, 6000),
+                (51, "live", "ERCOT_HBNORTH_DA_AVG", 20261018, 4000),
+                (52, "live", "ERCOT_HBNORTH_DA_AVG", 20261018, 5000),
+                (53, "live", "ERCOT_HBNORTH_DA_AVG", 20261018, 6000),
+                (54, "live", "ERCOT_HBNORTH_DA_AVG", 20261019, 4000),
+                (55, "live", "ERCOT_HBNORTH_DA_AVG", 20261019, 5000),
+                (56, "live", "ERCOT_HBNORTH_DA_AVG", 20261019, 6000),
+                (57, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 4000),
+                (58, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 5000),
+                (59, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 6000),
             ],
         )
 
@@ -1072,7 +1094,7 @@ class TestMainDryRunByKind(unittest.TestCase):
             "2026-09-22 07:45 CDT (Texas) / 13:45 BST (London)",
             output,
         )
-        self.assertIn("Eligible to create:           38", output)
+        self.assertIn("Eligible to create:           59", output)
         self.assertIn("DRY RUN ONLY", output)
 
     def test_unknown_market_row_is_an_error(self):

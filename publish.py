@@ -227,6 +227,20 @@ def make_web3(rpc_url: str) -> Web3:
     return Web3(HTTPProvider(rpc_url, request_kwargs={"timeout": 30}))
 
 
+def safe_nonce(w3: Web3, address: str) -> int:
+    """The next nonce to sign with, never below the confirmed count.
+
+    X Layer testnet's public RPC is load-balanced and some nodes report a
+    stale "pending" count far below "latest" (12 Oct: pending 28, latest 50),
+    which would sign a transaction the network rejects as "nonce too low".
+    Same rule as create_markets.send_tx.
+    """
+    return max(
+        w3.eth.get_transaction_count(address, "pending"),
+        w3.eth.get_transaction_count(address, "latest"),
+    )
+
+
 def load_contract(w3: Web3, oracle_address: str):
     abi = load_json(ABI_PATH)
     return w3.eth.contract(address=oracle_address, abi=abi)
@@ -491,7 +505,7 @@ def recover_submitted_entries(
     ]
     if not pending_entries:
         return
-    pending_nonce = w3.eth.get_transaction_count(account.address, "pending")
+    pending_nonce = safe_nonce(w3, account.address)
     for key, entry in pending_entries:
         try:
             tx_hash = entry.get("txHash")
@@ -617,7 +631,7 @@ def send_reading(
                 ) from exc
             # §2.8: a stale local nonce is a transient hiccup, not grounds to abort
             # a whole run — re-sync from chain and retry exactly once.
-            fresh_nonce = w3.eth.get_transaction_count(account.address, "pending")
+            fresh_nonce = safe_nonce(w3, account.address)
             if fresh_nonce == nonce:
                 raise PublisherError(
                     f"{reading.ledger_key}: transaction send failed; aborting safely."
@@ -830,7 +844,7 @@ def main(argv: list[str] | None = None) -> int:
             print("Cancelled. No transactions were sent.")
             return 0
 
-        nonce = w3.eth.get_transaction_count(account.address, "pending")
+        nonce = safe_nonce(w3, account.address)
         total_gas_cost = 0
         submitted = 0
         failed = 0

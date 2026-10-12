@@ -53,6 +53,7 @@ from publish import (
     load_ledger,
     make_web3,
     parse_day,
+    safe_nonce,
     save_ledger,
 )
 
@@ -355,7 +356,7 @@ def attempt_finalize(
                 message = str(exc).lower()
                 if "nonce too low" not in message or attempt != 0:
                     raise
-                fresh_nonce = w3.eth.get_transaction_count(account.address, "pending")
+                fresh_nonce = safe_nonce(w3, account.address)
                 if fresh_nonce == nonce:
                     raise
                 print(
@@ -646,7 +647,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if summary.failed else 0
 
         selectors = build_error_selectors(contract.abi)
-        nonce = w3.eth.get_transaction_count(account.address, "pending")
+        nonce = safe_nonce(w3, account.address)
         log_path = LOGS_DIR / datetime.now(timezone.utc).strftime("finalize-%Y%m%dT%H%M%SZ.log")
         for evaluation in eligible:
             reading = evaluation.reading

@@ -1,17 +1,18 @@
 import { approvalTarget } from './allowance.ts';
 import { formatToken } from './format.ts';
+import { sideLabel, type Side } from './sides.ts';
 
 /**
  * The wallet prompts one buy can raise, in order, worded to match what the
  * wallet shows (design-brief.md §5: labels, plain words). A buy mints a
- * complete YES + NO set and swaps the unwanted side into the wanted one, so
- * the wallet shows the other side's tokens mid-buy; the mint step says so.
+ * complete Long + Short set (the market's YES + NO tokens) and swaps the
+ * unwanted side into the wanted one, so the wallet shows the other side's
+ * token mid-buy; the mint step says so, and the approval names the token
+ * symbol the wallet's prompt will show.
  * An approval the allowance already covers is left out (lib/allowance.ts),
  * so the list is the prompts this particular buy will raise.
  * Kept free of React for the node tests.
  */
-
-type Side = 'YES' | 'NO';
 
 export type BuyStepKey = 'approveCollateral' | 'mint' | 'approveSwap' | 'swap';
 
@@ -61,14 +62,14 @@ export function buySteps(
   }
   steps.push({
     key: 'mint',
-    label: `Mint ${amount} YES + ${amount} NO`,
-    note: `Your wallet shows ${other} tokens here; that's expected.`,
+    label: `Mint ${amount} Long + ${amount} Short`,
+    note: `Your wallet shows ${other} tokens (${sideLabel(other)}) here; that's expected.`,
     approval: false,
   });
   if (needs.swap) {
     steps.push({
       key: 'approveSwap',
-      label: `Approve ${other} for this market (one time)`,
+      label: `Approve the ${other} token (${sideLabel(other)}) for this market (one time)`,
       approval: true,
     });
   }
@@ -76,8 +77,8 @@ export function buySteps(
     key: 'swap',
     label:
       swapOut === undefined
-        ? `Swap ${amount} ${other} into ${side}`
-        : `Swap ${amount} ${other} for ~${formatToken(swapOut)} ${side}`,
+        ? `Swap ${amount} ${sideLabel(other)} into ${sideLabel(side)}`
+        : `Swap ${amount} ${sideLabel(other)} for ~${formatToken(swapOut)} ${sideLabel(side)}`,
     approval: false,
   });
   return steps;
@@ -115,7 +116,7 @@ export function markBuyStep(
 }
 
 /**
- * "Step 2 of 4 · Mint 100 YES + 100 NO": the spinner's words for `key`.
+ * "Step 2 of 4 · Mint 100 Long + 100 Short": the spinner's words for `key`.
  * An approval left out of the list but needed after all (an allowance
  * revoked since the list was built) is named without a number.
  */

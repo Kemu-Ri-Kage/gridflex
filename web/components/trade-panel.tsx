@@ -33,16 +33,22 @@ import {
 import { needsApproval } from '@/lib/allowance';
 import { explorerTxUrl } from '@/lib/explorer';
 import {
-  formatCentsShort,
+  formatDollarsShort,
   formatSignedToken,
   formatToken,
 } from '@/lib/format';
 import { buySteps } from '@/lib/buy-steps';
 import { fundingState } from '@/lib/funding-state';
-import { marketName, strikeLabel, useMarkets } from '@/lib/markets';
+import {
+  contractLabel,
+  shownYesPriceE18,
+  strikeLabel,
+  useMarkets,
+} from '@/lib/markets';
 import { orderGate, pendingOrderUnits } from '@/lib/pending-order';
 import { oppositeBuyWarning, positionSummary } from '@/lib/position-summary';
 import { redeemablePayout } from '@/lib/redeemable';
+import { inSideWords, sideLabel } from '@/lib/sides';
 import { payoutFigures, type QuoteFigures } from '@/lib/ticket-figures';
 import {
   onTicketPrefill,
@@ -56,7 +62,7 @@ import { cn } from '@/lib/utils';
 /** OKX's X Layer testnet faucet: paste an address, get 0.2 test OKB. */
 const OKB_FAUCET_URL = 'https://web3.okx.com/xlayer/faucet/xlayerfaucet';
 
-/** 1 mUSDT per token, 1e18-scaled: the YES and NO prices sum to it. */
+/** 1 mUSDT per contract, 1e18-scaled: the Long (YES) and Short (NO) prices sum to it. */
 const ONE_E18 = 10n ** 18n;
 
 /** The quick amounts under the amount field, in mUSDT. */
@@ -108,14 +114,16 @@ function validTokenAmount(value: string): boolean {
 
 /**
  * The order ticket for the selected market (design-brief.md §5: one
- * product, bought as YES or NO; labels and numbers only; §8: side buttons
- * with their prices, the amount, what the buy pays as one figure, then one
- * action in the side's colour). Every number is read from that market's
- * contract through the Web3Provider, which the order column points at the
- * selection. Buy opens a position; Switch position moves it between YES
- * and NO. There is no sell: the contract has no exit into mUSDT before
- * settlement, so the position block names the only exits and warns before
- * a buy that would open the other side.
+ * product, bought Long or Short - the market's YES or NO token, a
+ * cash-settled digital call or put on the strike (lib/sides.ts); labels and
+ * numbers only; §8: side buttons with their prices, the amount, the max
+ * payout as one figure, then one action in the side's colour). Every
+ * number is read from that market's contract through the Web3Provider,
+ * which the order column points at the selection. Buy opens a position;
+ * Switch position moves it between Long and Short. There is no sell: the
+ * contract has no exit into mUSDT before settlement, so the position block
+ * names the only exits and warns before a buy that would open the other
+ * side.
  */
 export function TradePanel() {
   const {
@@ -274,7 +282,10 @@ export function TradePanel() {
             : undefined,
         )
       : undefined);
-  const prices = { YES: snapshot.priceE18, NO: ONE_E18 - snapshot.priceE18 };
+  // Once settled, what each side paid (1 / 0, or 0.5 cancelled), not the
+  // pool's frozen last price (lib/market-facts.ts).
+  const yesPrice = shownYesPriceE18(snapshot);
+  const prices = { YES: yesPrice, NO: ONE_E18 - yesPrice };
 
   // What the buy pays in plain money (lib/ticket-figures.ts), redrawn with
   // every quote.
@@ -319,7 +330,9 @@ export function TradePanel() {
   const buyPending = busy && !(ready && !tradingOpen);
   const ctaShowsPending = buyPending && Boolean(account) && tab === 'buy';
 
-  const connectButton = !account && (
+  // Not on a market whose trading has closed: there is nothing to trade,
+  // and the header still connects a wallet to redeem.
+  const connectButton = !account && !(ready && !tradingOpen) && (
     <div className="grid gap-2">
       <button
         className={cn(
@@ -378,14 +391,14 @@ export function TradePanel() {
                 {gate.elsewhere && (
                   <div className="mt-1.5 text-foreground">
                     {pendingMarket
-                      ? marketName(pendingMarket)
+                      ? contractLabel(pendingMarket)
                       : `${pendingOrder.market.slice(0, 6)}…${pendingOrder.market.slice(-4)}`}
                   </div>
                 )}
                 <div className="mt-1 font-mono text-muted-foreground">
-                  Buy {pendingOrder.side} ·{' '}
-                  {formatToken(pendingOrderUnits(pendingOrder))} mUSDT · YES +
-                  NO held
+                  Buy {sideLabel(pendingOrder.side)} ·{' '}
+                  {formatToken(pendingOrderUnits(pendingOrder))} mUSDT · Long +
+                  Short held
                 </div>
               </div>
               <div className="grid gap-2">
@@ -410,7 +423,7 @@ export function TradePanel() {
                   >
                     <span>Finish order</span>
                     <span className="font-mono text-[11px] text-muted-foreground">
-                      All into {pendingOrder.side}
+                      All into {sideLabel(pendingOrder.side)}
                     </span>
                   </button>
                 )}
@@ -426,7 +439,7 @@ export function TradePanel() {
                   >
                     <span>Keep both sides</span>
                     <span className="font-mono text-[11px] text-muted-foreground">
-                      1 mUSDT per pair after resolve, either outcome
+                      1 mUSDT per Long + Short pair at settlement, either way
                     </span>
                   </button>
                 )}
@@ -485,13 +498,13 @@ export function TradePanel() {
                     type="button"
                   >
                     <span className="font-mono text-[11px] uppercase tracking-[0.14em]">
-                      {option}
+                      {sideLabel(option)}
                     </span>
                     <span className="font-mono text-2xl leading-none tabular-nums">
                       {ready ? (
                         <Ticker
                           numeric={Number(prices[option])}
-                          value={formatCentsShort(prices[option])}
+                          value={formatDollarsShort(prices[option])}
                         />
                       ) : (
                         '—'
@@ -579,11 +592,12 @@ export function TradePanel() {
                 )}
               </div>
 
-              {/* One figure: what the buy returns if its side wins. The
-                  quoted figure keeps its place while a message shows, so
-                  the block never changes height between states. */}
+              {/* One figure: the buy's max payout, what it returns if its
+                  side pays. The quoted figure keeps its place while a
+                  message shows, so the block never changes height between
+                  states. */}
               <div className="border-t border-border pt-4">
-                <div className={LABEL}>To win</div>
+                <div className={LABEL}>Max payout</div>
                 <div className="relative mt-2">
                   <div
                     className={cn(
@@ -611,8 +625,8 @@ export function TradePanel() {
                       </span>
                     </div>
                     <div className="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
-                      Pay {shownQuote ? formatToken(shownQuote.pay) : '—'}{' '}
-                      mUSDT · max loss{' '}
+                      Premium {shownQuote ? formatToken(shownQuote.pay) : '—'}{' '}
+                      mUSDT · Max loss{' '}
                       {shownQuote ? formatToken(shownQuote.pay) : '—'} mUSDT
                     </div>
                   </div>
@@ -661,14 +675,14 @@ export function TradePanel() {
                     <>
                       <Loader2 className="size-4 shrink-0 animate-spin" />
                       <span className="min-w-0 truncate">
-                        {pendingAction}…
+                        {inSideWords(pendingAction ?? '')}…
                       </span>
                     </>
                   ) : (
                     <>
                       {units === undefined
-                        ? `Buy ${side}`
-                        : `Buy ${side} · ${formatToken(units)} mUSDT`}
+                        ? `Buy ${sideLabel(side)}`
+                        : `Buy ${sideLabel(side)} · ${formatToken(units)} mUSDT`}
                       <CtaArrow />
                     </>
                   )}
@@ -682,14 +696,16 @@ export function TradePanel() {
                   <div className="flex justify-between gap-3">
                     <dt className="text-muted-foreground">You get</dt>
                     <dd className="text-foreground tabular-nums">
-                      {quote ? `${formatToken(quote.totalOut)} ${side}` : '—'}
+                      {quote
+                        ? `${formatToken(quote.totalOut)} ${sideLabel(side)}`
+                        : '—'}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">
                     <dt className="text-muted-foreground">Minimum</dt>
                     <dd className="text-foreground tabular-nums">
                       {quote
-                        ? `${formatToken(quote.minimumTotalOut)} ${side}`
+                        ? `${formatToken(quote.minimumTotalOut)} ${sideLabel(side)}`
                         : '—'}
                     </dd>
                   </div>
@@ -702,6 +718,10 @@ export function TradePanel() {
                     </span>
                   )}
                 </div>
+                <p className="text-[11px] leading-4 text-muted-foreground">
+                  Long is held as the market&apos;s YES token in your wallet;
+                  Short as its NO token.
+                </p>
               </div>
 
               {account && tradingOpen && steps && (
@@ -727,13 +747,14 @@ export function TradePanel() {
                   ctaShowsPending && 'sr-only',
                 )}
               >
-                <Loader2 className="size-3.5 animate-spin" /> {pendingAction}…
+                <Loader2 className="size-3.5 animate-spin" />{' '}
+                {inSideWords(pendingAction)}…
               </span>
             )}
             {!pendingAction &&
               (error ?? (!account ? connectError : undefined)) && (
                 <span className="text-down">
-                  {error ?? connectError}
+                  {inSideWords(error ?? connectError ?? '')}
                   {error && failedTransaction && (
                     <a
                       className="ml-1.5 inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
@@ -833,8 +854,8 @@ export function TradePanel() {
           {ready && !snapshot.resolved && (
             <div className="border-t border-border pt-3 font-mono text-xs text-muted-foreground">
               {snapshot.cancelled
-                ? 'Cancelled · 0.5 mUSDT per YES or NO'
-                : 'If cancelled: 0.5 mUSDT per YES or NO'}
+                ? 'Cancelled · 0.5 mUSDT per contract'
+                : 'If cancelled: 0.5 mUSDT per contract'}
             </div>
           )}
         </div>

@@ -36,8 +36,9 @@ import { cn } from '@/lib/utils';
 
 /**
  * For the buyer the product is built for: a Texas bitcoin miner or data
- * centre whose largest cost is the Texas power price. Sizes YES on every
- * strike trading on the selected day so the payout follows the load's
+ * centre whose largest cost is the Texas power price. Sizes Long contracts
+ * (digital calls) on every strike trading on the selected day so the
+ * payout follows the load's
  * extra power cost up to a chosen price (lib/hedge.ts), costs each rung
  * from its market's pool, and loads a rung into the order ticket. A week
  * strip repeats that ladder on each of the next market days, each its own
@@ -125,8 +126,8 @@ export function HedgeCalculator() {
   const modes = <Segmented label="Hedge mode" onChange={setMode} options={MODES} value={mode} />;
   const terms = (
     <p className="leading-5 text-muted-foreground">
-      Each day settles on that day&apos;s average Texas power price and pays 1 mUSDT per YES above
-      its strike. Costs are indicative, from each pool now: the ticket&apos;s own quote is what&apos;s
+      Each day settles on that day&apos;s average Texas power price; each Long contract pays 1
+      mUSDT if it settles above its strike. Costs are indicative, from each pool now: the ticket&apos;s own quote is what&apos;s
       sent, and large orders move the price.
     </p>
   );
@@ -178,7 +179,9 @@ export function HedgeCalculator() {
                 <tr className="border-b border-border">
                   <th className={`${HEAD_CELL} text-left`}>Day</th>
                   <th className={`${HEAD_CELL} text-left`}>Strike</th>
-                  <th className={`${HEAD_CELL} text-right text-up`}>YES</th>
+                  <th className={`${HEAD_CELL} text-right text-up`}>
+                    Long<span className="hidden sm:inline"> contracts</span>
+                  </th>
                   <th className={`${HEAD_CELL} text-right`}>Est. cost</th>
                   <th className={HEAD_CELL}>
                     <span className="sr-only">Order</span>
@@ -253,8 +256,8 @@ export function HedgeCalculator() {
     <>
       {modes}
       <p className="leading-5 text-muted-foreground">
-        YES on every strike for {dayLabel(day, true)}, sized so the payout
-        follows a load&apos;s extra power cost up to the price you protect.
+        Long contracts at every strike for {dayLabel(day, true)}, sized so the
+        payout follows a load&apos;s extra power cost up to the price you protect.
       </p>
       {inputs}
 
@@ -286,7 +289,9 @@ export function HedgeCalculator() {
             <thead>
               <tr className="border-b border-border">
                 <th className={`${HEAD_CELL} text-left`}>Strike</th>
-                <th className={`${HEAD_CELL} text-right text-up`}>YES</th>
+                <th className={`${HEAD_CELL} text-right text-up`}>
+                    Long<span className="hidden sm:inline"> contracts</span>
+                  </th>
                 <th className={`${HEAD_CELL} text-right`}>Est. cost</th>
                 <th className={HEAD_CELL}>
                   <span className="sr-only">Order</span>
@@ -365,7 +370,7 @@ function CostFigure({ cents }: { cents?: number }) {
   );
 }
 
-/** Each rung's order, a compact YES call to action; it fills the ticket and never sends. */
+/** Each rung's order, a compact Long call to action; it fills the ticket and never sends. */
 function LoadButton({ row, onLoad }: { row: HedgeRow; onLoad: () => void }) {
   return (
     <button

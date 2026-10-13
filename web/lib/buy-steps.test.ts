@@ -10,15 +10,15 @@ import {
 
 const HUNDRED = 100_000_000n; // 100 mUSDT
 
-void test('a YES buy lists its four prompts in the order the wallet shows them', () => {
+void test('a Long (YES) buy lists its four prompts in the order the wallet shows them', () => {
   const steps = buySteps('YES', HUNDRED, 92_340_000n);
   assert.deepEqual(
     steps.map((step) => step.label),
     [
       'Approve 1,000 mUSDT for this market',
-      'Mint 100 YES + 100 NO',
-      'Approve NO for this market (one time)',
-      'Swap 100 NO for ~92.34 YES',
+      'Mint 100 Long + 100 Short',
+      'Approve the NO token (Short) for this market (one time)',
+      'Swap 100 Short for ~92.34 Long',
     ],
   );
   assert.deepEqual(
@@ -30,25 +30,25 @@ void test('a YES buy lists its four prompts in the order the wallet shows them',
 void test('the mint step says the wallet will show the other side', () => {
   assert.equal(
     buySteps('YES', HUNDRED).find((step) => step.key === 'mint')?.note,
-    "Your wallet shows NO tokens here; that's expected.",
+    "Your wallet shows NO tokens (Short) here; that's expected.",
   );
   assert.equal(
     buySteps('NO', HUNDRED).find((step) => step.key === 'mint')?.note,
-    "Your wallet shows YES tokens here; that's expected.",
+    "Your wallet shows YES tokens (Long) here; that's expected.",
   );
 });
 
-void test('a NO buy swaps YES in, and names no estimate before a quote', () => {
+void test('a Short (NO) buy swaps Long in, and names no estimate before a quote', () => {
   const steps = buySteps('NO', HUNDRED);
-  assert.equal(steps[2].label, 'Approve YES for this market (one time)');
-  assert.equal(steps[3].label, 'Swap 100 YES into NO');
+  assert.equal(steps[2].label, 'Approve the YES token (Long) for this market (one time)');
+  assert.equal(steps[3].label, 'Swap 100 Long into Short');
 });
 
 void test('the spinner names the step by number', () => {
   const steps = buySteps('YES', HUNDRED);
   assert.equal(
     buyStepLabel(steps, 'mint'),
-    'Step 2 of 4 · Mint 100 YES + 100 NO',
+    'Step 2 of 4 · Mint 100 Long + 100 Short',
   );
 });
 
@@ -85,11 +85,11 @@ void test('a repeat buy with both approvals in place lists two prompts', () => {
   });
   assert.deepEqual(
     steps.map((step) => step.label),
-    ['Mint 100 YES + 100 NO', 'Swap 100 NO for ~92.34 YES'],
+    ['Mint 100 Long + 100 Short', 'Swap 100 Short for ~92.34 Long'],
   );
   assert.equal(
     buyStepLabel(steps, 'swap'),
-    'Step 2 of 2 · Swap 100 NO for ~92.34 YES',
+    'Step 2 of 2 · Swap 100 Short for ~92.34 Long',
   );
 });
 

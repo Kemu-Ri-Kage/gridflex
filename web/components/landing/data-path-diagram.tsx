@@ -15,7 +15,7 @@ const STAGES: { id: StageId; label: string; dek: string }[] = [
   { id: 'source', label: 'Source', dek: "ERCOT, Texas's official grid price, via GridStatus" },
   { id: 'compute', label: 'Compute', dek: 'Average of 24 hourly prices, hashed with its inputs' },
   { id: 'publish', label: 'Publish', dek: 'Price written to the oracle on X Layer' },
-  { id: 'settle', label: 'Settle', dek: 'YES/NO questions settle against the published price' },
+  { id: 'settle', label: 'Settle', dek: 'Long and Short contracts settle against the published price' },
 ];
 
 function prefersReducedMotion(): boolean {
@@ -133,7 +133,7 @@ function EvidencePanel({ stage }: { stage: StageId }) {
   return (
     <div className="space-y-3">
       <p className="text-sm leading-6 text-muted-foreground">
-        YES/NO questions settle against this price.
+        Long and Short contracts settle against this price.
       </p>
       <div className="border border-border bg-background/60 p-4">
         <div className="text-xs text-muted-foreground">
@@ -176,9 +176,9 @@ function SettleStatus({ dayKey, value }: { dayKey: number; value: number }) {
 
 function marketSentence(market: Market, now: number): string {
   if (!market.live) return '';
-  if (market.live.resolved) return `Market resolved ${market.live.yesWon ? 'YES' : 'NO'}.`;
+  if (market.live.resolved) return `Settled: ${market.live.yesWon ? 'Long' : 'Short'} paid.`;
   if (market.live.cancelled) return 'Market cancelled.';
-  return now < market.resolveAfter * 1000 ? 'Market trading.' : 'Market awaiting resolution.';
+  return now < market.resolveAfter * 1000 ? 'Market trading.' : 'Market awaiting settlement.';
 }
 
 export function DataPathDiagram() {

@@ -62,9 +62,12 @@ const POLL_MS = 15_000;
 export {
   PUBLIC_METRIC,
   chartStrikeDollars,
+  contractLabel,
   dayLabel,
+  expiryLabel,
   formatUtc,
-  marketName,
+  instrumentCode,
+  instrumentName,
   marketStatus,
   metricShortName,
   payLine,

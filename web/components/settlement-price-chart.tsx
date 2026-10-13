@@ -95,7 +95,7 @@ function withAlpha(hex: string, alpha: number): string {
 /**
  * Days above the selected strike, before the market's own day, as a plain
  * count. It is shown as a count of days, never a percentage, so it can't be
- * read as a probability or set against the YES price (design-brief.md §9).
+ * read as a forecast or set against the Long price (design-brief.md §9).
  */
 function PastFrequencyPanel({
   records,

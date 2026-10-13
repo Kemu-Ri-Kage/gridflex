@@ -34,13 +34,28 @@ export interface Market extends MarketFacts {
 }
 
 /**
- * Display words per settlement metric (design-brief.md §5 dictionary). The
- * basis entry exists only so its markets decode; the public site lists
- * PUBLIC_METRIC's markets alone and never shows the basis.
+ * Display words per settlement metric (design-brief.md §5 dictionary).
+ * `short` and `long` build marketName(), the machine API's question;
+ * `instrument` and `code` name the contract on the site, as an exchange
+ * names a listed derivative. The basis entry exists only so its markets
+ * decode; the public site lists PUBLIC_METRIC's markets alone.
  */
-const METRIC_WORDS: Record<SettlementMetric, { short: string; long: string }> = {
-  ERCOT_HBNORTH_DA_AVG: { short: 'Texas power', long: 'the Texas power price' },
-  ERCOT_WEST_NORTH_DA_BASIS: { short: 'Basis', long: 'the basis' },
+const METRIC_WORDS: Record<
+  SettlementMetric,
+  { short: string; long: string; instrument: string; code: string }
+> = {
+  ERCOT_HBNORTH_DA_AVG: {
+    short: 'Texas power',
+    long: 'the Texas power price',
+    instrument: 'Texas Power',
+    code: 'TX-POWER',
+  },
+  ERCOT_WEST_NORTH_DA_BASIS: {
+    short: 'Basis',
+    long: 'the basis',
+    instrument: 'West–North spread',
+    code: 'TX-WN-SPREAD',
+  },
 };
 
 /** The one product the public site lists (design-brief.md §5). */
@@ -85,11 +100,13 @@ export function strikeLabel(
   return text.endsWith('.00') ? text.slice(0, -3) : text;
 }
 
-/** The product as a question: "Will Texas power cost more than $30 on 8 Sep?" */
 /**
- * "Will Texas power cost more than $45 on 2 Oct?" - with the year when the
- * day is in an earlier year than `currentYear`, so a replay of a settled
- * 2025 day never reads as an upcoming one.
+ * The product as a question, "Will Texas power cost more than $45 on 2
+ * Oct?" - for the machine API's `question` field (lib/price-api.ts) only,
+ * whose wording registered clients may depend on. The site never shows it:
+ * it names a market as an instrument (instrumentName, instrumentCode).
+ * With the year when the day is in an earlier year than `currentYear`, so
+ * a replay of a settled 2025 day never reads as an upcoming one.
  */
 export function marketName(
   market: MarketFacts,
@@ -99,9 +116,56 @@ export function marketName(
   return `Will ${METRIC_WORDS[market.metricId].short} cost more than ${strikeLabel(market)} on ${dayLabel(market.dayKey, pastYear)}?`;
 }
 
-export function payLine(market: MarketFacts): string {
-  const strike = formatPrice(market.threshold, 'MWh', isBasis(market.metricId));
-  return `Pays 1 mUSDT per YES if ${METRIC_WORDS[market.metricId].long} for ${dayLabel(market.dayKey, true)} settles above ${strike}.`;
+function inPastYear(dayKey: number, currentYear: number): boolean {
+  return Math.floor(dayKey / 10_000) < currentYear;
+}
+
+/** The instrument's headline: "Texas Power · $50 strike". */
+export function instrumentName(
+  market: Pick<MarketFacts, 'metricId' | 'threshold'>,
+): string {
+  return `${METRIC_WORDS[market.metricId].instrument} · ${strikeLabel(market)} strike`;
+}
+
+/** The instrument's code line: "TX-POWER · 14 OCT 2026 · DAILY". */
+export function instrumentCode(
+  market: Pick<MarketFacts, 'metricId' | 'dayKey'>,
+): string {
+  return `${METRIC_WORDS[market.metricId].code} · ${expiryLabel(market.dayKey)} · DAILY`;
+}
+
+/** An expiry as the chain heads it: "14 OCT 2026". */
+export function expiryLabel(dayKey: number): string {
+  return dayLabel(dayKey, true).toUpperCase();
+}
+
+/**
+ * One line naming a contract in a list or a table:
+ * "Texas Power · 14 Oct · $50 strike", with the year for an earlier year.
+ */
+export function contractLabel(
+  market: Pick<MarketFacts, 'metricId' | 'dayKey' | 'threshold'>,
+  currentYear = new Date().getUTCFullYear(),
+): string {
+  const day = dayLabel(market.dayKey, inPastYear(market.dayKey, currentYear));
+  return `${METRIC_WORDS[market.metricId].instrument} · ${day} · ${strikeLabel(market)} strike`;
+}
+
+/**
+ * The payout rule in one line: "Long pays 1 mUSDT per contract if 14 Oct
+ * settles above $50.00/MWh. Short pays if it settles at or below." Long
+ * wins only strictly above the strike (BinaryMarket.resolve():
+ * `reading.value > threshold`), so the strike itself pays Short.
+ */
+export function payLine(
+  market: Pick<MarketFacts, 'metricId' | 'dayKey' | 'threshold'>,
+  currentYear = new Date().getUTCFullYear(),
+): string {
+  const basis = isBasis(market.metricId);
+  const strike = formatPrice(market.threshold, 'MWh', basis);
+  const day = dayLabel(market.dayKey, inPastYear(market.dayKey, currentYear));
+  const subject = basis ? `the ${day} ${METRIC_WORDS[market.metricId].instrument}` : day;
+  return `Long pays 1 mUSDT per contract if ${subject} settles above ${strike}. Short pays if it settles at or below.`;
 }
 
 export function metricShortName(metricId: SettlementMetric): string {
@@ -126,10 +190,10 @@ export function marketStatus(
 const ONE_E18 = 10n ** 18n;
 
 /**
- * The YES price to show, 1e18 = 1 mUSDT: the pool's while the market trades
- * or waits for its reading; once settled, what each YES paid out (1 or 0,
- * or 0.5 when cancelled). resolve() never touches the pool, so an untraded
- * market's pool still reads 50¢ after it has settled.
+ * The YES (Long) price to show, 1e18 = 1 mUSDT: the pool's while the
+ * market trades or waits for its reading; once settled, what each YES paid
+ * out (1 or 0, or 0.5 when cancelled). resolve() never touches the pool, so
+ * an untraded market's pool still reads $0.50 after it has settled.
  */
 export function shownYesPriceE18(
   live: Pick<MarketLive, 'resolved' | 'cancelled' | 'yesWon' | 'priceE18'>,
@@ -144,9 +208,9 @@ export function statusLabel(market: Market, nowMs: number): string | undefined {
     case 'trading':
       return 'Trading';
     case 'awaiting':
-      return 'Awaiting resolution';
+      return 'Awaiting settlement';
     case 'resolved':
-      return `Resolved · ${market.live?.yesWon ? 'YES' : 'NO'}`;
+      return `Settled · ${market.live?.yesWon ? 'Long' : 'Short'}`;
     case 'cancelled':
       return 'Cancelled';
     default:

@@ -29,7 +29,7 @@ void test('both sides held net into matched pairs plus the rest', () => {
   assert.deepEqual(summary?.net, { side: 'YES', amount: units(42) });
   assert.equal(
     pairsLabel(units(150)),
-    '150 mUSDT at settlement, either outcome',
+    '150 mUSDT at settlement, either way',
   );
 });
 
@@ -39,7 +39,7 @@ void test('equal sides are all pairs, with no net side', () => {
   assert.equal(summary?.net, undefined);
 });
 
-void test('YES pays only strictly above the strike; NO at or below it', () => {
+void test('Long (YES) pays only strictly above the strike; Short (NO) at or below it', () => {
   assert.equal(
     paysLabel('YES', units(192), '$45'),
     'Pays 192 mUSDT if above $45 · else 0',
@@ -54,7 +54,7 @@ void test('buying against the net side warns; adding to it does not', () => {
   const summary = positionSummary(units(192), 0n);
   assert.equal(
     oppositeBuyWarning(summary, 'NO'),
-    "Opens NO beside your 192 YES; doesn't sell it.",
+    "Opens Short beside your 192 Long; doesn't close it.",
   );
   assert.equal(oppositeBuyWarning(summary, 'YES'), undefined);
   assert.equal(oppositeBuyWarning(undefined, 'NO'), undefined);

@@ -74,8 +74,10 @@ export function Hero() {
             $/MWh
           </p>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Trade YES or NO on whether Texas power will cost more than the
-            strike on a given day.
+            On-chain energy derivatives, no broker: hedge Texas power from a
+            wallet. Each contract is a cash-settled digital option on the
+            day&apos;s price. Long pays $1 if it settles above the strike,
+            Short if at or below.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-4">
             <Link

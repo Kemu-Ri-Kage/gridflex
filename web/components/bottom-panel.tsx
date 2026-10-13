@@ -11,8 +11,8 @@ import { TerminalTab, TerminalTabsList } from '@/components/terminal-ui';
 import { useWeb3 } from '@/components/web3-provider';
 import { explorerTxUrl } from '@/lib/explorer';
 import {
-  formatCentsE18,
   formatBlockTime,
+  formatDollarsE18,
   formatSignedPercent,
   formatSignedToken,
   formatToken,
@@ -24,6 +24,7 @@ import {
   useMarkets,
   usePosition,
   useTradeHistory,
+  type ApprovedToken,
   type WalletAction,
 } from '@/lib/markets';
 import {
@@ -34,6 +35,7 @@ import {
 } from '@/lib/position';
 import { onOpenPortfolio } from '@/lib/portfolio';
 import { losingSide } from '@/lib/redeemable';
+import { sideLabel } from '@/lib/sides';
 
 /** A table's column label: the landing page's small mono caps, muted. */
 const HEAD_CELL = 'py-2 font-mono text-[11px] font-normal uppercase tracking-[0.14em] text-muted-foreground';
@@ -67,8 +69,9 @@ function pnlClass(pnl?: bigint): string {
 }
 
 /**
- * The connected wallet's holdings on the selected market. Quantity is the
- * chain balance; average entry comes from the wallet's own trades read from
+ * The connected wallet's Long and Short contracts on the selected market.
+ * Contracts is the chain balance of the market's YES (Long) or NO (Short)
+ * token; average entry comes from the wallet's own trades read from
  * chain (lib/position.ts). Value and P&L are marked at the pool price while
  * the market is open - indicative only, since no mUSDT exit exists before
  * settlement - and at the payout once it settles.
@@ -124,7 +127,7 @@ function PositionsTab() {
 
   const columns = [
     { key: 'side', label: 'Side' },
-    { key: 'quantity', label: 'Quantity' },
+    { key: 'quantity', label: 'Contracts' },
     { key: 'entry', label: 'Avg entry' },
     { key: 'mark', label: settled ? 'Payout' : 'Current price' },
     { key: 'value', label: 'Current value' },
@@ -132,14 +135,15 @@ function PositionsTab() {
   ] as const;
   const cells = rows.map((row) => ({
     side: row.side,
+    sideName: sideLabel(row.side),
     sideClass: row.side === 'YES' ? 'text-up' : 'text-down',
     quantity: formatTokenExact(row.quantity),
     entry: loading
       ? <PendingFigure width="w-12" />
       : row.averageEntryE18 === undefined
         ? '—'
-        : formatCentsE18(row.averageEntryE18),
-    mark: formatCentsE18(row.markE18),
+        : formatDollarsE18(row.averageEntryE18),
+    mark: formatDollarsE18(row.markE18),
     value: `${formatToken(row.value)} mUSDT`,
     pnl: loading
       ? <PendingFigure width="w-28" />
@@ -158,7 +162,7 @@ function PositionsTab() {
         <p className="text-xs text-muted-foreground">
           {lost && balances[lost === 'YES' ? 'yes' : 'no'] > 0n
             ? 'Nothing left to redeem on this market.'
-            : 'No YES or NO held on this market.'}
+            : 'No Long or Short position on this market.'}
         </p>
       ) : (
         <>
@@ -169,7 +173,7 @@ function PositionsTab() {
                 className="grid grid-cols-2 items-baseline gap-x-3 gap-y-1.5 rounded-[2px] border border-border bg-card px-3 py-2.5 font-mono text-xs tabular-nums"
                 key={cell.side}
               >
-                <dt className={`text-[11px] uppercase tracking-[0.14em] ${cell.sideClass}`}>{cell.side}</dt>
+                <dt className={`text-[11px] uppercase tracking-[0.14em] ${cell.sideClass}`}>{cell.sideName}</dt>
                 <dd className="text-right text-base leading-none text-foreground">{cell.quantity}</dd>
                 {columns.slice(2).map((column) => (
                   <React.Fragment key={column.key}>
@@ -201,7 +205,7 @@ function PositionsTab() {
               {cells.map((cell) => (
                 <tr className={ROW} key={cell.side}>
                   <td className={`py-2 pr-4 ${cell.sideClass}`}>
-                    {cell.side}
+                    {cell.sideName}
                   </td>
                   <td className="py-2 pr-4 text-right">{cell.quantity}</td>
                   <td className="py-2 pr-4 text-right">{cell.entry}</td>
@@ -239,7 +243,16 @@ function PositionsTab() {
 
 const MAX_UINT256 = 2n ** 256n - 1n;
 
-/** What a wallet action did, in the words and amounts History shows. */
+/** mUSDT, or the side a YES / NO token holds: "Long", "Short". */
+function tokenName(token: ApprovedToken): string {
+  return token === 'mUSDT' ? 'mUSDT' : sideLabel(token);
+}
+
+/**
+ * What a wallet action did, in the words and amounts History shows. Sides
+ * are named Long and Short; an approval also names the token symbol the
+ * wallet showed (YES or NO), since that is what was approved.
+ */
 function describeAction(action: WalletAction): {
   label: string;
   amount: string;
@@ -247,22 +260,25 @@ function describeAction(action: WalletAction): {
   switch (action.kind) {
     case 'approve':
       return {
-        label: `Approve ${action.token}`,
+        label:
+          action.token === 'mUSDT'
+            ? 'Approve mUSDT'
+            : `Approve ${action.token} token (${sideLabel(action.token)})`,
         amount:
           action.amount === MAX_UINT256
-            ? `Unlimited ${action.token}`
-            : `${formatToken(action.amount)} ${action.token}`,
+            ? `Unlimited ${tokenName(action.token)}`
+            : `${formatToken(action.amount)} ${tokenName(action.token)}`,
       };
     case 'mint':
       return {
-        label: 'Mint YES + NO',
-        amount: `${formatToken(action.amount)} mUSDT → ${formatToken(action.amount)} YES + ${formatToken(action.amount)} NO`,
+        label: 'Mint Long + Short',
+        amount: `${formatToken(action.amount)} mUSDT → ${formatToken(action.amount)} Long + ${formatToken(action.amount)} Short`,
       };
     case 'swap': {
-      // yesForNo: YES paid in, NO received. As the second leg of a buy
-      // that is a NO buy; otherwise a switch.
-      const paid = action.yesForNo ? 'YES' : 'NO';
-      const got = action.yesForNo ? 'NO' : 'YES';
+      // yesForNo: YES (Long) paid in, NO (Short) received. As the second
+      // leg of a buy that is a Short buy; otherwise a switch.
+      const paid = action.yesForNo ? 'Long' : 'Short';
+      const got = action.yesForNo ? 'Short' : 'Long';
       return {
         label: action.buyLeg ? `Swap (Buy ${got})` : `Switch ${paid} → ${got}`,
         amount: `${formatToken(action.amountIn)} ${paid} → ${formatToken(action.amountOut)} ${got}`,
@@ -271,7 +287,7 @@ function describeAction(action: WalletAction): {
     case 'redeem':
       return {
         label: 'Redeem',
-        amount: `${formatToken(action.yesBurned)} YES + ${formatToken(action.noBurned)} NO → ${formatToken(action.payout)} mUSDT`,
+        amount: `${formatToken(action.yesBurned)} Long + ${formatToken(action.noBurned)} Short → ${formatToken(action.payout)} mUSDT`,
       };
   }
 }

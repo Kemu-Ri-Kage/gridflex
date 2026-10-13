@@ -3,10 +3,11 @@
 import { SplitBar, Stat, Ticker } from '@/components/terminal-ui';
 import { useWeb3 } from '@/components/web3-provider';
 import { closesIn } from '@/lib/closes-in';
-import { formatCentsShort, formatPrice } from '@/lib/format';
+import { formatDollarsShort, formatPrice } from '@/lib/format';
 import {
   dayLabel,
-  marketName,
+  instrumentCode,
+  instrumentName,
   marketStatus,
   payLine,
   statusLabel,
@@ -29,32 +30,33 @@ const STATUS_TONE: Record<MarketStatus, string> = {
 
 /**
  * The bar's loaded height, reserved before the markets load so the grid
- * below never jumps (CLS). Market names follow one fixed template, so the
- * loaded height only varies with the breakpoint (measured with Geist at
- * 390-1920px): on a phone the question and the pay line wrap to two lines
- * over the quote; from sm each fits on one; from lg the quote sits beside
- * them, and they can wrap to two lines again until xl.
+ * below never jumps (CLS). Instrument names follow one fixed template, so
+ * the loaded height only varies with the breakpoint (measured with Geist
+ * at 390-1920px): on a phone the code line and the status chip take a line
+ * each and the payout rule wraps to two lines over the quote; from sm the
+ * rule fits on one; from lg the quote sits beside them, and the rule can
+ * wrap to two lines again until xl.
  */
 const RESERVED_HEIGHT = 'min-h-[321px] sm:min-h-[208px] lg:min-h-[168px] xl:min-h-[116px]';
 
 /**
- * YES and NO in whole cents over the two-colour bar. The parent keys it
- * by market, so a change of selection swaps the figures in rather than
- * ticking them as if the price had moved.
+ * Long and Short in dollars per contract over the two-colour bar. The
+ * parent keys it by market, so a change of selection swaps the figures in
+ * rather than ticking them as if the price had moved.
  */
 function Quote({ priceE18 }: { priceE18?: bigint }) {
   const no = priceE18 === undefined ? undefined : E18 - priceE18;
   return (
     <div className="col-span-2 sm:w-48">
       <div className="flex justify-between gap-6">
-        <Stat label="YES" size="lg" tone={priceE18 === undefined ? 'text-muted-foreground' : 'text-up'}>
+        <Stat label="Long" size="lg" tone={priceE18 === undefined ? 'text-muted-foreground' : 'text-up'}>
           <Ticker
             numeric={priceE18 === undefined ? undefined : Number(priceE18)}
-            value={priceE18 === undefined ? '—' : formatCentsShort(priceE18)}
+            value={priceE18 === undefined ? '—' : formatDollarsShort(priceE18)}
           />
         </Stat>
-        <Stat className="text-right" label="NO" size="lg" tone={no === undefined ? 'text-muted-foreground' : 'text-down'}>
-          <Ticker numeric={no === undefined ? undefined : Number(no)} value={no === undefined ? '—' : formatCentsShort(no)} />
+        <Stat className="text-right" label="Short" size="lg" tone={no === undefined ? 'text-muted-foreground' : 'text-down'}>
+          <Ticker numeric={no === undefined ? undefined : Number(no)} value={no === undefined ? '—' : formatDollarsShort(no)} />
         </Stat>
       </div>
       <SplitBar className="mt-2.5" yesPercent={priceE18 === undefined ? undefined : Number(priceE18) / 1e16} />
@@ -92,11 +94,12 @@ export function InstrumentBar() {
       )}
     >
       <div className="terminal-swap min-w-0 lg:flex-1" key={`name-${selected.address}`}>
-        {/* The chip is rendered before the live read lands ("…"), so its
-            line is already there. On a phone the day takes a line of its
-            own, so the chip's line never wraps. */}
+        {/* The instrument's code line, then its status chip. The chip is
+            rendered before the live read lands ("…"), so its line is
+            already there. On a phone the code takes a line of its own, so
+            the chip's line never wraps. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[11px] leading-4 uppercase tracking-[0.14em] text-muted-foreground">
-          <span className="basis-full sm:basis-auto">Texas power · {dayLabel(selected.dayKey, true)}</span>
+          <span className="basis-full sm:basis-auto">{instrumentCode(selected)}</span>
           <span
             className={cn(
               'rounded-[2px] border px-1.5 py-[3px] leading-none',
@@ -108,7 +111,7 @@ export function InstrumentBar() {
           {left && <span className="tabular-nums">Closes in {left}</span>}
         </div>
         <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-foreground sm:mt-2 sm:text-2xl">
-          {marketName(selected)}
+          {instrumentName(selected)}
         </h1>
         <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">{payLine(selected)}</p>
       </div>
@@ -117,11 +120,11 @@ export function InstrumentBar() {
         key={`quote-${selected.address}`}
       >
         {status === 'resolved' ? (
-          <Stat className="col-span-2 sm:w-48" label="Outcome" size="lg" tone={selected.live?.yesWon ? 'text-up' : 'text-down'}>
-            {selected.live?.yesWon ? 'YES' : 'NO'}
+          <Stat className="col-span-2 sm:w-48" label="Settled" size="lg" tone={selected.live?.yesWon ? 'text-up' : 'text-down'}>
+            {selected.live?.yesWon ? 'Long' : 'Short'}
           </Stat>
         ) : status === 'cancelled' ? (
-          <Stat className="col-span-2 sm:w-48" label="Outcome" size="lg" tone="text-muted-foreground">
+          <Stat className="col-span-2 sm:w-48" label="Settled" size="lg" tone="text-muted-foreground">
             Cancelled
           </Stat>
         ) : (

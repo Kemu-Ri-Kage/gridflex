@@ -17,6 +17,7 @@ import {
 } from '@/components/web3-provider';
 import { formatTokenExact } from '@/lib/format';
 import { formatUtc } from '@/lib/markets';
+import { sideLabel } from '@/lib/sides';
 import type { TicketState } from '@/lib/ticket-state';
 import {
   parsePositiveTokenAmount,
@@ -34,8 +35,8 @@ function tokenUnits(value: string): bigint | undefined {
 }
 
 /**
- * Switch position: swap YES into NO or NO into YES through the market's
- * pool. It changes side and nothing else - no mUSDT comes back, because
+ * Switch position: swap Long into Short or Short into Long (the market's
+ * YES and NO tokens) through the market's pool. It changes side and nothing else - no mUSDT comes back, because
  * BinaryMarket has no way to exit into mUSDT before settlement (swap() only
  * trades one outcome token for the other; redeem() needs a settled market).
  * Same 0.50% slippage protection and 5-minute deadline as a buy.
@@ -113,13 +114,13 @@ export function SwitchPosition({
   if (ready && settled) {
     reason = snapshot.cancelled
       ? 'This market is cancelled. Switching is closed; redeem instead.'
-      : 'This market is resolved. Switching is closed; redeem instead.';
+      : 'This contract has settled. Switching is closed; redeem instead.';
   } else if (ready && !tradingOpen) {
     reason = `Trading closed ${formatUtc(snapshot.resolveAfter)}. The contract refuses swaps from then on; hold to settlement and redeem.`;
   } else if (account && ready && held[from] === 0n) {
-    reason = `No ${from} held on this market.`;
+    reason = `No ${sideLabel(from)} held on this market.`;
   } else if (overHeld) {
-    reason = `More than the ${formatTokenExact(held[from])} ${from} held.`;
+    reason = `More than the ${formatTokenExact(held[from])} ${sideLabel(from)} held.`;
   }
 
   return (
@@ -143,11 +144,11 @@ export function SwitchPosition({
             type="button"
           >
             <span className="font-mono text-[11px] uppercase tracking-[0.14em]">
-              {side} → {side === 'YES' ? 'NO' : 'YES'}
+              {sideLabel(side)} → {sideLabel(side === 'YES' ? 'NO' : 'YES')}
             </span>
             <span className="font-mono text-xs tabular-nums text-muted-foreground">
               {account && ready
-                ? `${formatTokenExact(held[side])} ${side} held`
+                ? `${formatTokenExact(held[side])} ${sideLabel(side)} held`
                 : '—'}
             </span>
           </button>
@@ -159,7 +160,7 @@ export function SwitchPosition({
           className="mb-2 block font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground"
           htmlFor="switch-amount"
         >
-          Amount of {from} to switch
+          Amount of {sideLabel(from)} to switch
         </label>
         <div className="relative">
           <Input
@@ -176,7 +177,7 @@ export function SwitchPosition({
             value={amount}
           />
           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
-            {from}
+            {sideLabel(from)}
           </span>
         </div>
         <div className="mt-2 flex gap-1.5">
@@ -205,19 +206,19 @@ export function SwitchPosition({
           <div className="flex justify-between gap-3">
             <dt className="text-muted-foreground">You give</dt>
             <dd className="text-foreground tabular-nums">
-              {quote ? `${formatTokenExact(quote.amountIn)} ${from}` : '—'}
+              {quote ? `${formatTokenExact(quote.amountIn)} ${sideLabel(from)}` : '—'}
             </dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-muted-foreground">You get</dt>
             <dd className="text-foreground tabular-nums">
-              {quote ? `${formatTokenExact(quote.amountOut)} ${to}` : '—'}
+              {quote ? `${formatTokenExact(quote.amountOut)} ${sideLabel(to)}` : '—'}
             </dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-muted-foreground">Minimum</dt>
             <dd className="text-foreground tabular-nums">
-              {quote ? `${formatTokenExact(quote.minimumOut)} ${to}` : '—'}
+              {quote ? `${formatTokenExact(quote.minimumOut)} ${sideLabel(to)}` : '—'}
             </dd>
           </div>
         </dl>
@@ -258,8 +259,8 @@ export function SwitchPosition({
           ) : (
             <>
               {quote
-                ? `Switch ${formatTokenExact(quote.amountIn)} ${from} to ${to}`
-                : `Switch ${from} to ${to}`}
+                ? `Switch ${formatTokenExact(quote.amountIn)} ${sideLabel(from)} to ${sideLabel(to)}`
+                : `Switch ${sideLabel(from)} to ${sideLabel(to)}`}
               <CtaArrow />
             </>
           )}

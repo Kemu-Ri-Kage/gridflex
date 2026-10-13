@@ -7,6 +7,7 @@ import { explorerAddressUrl, explorerTxUrl } from '@/lib/explorer';
 import {
   formatUtc,
   marketStatus,
+  payLine,
   useMarkets,
   useOracleReading,
 } from '@/lib/markets';
@@ -41,7 +42,7 @@ export function SettlementSummary() {
   // move the ticket up.
   if (!selected || !live || !status || status === 'trading') return null;
 
-  const winner = live.yesWon ? 'YES' : 'NO';
+  const winner = live.yesWon ? 'Long' : 'Short';
 
   return (
     <div className="rounded-[2px] border border-border bg-card">
@@ -65,11 +66,11 @@ export function SettlementSummary() {
         {status === 'resolved' && (
           <>
             {/* The outcome itself is the instrument bar's headline. */}
-            <Row label="Payout" value={`1 mUSDT per ${winner}`} />
+            <Row label="Payout" value={`1 mUSDT per ${winner} contract`} />
           </>
         )}
         {status === 'cancelled' && (
-          <Row label="Payout" value="0.5 mUSDT per YES or NO" />
+          <Row label="Payout" value="0.5 mUSDT per contract, either side" />
         )}
       </dl>
     </div>
@@ -111,6 +112,18 @@ export function SettlementEvidence() {
 
   return (
     <dl className="grid gap-x-8 gap-y-3 p-4 text-xs sm:grid-cols-2 sm:p-6">
+      <div>
+        <dt className="text-muted-foreground">Contract type</dt>
+        <dd className="text-foreground">
+          Cash-settled digital option. Long is a digital call on the strike,
+          held as the market&apos;s YES token; Short is a digital put, held as
+          its NO token.
+        </dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">Payout rule</dt>
+        <dd className="text-foreground">{payLine(selected)}</dd>
+      </div>
       <div>
         <dt className="text-muted-foreground">Contract</dt>
         <dd>

@@ -4,7 +4,7 @@ import type { Abi, Address } from 'viem';
  * A market's changing state. Every field comes from the same block: a
  * resolve() sets resolved and yesWon together, so reading them separately
  * could pair resolved = true with the pre-resolution yesWon = false from a
- * node a few blocks behind, and show a YES market as "Resolved · NO".
+ * node a few blocks behind, and show a market Long won as "Settled · Short".
  */
 export interface MarketLive {
   resolved: boolean;

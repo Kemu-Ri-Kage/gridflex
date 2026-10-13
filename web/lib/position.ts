@@ -34,7 +34,7 @@ interface SideLedger {
 export type UndeterminedReason = 'pair' | 'transfer' | 'history';
 
 export const UNDETERMINED_REASON: Record<UndeterminedReason, string> = {
-  pair: "This wallet holds a YES + NO pair that was minted but never swapped, and a pair's cost can't be split between the two sides.",
+  pair: "This wallet holds a Long + Short pair (YES + NO tokens) that was minted but never swapped, and a pair's cost can't be split between the two sides.",
   transfer:
     "Tokens moved in or out of this wallet outside this market's trades, so their cost isn't on chain.",
   history: "This wallet's trades couldn't be read from X Layer.",

@@ -93,21 +93,26 @@ export function formatUpdated(iso: string | null | undefined): string | null {
   return `${texas.date}, ${texas.time} ${texas.zone} (Texas) · ${utcText}`;
 }
 
-/** A 1e18-scaled mUSDT price per token in cents, e.g. 0.50025e18 -> "50.0¢". */
-export function formatCentsE18(priceE18: bigint): string {
-  return `${(Number(priceE18) / 1e16).toFixed(1)}¢`;
+/**
+ * A contract's price in dollars, 1e18 = 1 mUSDT = $1.00, to a tenth of a
+ * cent, e.g. 0.50025e18 -> "$0.500". For tables where entry and mark sit
+ * side by side.
+ */
+export function formatDollarsE18(priceE18: bigint): string {
+  return `$${(Number(priceE18) / 1e18).toFixed(3)}`;
 }
 
 /**
- * A price per token in whole cents, the terminal's headline quote, e.g.
- * 0.5234e18 -> "52¢". Near either end, where a whole cent would round a
- * live price to 0¢ or 100¢, it keeps one decimal: "0.4¢", "99.6¢".
+ * A contract's price in dollars to the cent, the terminal's headline
+ * quote, e.g. 0.5234e18 -> "$0.52". Near either end, where a whole cent
+ * would round a live price to $0.00 or $1.00, it keeps a third decimal:
+ * "$0.004", "$0.996".
  */
-export function formatCentsShort(priceE18: bigint): string {
-  const cents = Number(priceE18) / 1e16;
-  if (cents > 0 && cents < 1) return `${cents.toFixed(1)}¢`;
-  if (cents > 99 && cents < 100) return `${Math.min(99.9, cents).toFixed(1)}¢`;
-  return `${Math.round(cents)}¢`;
+export function formatDollarsShort(priceE18: bigint): string {
+  const dollars = Number(priceE18) / 1e18;
+  if (dollars > 0 && dollars < 0.01) return `$${dollars.toFixed(3)}`;
+  if (dollars > 0.99 && dollars < 1) return `$${Math.min(0.999, dollars).toFixed(3)}`;
+  return `$${(Math.round(dollars * 100) / 100).toFixed(2)}`;
 }
 
 /** A signed mUSDT amount with an explicit sign, e.g. "+1.99", "−0.42", "0.00". */

@@ -3,46 +3,86 @@
 import * as React from 'react';
 import type { Address } from 'viem';
 
-import { PRESSABLE, SplitBar, Ticker } from '@/components/terminal-ui';
+import { PRESSABLE, Ticker } from '@/components/terminal-ui';
 import { closesIn } from '@/lib/closes-in';
-import { formatCentsShort } from '@/lib/format';
-import { byTerm, TERM_LABELS, TERMS, termOf } from '@/lib/market-term';
-import { marketName, marketStatus, statusLabel, useMarkets, type Market, type MarketStatus } from '@/lib/markets';
+import { formatDollarsShort } from '@/lib/format';
+import { byTerm, TERM_LABELS, TERMS, termOf, type Term } from '@/lib/market-term';
+import {
+  contractLabel,
+  expiryLabel,
+  marketStatus,
+  shownYesPriceE18,
+  strikeLabel,
+  useMarkets,
+  type Market,
+  type MarketStatus,
+} from '@/lib/markets';
 import { cn } from '@/lib/utils';
 
+const ONE_E18 = 10n ** 18n;
+
+/** The chain's columns: strike, then Long and Short at a price's width each. */
+const CHAIN_ROW = 'grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-baseline gap-x-2';
+
 /**
- * A row's figure on the right, as wide as a price at most, so the question
- * beside it always fits on two lines: the YES price while trading, the
- * winning side with "won" under it once resolved, a dash while there is
- * no price that means anything (the status line below says why).
+ * One chain cell: a side's price while the market trades, what it paid
+ * once settled (the paying side bright, the other dimmed), a dash while
+ * there is no price that means anything (closed, waiting for its reading).
  */
-function RowQuote({ market, status }: { market: Market; status: MarketStatus | undefined }) {
-  const price = market.live?.priceE18;
-  if (status === 'resolved') {
+function ChainPrice({
+  market,
+  status,
+  side,
+}: {
+  market: Market;
+  status: MarketStatus | undefined;
+  side: 'YES' | 'NO';
+}) {
+  const live = market.live;
+  const tone = side === 'YES' ? 'text-up' : 'text-down';
+  const settled = status === 'resolved' || status === 'cancelled';
+  if (!live || !(status === 'trading' || settled)) {
+    return <span className="text-right font-mono text-[13px] text-muted-foreground">—</span>;
+  }
+  const yes = shownYesPriceE18(live);
+  const price = side === 'YES' ? yes : ONE_E18 - yes;
+  if (settled) {
+    const paid = price > 0n;
     return (
-      <>
-        <span className={cn('font-mono text-[13px]', market.live?.yesWon ? 'text-up' : 'text-down')}>
-          {market.live?.yesWon ? 'YES' : 'NO'}
-        </span>
-        <span className="font-mono text-[10px] leading-none text-muted-foreground">won</span>
-      </>
+      <span className={cn('text-right font-mono text-[13px]', paid ? tone : 'text-muted-foreground')}>
+        {formatDollarsShort(price)}
+      </span>
     );
   }
-  if (status !== 'trading' || price === undefined) {
-    return <span className="font-mono text-[13px] text-muted-foreground">—</span>;
+  return (
+    <Ticker
+      className={cn('text-right font-mono text-[13px]', tone)}
+      numeric={Number(price)}
+      value={formatDollarsShort(price)}
+    />
+  );
+}
+
+/** Consecutive markets with the same expiry day, as the chain lists them. */
+function byExpiry(markets: Market[]): { dayKey: number; markets: Market[] }[] {
+  const expiries: { dayKey: number; markets: Market[] }[] = [];
+  for (const market of markets) {
+    const last = expiries.at(-1);
+    if (last && last.dayKey === market.dayKey) last.markets.push(market);
+    else expiries.push({ dayKey: market.dayKey, markets: [market] });
   }
-  return <Ticker className="font-mono text-[13px] text-up" numeric={Number(price)} value={formatCentsShort(price)} />;
+  return expiries;
 }
 
 /**
- * The listed YES/NO questions on the Texas power price, each named and
- * labelled from its own contract state - never a hand-typed list
- * (design-brief.md §5, §6, §8) - grouped by maturity (lib/market-term.ts):
- * next day, this week, later, then the ones waiting for their price and the
- * settled ones. The same contract at every maturity; a next-day market
- * settles the next afternoon. Each row reads as a table row: the question,
- * its YES price, the two-colour bar while it trades, and its time left or
- * status.
+ * The listed contracts on the Texas power price as an options chain, each
+ * named and priced from its own contract state - never a hand-typed list
+ * (design-brief.md §5, §6, §8). Grouped by maturity (lib/market-term.ts):
+ * next day, this week, later, then the ones waiting for their price and
+ * the settled ones; within a group, by expiry day, then one row per strike,
+ * highest first, with the Long and Short price per contract (what each
+ * paid, once settled). The same digital contract at every maturity; a
+ * next-day contract settles the next afternoon.
  *
  * Below lg the list collapses to one compact dropdown directly under the
  * instrument bar, so the chart follows it on a phone (§10). The dropdown
@@ -72,9 +112,11 @@ export function MarketPanel() {
     })).filter((group) => group.markets.length > 0);
   }, [listed, now]);
 
-  const statusLine = (market: Market) => {
-    const left = marketStatus(market, now) === 'trading' ? closesIn(market.resolveAfter, now) : null;
-    return left ? `Trading · closes in ${left}` : statusLabel(market, now);
+  /** An expiry's line beside its date: time left while it trades. */
+  const expiryNote = (term: Term, market: Market) => {
+    if (term === 'settled' || term === 'awaiting') return null;
+    const left = closesIn(market.resolveAfter, now);
+    return left ? `Closes in ${left}` : null;
   };
 
   return (
@@ -88,14 +130,14 @@ export function MarketPanel() {
           value={selected?.address ?? ''}
         >
           {groups ? (
-            // Name only: the selected market's status is on the
-            // instrument bar's chip just above, and a status suffix
-            // would be cut off at phone width.
+            // Instrument only: the selected market's prices and status
+            // are on the instrument bar just above, and a suffix would be
+            // cut off at phone width.
             groups.map((group) => (
               <optgroup key={group.term} label={TERM_LABELS[group.term]}>
                 {group.markets.map((market) => (
                   <option key={market.address} value={market.address}>
-                    {marketName(market)}
+                    {contractLabel(market)}
                   </option>
                 ))}
               </optgroup>
@@ -113,54 +155,71 @@ export function MarketPanel() {
         </div>
         {groups ? (
           <div className="max-h-[640px] overflow-y-auto">
-            {groups.map((group) => (
-              <section aria-label={TERM_LABELS[group.term]} key={group.term}>
-                <h3 className="px-3 pt-3 pb-1 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                  {TERM_LABELS[group.term]}
-                </h3>
-                <ul className="divide-y divide-border">
-                  {group.markets.map((market) => {
-                    const active = market.address === selected?.address;
-                    const status = marketStatus(market, now);
-                    const price = market.live?.priceE18;
+            {groups.map((group) => {
+              const settledGroup = group.term === 'settled';
+              return (
+                <section aria-label={TERM_LABELS[group.term]} key={group.term}>
+                  <h3 className="px-3 pt-3 pb-1 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                    {TERM_LABELS[group.term]}
+                  </h3>
+                  {byExpiry(group.markets).map((expiry) => {
+                    const note = expiryNote(group.term, expiry.markets[0]);
                     return (
-                      <li key={market.address}>
-                        <button
-                          aria-pressed={active}
+                      <div className="pb-1" key={expiry.dayKey}>
+                        <div className="flex items-baseline justify-between gap-2 px-3 pt-2 font-mono text-[11px] whitespace-nowrap tabular-nums">
+                          <span className="text-foreground">{expiryLabel(expiry.dayKey)}</span>
+                          {note && <span className="text-muted-foreground">{note}</span>}
+                        </div>
+                        <div
+                          aria-hidden="true"
                           className={cn(
-                            'block w-full border-l-2 py-3 pr-2.5 pl-3 text-left',
-                            PRESSABLE,
-                            active ? 'border-foreground bg-accent/50' : 'border-transparent hover:bg-accent/25',
+                            CHAIN_ROW,
+                            'border-b border-border px-3 pt-1 pb-1 font-mono text-[10px] whitespace-nowrap uppercase tracking-[0.06em] text-muted-foreground',
                           )}
-                          onClick={() => select(market.address)}
-                          type="button"
                         >
-                          <span className="flex items-start justify-between gap-2">
-                            <span className="line-clamp-2 text-[13px] leading-snug font-medium text-foreground">
-                              {marketName(market)}
-                            </span>
-                            <span className="flex shrink-0 flex-col items-end leading-snug tabular-nums">
-                              <RowQuote market={market} status={status} />
-                            </span>
-                          </span>
-                          {/* The bar only while the price still means
-                              something: trading, or not yet read. */}
-                          {(status === 'trading' || status === undefined) && (
-                            <SplitBar
-                              className="mt-2"
-                              yesPercent={status === 'trading' && price !== undefined ? Number(price) / 1e16 : undefined}
-                            />
-                          )}
-                          <span className="mt-1.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
-                            {statusLine(market)}
-                          </span>
-                        </button>
-                      </li>
+                          <span>Strike</span>
+                          <span className="text-right">{settledGroup ? 'Long paid' : 'Long'}</span>
+                          <span className="text-right">{settledGroup ? 'Short paid' : 'Short'}</span>
+                        </div>
+                        <ul className="divide-y divide-border">
+                          {expiry.markets.map((market) => {
+                            const active = market.address === selected?.address;
+                            const status = marketStatus(market, now);
+                            return (
+                              <li key={market.address}>
+                                <button
+                                  aria-pressed={active}
+                                  className={cn(
+                                    CHAIN_ROW,
+                                    'w-full border-l-2 py-2 pr-3 pl-2.5 text-left tabular-nums',
+                                    PRESSABLE,
+                                    active ? 'border-foreground bg-accent/50' : 'border-transparent hover:bg-accent/25',
+                                  )}
+                                  onClick={() => select(market.address)}
+                                  type="button"
+                                >
+                                  <span className="font-mono text-[13px] font-medium text-foreground">
+                                    <span className="sr-only">{contractLabel(market)}: </span>
+                                    {strikeLabel(market)}
+                                    {status === 'cancelled' && (
+                                      <span className="block text-[10px] font-normal text-muted-foreground">
+                                        Cancelled
+                                      </span>
+                                    )}
+                                  </span>
+                                  <ChainPrice market={market} side="YES" status={status} />
+                                  <ChainPrice market={market} side="NO" status={status} />
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
                     );
                   })}
-                </ul>
-              </section>
-            ))}
+                </section>
+              );
+            })}
           </div>
         ) : (
           <p className="px-3 py-3 text-xs leading-5 text-muted-foreground">{emptyText}</p>

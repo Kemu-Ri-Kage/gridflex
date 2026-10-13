@@ -5,8 +5,17 @@ import Link from 'next/link';
 
 import { closesIn } from '@/lib/closes-in';
 import { byTerm, TERM_LABELS, termOf, type Term } from '@/lib/market-term';
-import { formatCentsE18 } from '@/lib/format';
-import { dayLabel, marketName, marketStatus, shownYesPriceE18, statusLabel, strikeLabel, type Market } from '@/lib/markets';
+import { formatDollarsShort } from '@/lib/format';
+import {
+  dayLabel,
+  instrumentCode,
+  instrumentName,
+  marketStatus,
+  payLine,
+  shownYesPriceE18,
+  statusLabel,
+  type Market,
+} from '@/lib/markets';
 
 const ONE_E18 = 10n ** 18n;
 /** How far a card leans toward the pointer, degrees. */
@@ -17,16 +26,17 @@ function prefersReducedMotion(): boolean {
 }
 
 /**
- * One listed question as a card you can hold: its status and time left to
- * trade, the question, what it settles on, and YES and NO in cents from the
- * contract. It leans toward the pointer (transform only, design-brief.md
- * §13) and opens the terminal on that market.
+ * One listed contract as a card you can hold: its status and time left to
+ * trade, the instrument's name and code, its payout rule, and the Long and
+ * Short price per contract from the chain. It leans toward the pointer
+ * (transform only, design-brief.md §13) and opens the terminal on that
+ * market.
  */
 function ContractCard({ market, now, term }: { market: Market; now: number; term: Term }) {
   const ref = React.useRef<HTMLAnchorElement | null>(null);
   const status = marketStatus(market, now);
   const left = status === 'trading' ? closesIn(market.resolveAfter, now) : null;
-  // Trading: the pool's price. Settled: what each side pays out per token,
+  // Trading: the pool's price. Settled: what each side paid per contract,
   // since the pool's last price no longer means anything.
   const price = market.live ? shownYesPriceE18(market.live) : undefined;
   const settled = status === 'resolved' || status === 'cancelled';
@@ -59,24 +69,25 @@ function ContractCard({ market, now, term }: { market: Market; now: number; term
           </span>
           {left && <span className="tabular-nums text-muted-foreground">Closes in {left}</span>}
         </div>
-        <p className="mt-5 text-xl font-semibold leading-snug tracking-tight text-foreground">{marketName(market)}</p>
-        <p className="mt-2 font-mono text-xs text-muted-foreground">
-          Strike {strikeLabel(market)} · settles on {dayLabel(market.dayKey, true)}
+        <p className="mt-5 text-xl font-semibold leading-snug tracking-tight text-foreground">{instrumentName(market)}</p>
+        <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          {instrumentCode(market)}
         </p>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">{payLine(market)}</p>
       </div>
       <div className="flex items-end justify-between gap-4">
         <div className="flex gap-6 font-mono tabular-nums">
           <div>
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-              {settled ? 'YES paid' : 'YES'}
+              {settled ? 'Long paid' : 'Long'}
             </div>
-            <div className="mt-1 text-2xl text-up">{price === undefined ? '—' : formatCentsE18(price)}</div>
+            <div className="mt-1 text-2xl text-up">{price === undefined ? '—' : formatDollarsShort(price)}</div>
           </div>
           <div>
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-              {settled ? 'NO paid' : 'NO'}
+              {settled ? 'Short paid' : 'Short'}
             </div>
-            <div className="mt-1 text-2xl text-down">{price === undefined ? '—' : formatCentsE18(ONE_E18 - price)}</div>
+            <div className="mt-1 text-2xl text-down">{price === undefined ? '—' : formatDollarsShort(ONE_E18 - price)}</div>
           </div>
         </div>
         <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground transition-colors duration-200 group-hover:text-foreground">
@@ -91,9 +102,9 @@ function ContractCard({ market, now, term }: { market: Market; now: number; term
 const TRADING_CARDS = 5;
 
 /**
- * The questions that settle soonest, by maturity (lib/market-term.ts), and
+ * The contracts that settle soonest, by maturity (lib/market-term.ts), and
  * the latest settled one to show what settling looks like, as cards on a
- * hairline grid; the full ladder is one link away in the terminal.
+ * hairline grid; the full chain is one link away in the terminal.
  */
 export function ContractCards({ markets, now }: { markets: Market[]; now: number }) {
   const { shown, rest } = React.useMemo(() => {
@@ -124,7 +135,7 @@ export function ContractCards({ markets, now }: { markets: Market[]; now: number
           className="mt-4 inline-block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground transition-colors duration-200 hover:text-foreground"
           href="/trade"
         >
-          {rest} more {rest === 1 ? 'market' : 'markets'}, every day to {lastDay(markets)}, in the terminal →
+          {rest} more {rest === 1 ? 'contract' : 'contracts'}, every day to {lastDay(markets)}, in the terminal →
         </Link>
       )}
     </div>

@@ -16,8 +16,8 @@ export function OpenTerminal() {
         <Reveal>
           <SectionHeading index="04" title="Open terminal" />
           {markets && markets.length > 0 ? (
-            // Every listed question, each named and priced from its own
-            // contract (design-brief.md §6), one click into the terminal.
+            // Listed contracts, each named and priced from its own
+            // contract state (design-brief.md §6), one click into the terminal.
             <ContractCards markets={markets} now={now} />
           ) : (
             <p className="text-lg leading-8 text-muted-foreground">
@@ -26,7 +26,7 @@ export function OpenTerminal() {
           )}
           <div className="mt-10 flex flex-wrap items-center justify-between gap-6">
             <p className="max-w-xl text-lg leading-8 text-muted-foreground">
-              Buy YES or NO at any size, switch sides before trading closes, and redeem at settlement, on X Layer testnet.
+              Go Long or Short at any size, switch sides before trading closes, and redeem at settlement, on X Layer testnet.
             </p>
             <Link
               className="shrink-0 border border-foreground bg-foreground px-8 py-4 font-mono text-sm uppercase tracking-[0.12em] text-background transition-opacity duration-200 hover:opacity-80 active:opacity-60"

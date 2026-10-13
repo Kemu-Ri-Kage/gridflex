@@ -7,12 +7,14 @@ import {
   paysLabel,
   type PositionSummary as Summary,
 } from '@/lib/position-summary';
+import { sideLabel } from '@/lib/sides';
 import { cn } from '@/lib/utils';
 
 /**
  * The wallet's position on the selected market, as the ticket states it:
- * what each part pays, and the only ways out. Matched YES + NO pairs are
- * netted, so a wallet holding both sides reads as pairs plus one net side.
+ * what each part pays, and the only ways out. Matched Long + Short pairs
+ * are netted, so a wallet holding both sides reads as pairs plus one net
+ * side.
  * The net side leads as one large figure that ticks when a trade moves it.
  * Labels and numbers only (design-brief.md §5).
  */
@@ -28,17 +30,17 @@ export function PositionSummary({
   onSwitch: () => void;
 }) {
   const { pairs, net } = summary;
-  // With YES equal to NO there is no net side; the pairs lead instead.
+  // With Long equal to Short there is no net side; the pairs lead instead.
   const lead = net
     ? {
         amount: net.amount,
-        unit: net.side,
+        unit: sideLabel(net.side),
         detail: paysLabel(net.side, net.amount, strike),
         tone: net.side === 'YES' ? 'text-up' : 'text-down',
       }
     : {
         amount: pairs,
-        unit: 'YES + NO',
+        unit: 'Long + Short',
         detail: pairsLabel(pairs),
         tone: 'text-foreground',
       };

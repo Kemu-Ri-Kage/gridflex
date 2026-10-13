@@ -8,7 +8,7 @@ import { CtaArrow, ctaClass, PRESSABLE, QUIET_BUTTON } from '@/components/termin
 import { useWeb3 } from '@/components/web3-provider';
 import { formatToken, formatTokenExact } from '@/lib/format';
 import {
-  marketName,
+  contractLabel,
   marketStatus,
   statusLabel,
   useHoldings,
@@ -197,9 +197,10 @@ function valueText(row: { value?: bigint; basis?: string }): string {
 }
 
 /**
- * The connected wallet's YES and NO on every listed market, with what each
- * is worth and what redeem() would pay now. Clicking a question selects
- * that market; Redeem and Redeem all send one wallet prompt per market.
+ * The connected wallet's Long and Short contracts on every listed market,
+ * with what each is worth and what redeem() would pay now. Clicking a
+ * contract selects that market; Redeem and Redeem all send one wallet
+ * prompt per market.
  */
 export function PortfolioTab() {
   const { account, pendingAction, error: walletError } = useWeb3();
@@ -244,7 +245,7 @@ export function PortfolioTab() {
     const status = statuses[row.address];
     return {
       row,
-      question: market ? marketName(market) : row.address,
+      contract: market ? contractLabel(market) : row.address,
       marketStatus: (market && statusLabel(market, now)) ?? '—',
       yes: quantity(row.yes),
       no: quantity(row.no),
@@ -278,13 +279,13 @@ export function PortfolioTab() {
         ) : null,
     };
   });
-  const questionButton = (address: string, question: string) => (
+  const contractButton = (address: string, contract: string) => (
     <button
       className="text-left text-foreground underline-offset-2 hover:underline"
       onClick={() => select(address as Address)}
       type="button"
     >
-      {question}
+      {contract}
     </button>
   );
 
@@ -292,7 +293,7 @@ export function PortfolioTab() {
     <div className="space-y-3 p-4 sm:p-6">
       {rows.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No YES or NO held on any market.
+          No Long or Short positions on any market.
         </p>
       ) : (
         <>
@@ -320,13 +321,13 @@ export function PortfolioTab() {
                 className="space-y-2 rounded-[2px] border border-border bg-card px-3 py-2.5 text-xs"
                 key={cell.row.address}
               >
-                {questionButton(cell.row.address, cell.question)}
+                {contractButton(cell.row.address, cell.contract)}
                 <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 font-mono tabular-nums">
                 <dt className="text-muted-foreground">Status</dt>
                 <dd className="text-right text-foreground">{cell.marketStatus}</dd>
-                <dt className="text-up">YES</dt>
+                <dt className="text-up">Long</dt>
                 <dd className="text-right text-foreground">{cell.yes}</dd>
-                <dt className="text-down">NO</dt>
+                <dt className="text-down">Short</dt>
                 <dd className="text-right text-foreground">{cell.no}</dd>
                 <dt className="text-muted-foreground">Value</dt>
                 <dd className="text-right text-foreground">{cell.value}</dd>
@@ -353,8 +354,8 @@ export function PortfolioTab() {
               <tr className="border-b border-border">
                 <th className={`${HEAD_CELL} pr-4`}>Market</th>
                 <th className={`${HEAD_CELL} pr-4`}>Status</th>
-                <th className={`${HEAD_CELL} pr-4 text-right text-up`}>YES</th>
-                <th className={`${HEAD_CELL} pr-4 text-right text-down`}>NO</th>
+                <th className={`${HEAD_CELL} pr-4 text-right text-up`}>Long</th>
+                <th className={`${HEAD_CELL} pr-4 text-right text-down`}>Short</th>
                 <th className={`${HEAD_CELL} pr-4 text-right`}>Value</th>
                 <th className={`${HEAD_CELL} pr-4 text-right`}>Redeemable</th>
                 <th className={HEAD_CELL}>
@@ -366,7 +367,7 @@ export function PortfolioTab() {
               {cells.map((cell) => (
                 <tr className={ROW} key={cell.row.address}>
                   <td className="py-2 pr-4 font-sans">
-                    {questionButton(cell.row.address, cell.question)}
+                    {contractButton(cell.row.address, cell.contract)}
                   </td>
                   <td className="py-2 pr-4 whitespace-nowrap">
                     {cell.marketStatus}
@@ -418,8 +419,8 @@ export function PortfolioTab() {
         )}
         {rows.length > 0 && (
           <p>
-            A settled market shows its payout: 1 mUSDT per winning token, 0.5
-            per token if cancelled.
+            A settled contract shows its payout: 1 mUSDT per contract on the
+            side that paid, 0.5 per contract if cancelled.
           </p>
         )}
       </div>

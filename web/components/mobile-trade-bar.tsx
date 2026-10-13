@@ -10,7 +10,7 @@ import {
   Ticker,
 } from '@/components/terminal-ui';
 import { useWeb3 } from '@/components/web3-provider';
-import { formatCentsShort } from '@/lib/format';
+import { formatDollarsShort } from '@/lib/format';
 import { dayLabel, shownYesPriceE18, strikeLabel, useMarkets } from '@/lib/markets';
 import { ticketState } from '@/lib/ticket-state';
 import { cn } from '@/lib/utils';
@@ -23,10 +23,10 @@ const E18 = 10n ** 18n;
 /**
  * Below `lg` the order ticket sits under the market list and the chart, a
  * long scroll away. While it is out of view this bar keeps the selected
- * market's YES and NO prices at the foot of the screen, with a button
- * that scrolls to the ticket; it hides once the ticket is in view, and
- * never trades itself. The prices tick as the pool moves, and YES's share
- * edges the bar's top as the instrument bar's two-colour split. Once
+ * contract's Long and Short prices at the foot of the screen, with a
+ * button that scrolls to the ticket; it hides once the ticket is in view,
+ * and never trades itself. The prices tick as the pool moves, and Long's
+ * share edges the bar's top as the instrument bar's two-colour split. Once
  * trading has closed the button reads View, and a settled market shows
  * what each side paid, as the landing cards do.
  */
@@ -59,10 +59,16 @@ export function MobileTradeBar() {
 
   return (
     <>
-      {/* Room at the foot of the page, so the bar never covers its end. */}
+      {/* Room at the foot of the page, so the bar never covers its end;
+          a settled market's bar is a line taller (labels over prices). */}
       <div
         aria-hidden="true"
-        className="h-[calc(3.75rem_+_max(0.5rem,env(safe-area-inset-bottom)))] lg:hidden"
+        className={cn(
+          settled
+            ? 'h-[calc(4.5rem_+_max(0.5rem,env(safe-area-inset-bottom)))]'
+            : 'h-[calc(3.75rem_+_max(0.5rem,env(safe-area-inset-bottom)))]',
+          'lg:hidden',
+        )}
       />
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pt-3 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] lg:hidden">
         <SplitBar
@@ -72,27 +78,30 @@ export function MobileTradeBar() {
         <div className="flex items-center gap-4">
           <div className="min-w-0 flex-1 font-mono">
             <div className="truncate text-xs text-muted-foreground">
-              Strike {strikeLabel(selected)} · {dayLabel(selected.dayKey)}
+              {strikeLabel(selected)} strike · {dayLabel(selected.dayKey)}
             </div>
+            {/* "Long paid" / "Short paid" are too wide to sit beside their
+                prices at phone width next to the button, so once settled
+                each label sits over its price. */}
             <div className="mt-1.5 flex items-baseline gap-5 tabular-nums">
-              <span className="flex items-baseline gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                  {settled ? 'YES paid' : 'YES'}
+              <span className={settled ? 'flex flex-col gap-1' : 'flex items-baseline gap-1.5'}>
+                <span className="text-[11px] leading-none whitespace-nowrap uppercase tracking-[0.14em] text-muted-foreground">
+                  {settled ? 'Long paid' : 'Long'}
                 </span>
                 <Ticker
                   className="text-xl leading-none text-up"
                   numeric={ready ? Number(yesPriceE18) : undefined}
-                  value={ready ? formatCentsShort(yesPriceE18) : '—'}
+                  value={ready ? formatDollarsShort(yesPriceE18) : '—'}
                 />
               </span>
-              <span className="flex items-baseline gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                  {settled ? 'NO paid' : 'NO'}
+              <span className={settled ? 'flex flex-col gap-1' : 'flex items-baseline gap-1.5'}>
+                <span className="text-[11px] leading-none whitespace-nowrap uppercase tracking-[0.14em] text-muted-foreground">
+                  {settled ? 'Short paid' : 'Short'}
                 </span>
                 <Ticker
                   className="text-xl leading-none text-down"
                   numeric={ready ? Number(noPriceE18) : undefined}
-                  value={ready ? formatCentsShort(noPriceE18) : '—'}
+                  value={ready ? formatDollarsShort(noPriceE18) : '—'}
                 />
               </span>
             </div>

@@ -3,8 +3,8 @@ import { test } from 'node:test';
 
 import {
   formatBlockTime,
-  formatCentsE18,
-  formatCentsShort,
+  formatDollarsE18,
+  formatDollarsShort,
   formatSignedPercent,
   formatSignedToken,
   formatTokenExact,
@@ -47,10 +47,11 @@ void test('formatUpdated: missing or unparseable input gives null', () => {
   assert.equal(formatUpdated('not a date'), null);
 });
 
-void test('formatCentsE18 shows a token price in cents', () => {
-  assert.equal(formatCentsE18(500_250_000_000_000_000n), '50.0¢');
-  assert.equal(formatCentsE18(10n ** 18n), '100.0¢');
-  assert.equal(formatCentsE18(0n), '0.0¢');
+void test('formatDollarsE18 shows a contract price in dollars to a tenth of a cent', () => {
+  assert.equal(formatDollarsE18(500_250_000_000_000_000n), '$0.500');
+  assert.equal(formatDollarsE18(523_400_000_000_000_000n), '$0.523');
+  assert.equal(formatDollarsE18(10n ** 18n), '$1.000');
+  assert.equal(formatDollarsE18(0n), '$0.000');
 });
 
 void test('formatSignedToken always shows the sign of a P&L', () => {
@@ -85,11 +86,12 @@ void test('formatBlockTime: a block time in UTC', () => {
   assert.equal(formatBlockTime(1790116275), '22 Sep 2026, 22:31 UTC');
 });
 
-void test('formatCentsShort rounds to whole cents but keeps a decimal near 0 and 100', () => {
-  assert.equal(formatCentsShort(523_400_000_000_000_000n), '52¢');
-  assert.equal(formatCentsShort(500_000_000_000_000_000n), '50¢');
-  assert.equal(formatCentsShort(4_000_000_000_000_000n), '0.4¢');
-  assert.equal(formatCentsShort(996_000_000_000_000_000n), '99.6¢');
-  assert.equal(formatCentsShort(0n), '0¢');
-  assert.equal(formatCentsShort(10n ** 18n), '100¢');
+void test('formatDollarsShort rounds to the cent but keeps a third decimal near $0 and $1', () => {
+  assert.equal(formatDollarsShort(523_400_000_000_000_000n), '$0.52');
+  assert.equal(formatDollarsShort(500_000_000_000_000_000n), '$0.50');
+  assert.equal(formatDollarsShort(4_000_000_000_000_000n), '$0.004');
+  assert.equal(formatDollarsShort(996_000_000_000_000_000n), '$0.996');
+  assert.equal(formatDollarsShort(999_900_000_000_000_000n), '$0.999');
+  assert.equal(formatDollarsShort(0n), '$0.00');
+  assert.equal(formatDollarsShort(10n ** 18n), '$1.00');
 });

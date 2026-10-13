@@ -16,14 +16,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'GRIDFLEX — Will Texas power cost more?',
+  title: 'GRIDFLEX — Texas power derivatives',
   description:
-    'YES/NO questions on the Texas power price, settled against prices published onchain with a hash of their source.',
+    'On-chain energy derivatives, no broker: cash-settled digital options on the Texas power price, hedged from a wallet and settled against prices published onchain with a hash of their source.',
   // A text-only link card for X and Telegram (no image: GRIDFLEX has no logo).
   openGraph: {
-    title: 'GRIDFLEX — Will Texas power cost more?',
+    title: 'GRIDFLEX — Texas power derivatives',
     description:
-      'YES/NO questions on the Texas power price, settled on X Layer against prices published onchain with a hash of their source.',
+      'On-chain energy derivatives, no broker: cash-settled digital options on the Texas power price, settled on X Layer against prices published onchain with a hash of their source.',
     url: 'https://gridflex-web.teslenko-platon.workers.dev',
     siteName: 'GRIDFLEX',
     type: 'website',

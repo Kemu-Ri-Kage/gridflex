@@ -1,9 +1,10 @@
 import { formatToken } from './format.ts';
+import { sideLabel } from './sides.ts';
 
 /**
  * A wallet's holding on one market as the order ticket states it: matched
- * YES + NO pairs (each pays 1 mUSDT at settlement whichever side wins) and
- * the net side left over. BinaryMarket has no exit into mUSDT before
+ * Long + Short pairs (YES + NO tokens; each pair pays 1 mUSDT at
+ * settlement whichever side pays) and the net side left over. BinaryMarket has no exit into mUSDT before
  * settlement, so buying the other side never closes a position; it only
  * adds pairs. Kept free of React for the node tests.
  */
@@ -34,15 +35,15 @@ export function positionSummary(
   return { yes, no, pairs, net };
 }
 
-/** "Pays 192 mUSDT if above $45 · else 0"; YES wins only strictly above the strike. */
+/** "Pays 192 mUSDT if above $45 · else 0"; Long (YES) pays only strictly above the strike. */
 export function paysLabel(side: Side, amount: bigint, strike: string): string {
   const condition = side === 'YES' ? `above ${strike}` : `${strike} or below`;
   return `Pays ${formatToken(amount)} mUSDT if ${condition} · else 0`;
 }
 
-/** "150 mUSDT at settlement, either outcome". */
+/** "150 mUSDT at settlement, either way". */
 export function pairsLabel(pairs: bigint): string {
-  return `${formatToken(pairs)} mUSDT at settlement, either outcome`;
+  return `${formatToken(pairs)} mUSDT at settlement, either way`;
 }
 
 /**
@@ -55,5 +56,5 @@ export function oppositeBuyWarning(
 ): string | undefined {
   const net = summary?.net;
   if (!net || net.side === buying) return undefined;
-  return `Opens ${buying} beside your ${formatToken(net.amount)} ${net.side}; doesn't sell it.`;
+  return `Opens ${sideLabel(buying)} beside your ${formatToken(net.amount)} ${sideLabel(net.side)}; doesn't close it.`;
 }

@@ -1,8 +1,10 @@
 import { formatSignedToken, formatToken } from './format.ts';
+import { sideLabel } from './sides.ts';
 
 /**
  * The order ticket's plain-money figures, from numbers it already holds:
- * what a buy pays and returns. No React, so they are tested directly.
+ * a buy's premium (what it costs), its max payout and its max loss. No
+ * React, so they are tested directly.
  */
 
 export interface PayoutInput {
@@ -18,7 +20,7 @@ export interface PayoutInput {
   quoteUnavailable: boolean;
 }
 
-/** A quoted buy in 6-decimal mUSDT units: paid, received if its side wins, and the difference. */
+/** A quoted buy in 6-decimal mUSDT units: premium paid, max payout if its side pays, and the difference. */
 export interface QuoteFigures {
   kind: 'quote';
   pay: bigint;
@@ -34,17 +36,17 @@ function message(text: string): PayoutFigures {
 }
 
 /**
- * What a buy pays and returns, as figures the ticket lays out itself. Each
- * YES or NO pays 1 mUSDT if its side wins and nothing if it loses, so the
- * tokens bought are the payout and the whole amount paid is the most that
- * can be lost. Without a quote, a valid amount or open trading it returns
- * the message instead and promises nothing.
+ * What a buy costs and returns, as figures the ticket lays out itself.
+ * Each Long or Short contract pays 1 mUSDT if its side pays at settlement
+ * and nothing otherwise, so the contracts bought are the max payout and the
+ * whole premium is the max loss. Without a quote, a valid amount or open
+ * trading it returns the message instead and promises nothing.
  */
 export function payoutFigures(input: PayoutInput): PayoutFigures {
   if (!input.ready) return message('—');
   if (!input.tradingOpen) return message('Trading closed.');
   if (input.units === undefined) return message('Enter an amount in mUSDT.');
-  const pay = `Pay ${formatToken(input.units)} mUSDT`;
+  const pay = `Premium ${formatToken(input.units)} mUSDT`;
   if (input.quoteUnavailable) return message(`${pay} → no live quote`);
   if (input.totalOut === undefined) return message(`${pay} → quoting…`);
   return {
@@ -56,14 +58,14 @@ export function payoutFigures(input: PayoutInput): PayoutFigures {
 }
 
 /**
- * payoutFigures as one line, e.g. "Pay 100 mUSDT → receive 190.45 mUSDT
- * if YES wins (+90.45). Max loss 100 mUSDT."
+ * payoutFigures as one line, e.g. "Premium 100 mUSDT → max payout 190.45
+ * mUSDT if Long pays (+90.45). Max loss 100 mUSDT."
  */
 export function payoutLine(input: PayoutInput): string {
   const figures = payoutFigures(input);
   if (figures.kind === 'message') return figures.text;
   return (
-    `Pay ${formatToken(figures.pay)} mUSDT → receive ${formatToken(figures.receive)} mUSDT if ${input.side} wins ` +
+    `Premium ${formatToken(figures.pay)} mUSDT → max payout ${formatToken(figures.receive)} mUSDT if ${sideLabel(input.side)} pays ` +
     `(${formatSignedToken(figures.gain)}). Max loss ${formatToken(figures.pay)} mUSDT.`
   );
 }

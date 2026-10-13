@@ -68,6 +68,7 @@ export {
   marketStatus,
   metricShortName,
   payLine,
+  shownYesPriceE18,
   statusLabel,
   strikeLabel,
 } from '@/lib/market-facts';

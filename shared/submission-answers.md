@@ -17,7 +17,7 @@ yours to fill.
 | Team Display Picture | `shared/video/gridflex-avatar.png` (1024×1024, 0.9 MB) |
 | Project Name | **GRIDFLEX** |
 | Project Summary | The three points below |
-| Repository Link | `https://github.com/Kemu-Ri-Kage/gridflex` once `main` is updated. Until then `https://github.com/Kemu-Ri-Kage/gridflex/tree/feat/judging-sprint`: `main` is 120 commits behind and has the old README. |
+| Repository Link | `https://github.com/Kemu-Ri-Kage/gridflex`. `main` is updated from `https://github.com/Kemu-Ri-Kage/gridflex/tree/feat/judging-sprint`; check the branch for the latest. |
 | Demo Video | *the YouTube link* (Public or Unlisted) |
 | Product Link | `https://gridflex-web.teslenko-platon.workers.dev` |
 | New project? | **Yes, new project** (first commit 9 September 2026) |
@@ -36,7 +36,7 @@ yours to fill.
    wind and solar farms, who take the other side; traders; and AI agents
    that need the price.
 3. **Core integration.** X Layer: the `GridOracle`, `MarketFactory` and
-   `BinaryMarket` contracts on X Layer testnet, with 17 markets, and every
+   `BinaryMarket` contracts on X Layer testnet, with 51 markets, and every
    trade, resolve and redeem an X Layer transaction; OKX Wallet first. OKX
    AI: registered as agent #13881 with three A2MCP services (price,
    markets, hedge quote), with OKX's x402 Payment SDK built in (free on
@@ -46,7 +46,8 @@ yours to fill.
 
 Project summary in three lengths, written in the design brief's plain-language
 dictionary (`shared/design-brief.md` §5). Every fact matches
-`README.md` and `shared/addresses.json` as of 23 September 2026. Cashing out
+`README.md` and `shared/addresses.json` as of 23 September 2026, except the
+market counts, updated 13 October 2026. Cashing out
 before settlement, automated orders and dated futures don't exist yet and
 appear only as roadmap.
 
@@ -69,7 +70,7 @@ X Layer testnet carries the whole settlement path. `GridOracle` stores one
 reading per day; `MarketFactory` creates each market; `BinaryMarket` holds
 fully collateralised YES and NO tokens (`OutcomeToken`), lets a wallet Buy
 YES, Buy NO or switch sides, and resolves against the oracle's reading.
-Seventeen markets exist: fifteen trading, a daily ladder from 26 Sep to 2 Oct, and two resolved. A Hedge tab sizes a ladder
+Fifty-one markets exist: a daily ladder that settles each day, now running to 20 Oct; the site shows where each one stands. A Hedge tab sizes a ladder
 of YES tokens for a power bill in megawatts, and a price API serves the
 verified price and hedge quotes to AI agents, registered on OKX.AI as agent
 #13881 (free today; $0.01 a call in USDT0 on X Layer through x402 once

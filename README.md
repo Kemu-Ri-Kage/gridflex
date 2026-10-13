@@ -79,7 +79,7 @@ with blocks and raw values, is in
 
 ### Every market
 
-The factory has created thirty markets (`marketCount()` reads `30`).
+The factory has created fifty-one markets (`marketCount()` reads `51`).
 
 The first seventeen have all settled: a ladder of next-day strikes from 26 Sep
 to 2 Oct 2026, each resolved against the price published to the oracle for
@@ -105,9 +105,10 @@ its day, and two earlier demonstrations.
 | Will Texas power cost more than $30 on 8 Sep 2026? | $39.57/MWh | **YES** | [`0x1b89e1dC…B8c1`](https://www.oklink.com/x-layer-testnet/address/0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1) |
 | Will West Texas power cost more than North Texas power on 12 Aug 2026? | −$10.32/MWh | **NO** | [`0x62D65F4e…BE07`](https://www.oklink.com/x-layer-testnet/address/0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07) |
 
-The other thirteen run from 8 to 12 Oct: $35 on 8 Oct, and $35, $40 and $45
-on each day from 9 to 12 Oct. Each trades until 12:30 Texas time the
-day before and settles the same way; the terminal and
+The other thirty-four run from 8 to 20 Oct: $35 on 8 Oct; $35, $40 and $45
+on each day from 9 to 12 Oct; and $30, $40 and $50 on each day from 14 to
+20 Oct. Each trades until 12:30 Texas time the day before and settles the
+same way (8 and 9 Oct settled YES); the terminal and
 [`/api/v1/markets?status=all`](https://gridflex-web.teslenko-platon.workers.dev/api/v1/markets?status=all)
 show where each one stands.
 
@@ -180,13 +181,13 @@ on X Layer testnet. Full reference: [`shared/price-api.md`](shared/price-api.md)
 
 ### Tests
 
-**650 automated tests, all passing** on 24 September 2026:
+**677 automated tests, all passing** on 13 October 2026:
 
 | Suite | Tests | Run it |
 |---|---|---|
-| Data pipeline, publisher, finalizer (Python) | 317 | `python3 -m unittest discover -s tests` |
+| Data pipeline, publisher, finalizer (Python) | 337 | `python3 -m unittest discover -s tests` |
 | Contracts (Solidity, Foundry) | 54 | `cd contracts && forge test` |
-| Web app logic and price API (TypeScript) | 279 | `cd web && node --test lib/*.test.ts` |
+| Web app logic and price API (TypeScript) | 286 | `cd web && node --test lib/*.test.ts` |
 
 `./scripts/check_all.sh` runs all three plus data validation, lint and the
 production build.

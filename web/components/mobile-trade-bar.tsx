@@ -11,7 +11,7 @@ import {
 } from '@/components/terminal-ui';
 import { useWeb3 } from '@/components/web3-provider';
 import { formatCentsShort } from '@/lib/format';
-import { dayLabel, strikeLabel, useMarkets } from '@/lib/markets';
+import { dayLabel, shownYesPriceE18, strikeLabel, useMarkets } from '@/lib/markets';
 import { ticketState } from '@/lib/ticket-state';
 import { cn } from '@/lib/utils';
 
@@ -26,7 +26,9 @@ const E18 = 10n ** 18n;
  * market's YES and NO prices at the foot of the screen, with a button
  * that scrolls to the ticket; it hides once the ticket is in view, and
  * never trades itself. The prices tick as the pool moves, and YES's share
- * edges the bar's top as the instrument bar's two-colour split.
+ * edges the bar's top as the instrument bar's two-colour split. Once
+ * trading has closed the button reads View, and a settled market shows
+ * what each side paid, as the landing cards do.
  */
 export function MobileTradeBar() {
   const { selected, now } = useMarkets();
@@ -45,8 +47,9 @@ export function MobileTradeBar() {
 
   if (!selected || ticketInView) return null;
 
-  const { ready } = ticketState(snapshot, market, Math.floor(now / 1000));
-  const noPriceE18 = E18 - snapshot.priceE18;
+  const { ready, settled, tradingOpen } = ticketState(snapshot, market, Math.floor(now / 1000));
+  const yesPriceE18 = shownYesPriceE18(snapshot);
+  const noPriceE18 = E18 - yesPriceE18;
   const toTicket = () => {
     document.getElementById(ORDER_COLUMN_ID)?.scrollIntoView({
       behavior: prefersReducedMotion() ? 'auto' : 'smooth',
@@ -64,7 +67,7 @@ export function MobileTradeBar() {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pt-3 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] lg:hidden">
         <SplitBar
           className="absolute inset-x-0 top-0 rounded-none"
-          yesPercent={ready ? Number(snapshot.priceE18) / 1e16 : undefined}
+          yesPercent={ready && tradingOpen ? Number(yesPriceE18) / 1e16 : undefined}
         />
         <div className="flex items-center gap-4">
           <div className="min-w-0 flex-1 font-mono">
@@ -73,15 +76,19 @@ export function MobileTradeBar() {
             </div>
             <div className="mt-1.5 flex items-baseline gap-5 tabular-nums">
               <span className="flex items-baseline gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">YES</span>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                  {settled ? 'YES paid' : 'YES'}
+                </span>
                 <Ticker
                   className="text-xl leading-none text-up"
-                  numeric={ready ? Number(snapshot.priceE18) : undefined}
-                  value={ready ? formatCentsShort(snapshot.priceE18) : '—'}
+                  numeric={ready ? Number(yesPriceE18) : undefined}
+                  value={ready ? formatCentsShort(yesPriceE18) : '—'}
                 />
               </span>
               <span className="flex items-baseline gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">NO</span>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                  {settled ? 'NO paid' : 'NO'}
+                </span>
                 <Ticker
                   className="text-xl leading-none text-down"
                   numeric={ready ? Number(noPriceE18) : undefined}
@@ -95,7 +102,7 @@ export function MobileTradeBar() {
             onClick={toTicket}
             type="button"
           >
-            Trade
+            {ready && !tradingOpen ? 'View' : 'Trade'}
             <CtaArrow />
           </button>
         </div>

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { closesIn } from '@/lib/closes-in';
 import { byTerm, TERM_LABELS, termOf, type Term } from '@/lib/market-term';
 import { formatCentsE18 } from '@/lib/format';
-import { dayLabel, marketName, marketStatus, statusLabel, strikeLabel, type Market } from '@/lib/markets';
+import { dayLabel, marketName, marketStatus, shownYesPriceE18, statusLabel, strikeLabel, type Market } from '@/lib/markets';
 
 const ONE_E18 = 10n ** 18n;
 /** How far a card leans toward the pointer, degrees. */
@@ -28,14 +28,7 @@ function ContractCard({ market, now, term }: { market: Market; now: number; term
   const left = status === 'trading' ? closesIn(market.resolveAfter, now) : null;
   // Trading: the pool's price. Settled: what each side pays out per token,
   // since the pool's last price no longer means anything.
-  const price =
-    status === 'resolved'
-      ? market.live?.yesWon
-        ? ONE_E18
-        : 0n
-      : status === 'cancelled'
-        ? ONE_E18 / 2n
-        : market.live?.priceE18;
+  const price = market.live ? shownYesPriceE18(market.live) : undefined;
   const settled = status === 'resolved' || status === 'cancelled';
 
   const lean = (event: React.PointerEvent<HTMLAnchorElement>) => {

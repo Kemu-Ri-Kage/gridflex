@@ -31,7 +31,7 @@ repository. Operator keys belong in an encrypted keystore outside the project.
 
 ## Implemented components
 
-- ERCOT pipeline with 2,168 validated metric files across contract and feed
+- ERCOT pipeline with 2,229 validated metric files across contract and feed
   metrics.
 - Frozen oracle boundary using `(bytes32 metricId, uint32 dayKey)`, where
   `dayKey` is `YYYYMMDD` rather than a timestamp.
@@ -58,9 +58,9 @@ The core contracts are deployed on X Layer testnet, chain ID `1952`:
 | `MockUSDT` | `0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A` |
 | `MarketFactory` | `0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9` |
 
-The committed ledger contains eight confirmed oracle submissions. The oracle
-uses a 3,600-second dispute window. Contract addresses and deployment
-transaction hashes are recorded in `shared/addresses.json`.
+The committed ledger contains twenty oracle submissions, seventeen of them
+finalized. The oracle uses a 3,600-second dispute window. Contract addresses
+and deployment transaction hashes are recorded in `shared/addresses.json`.
 
 The trade-safe factory was deployed in transaction
 `0x4cbea7ff136d99d17c21055af295d2c78f9ba0b55df789184e8a11ccad04e37c`.
@@ -70,10 +70,14 @@ factory is retained only as a superseded audit record in `shared/addresses.json`
 The end-to-end lifecycle has been run on X Layer testnet: past-day markets
 created and seeded through `MarketFactory`, resolved against finalized
 oracle readings (`shared/demo-evidence.md`), and a live position bought on
-the 2 October market through the site. Seventeen markets are listed
-(`shared/addresses.json`): a ladder of $35 and $45 strikes for every day
-from 26 September to 1 October, $40 and $45 on 30 September, $38 and $45 on
-2 October, and the two resolved ones.
+the 2 October market through the site. Fifty-one markets are listed
+(`shared/addresses.json`). The first seventeen have all settled: a ladder of
+$35 and $45 strikes for every day from 26 September to 1 October, plus $40
+on 30 September, $38 and $45 on 2 October, and the two earlier
+demonstrations. The other thirty-four are $35 on 8 October; $35, $40 and
+$45 on each day from 9 to 12 October; and $30, $40 and $50 on each day from
+14 to 20 October. On 13 October 2026, 21 had settled, 9 (10–12 October)
+were awaiting settlement and 21 were trading.
 
 Since then the site gained: EIP-6963 wallet discovery with a picker and a
 remembered wallet (`web/lib/wallet-discovery.ts`,
@@ -87,7 +91,7 @@ free until the Worker has the OKX facilitator secrets
 
 What remains is operational, not code: each live market needs its reading
 published and finalized on the evening its day's prices appear, then
-`resolve_markets.py`; only three of the 378 committed price days are on the
+`resolve_markets.py`; only fifteen of the 396 committed price days are on the
 oracle, and the site's Proof section says so. The demo video is linked from
 the README.
 

@@ -1,9 +1,10 @@
 # GRIDFLEX demo markets
 
-Seventeen markets, all on the one public product — the Texas power price,
-`ERCOT_HBNORTH_DA_AVG` (see `shared/design-brief.md` §5). They come in two
-kinds, and `create_markets.py` reads the kind of each one from the
-Summary table below:
+Fifty-nine planned markets, all on the one public product — the Texas power
+price, `ERCOT_HBNORTH_DA_AVG` (see `shared/design-brief.md` §5). Forty-nine
+of them exist on chain; with the two from the earlier plan (at the end of
+this file) that makes the factory's 51. They come in two kinds, and
+`create_markets.py` reads the kind of each one from the Summary table below:
 
 - **Live**: a future market day that people can trade now. No reading exists
   when the market is created, and none can. Trading closes at **12:30 Texas
@@ -118,13 +119,12 @@ those strikes: see "Choosing the ladder strikes" below.
 
 - **`dayKey 20261002`**
 - Trading close: **2026-10-01 12:30 CDT (Texas) / 18:30 BST (London)**.
-  It stays open for trading through the judges' review period, which runs
-  until 30 September.
+  It traded until that close and settled NO at $33.53/MWh.
 - Resolution: `fetch_ercot.py` reads market days up to and including today
   in UTC, so 2 October can be fetched once UTC reaches 2026-10-02 (see the
   note at the end). After that come publish and finalize, and then
-  `resolve()` works. That leaves time for it to settle before the
-  7 October finale.
+  `resolve()` works. It settled on 2 October, before the 7 October
+  finale.
 
 ### 6. Texas power, 30 September 2026, above $40
 

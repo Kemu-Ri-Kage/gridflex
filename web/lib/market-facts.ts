@@ -123,6 +123,22 @@ export function marketStatus(
   return nowMs < market.resolveAfter * 1000 ? 'trading' : 'awaiting';
 }
 
+const ONE_E18 = 10n ** 18n;
+
+/**
+ * The YES price to show, 1e18 = 1 mUSDT: the pool's while the market trades
+ * or waits for its reading; once settled, what each YES paid out (1 or 0,
+ * or 0.5 when cancelled). resolve() never touches the pool, so an untraded
+ * market's pool still reads 50¢ after it has settled.
+ */
+export function shownYesPriceE18(
+  live: Pick<MarketLive, 'resolved' | 'cancelled' | 'yesWon' | 'priceE18'>,
+): bigint {
+  if (live.resolved) return live.yesWon ? ONE_E18 : 0n;
+  if (live.cancelled) return ONE_E18 / 2n;
+  return live.priceE18;
+}
+
 export function statusLabel(market: Market, nowMs: number): string | undefined {
   switch (marketStatus(market, nowMs)) {
     case 'trading':

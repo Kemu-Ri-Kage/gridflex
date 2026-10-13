@@ -345,6 +345,9 @@ export class StrikeLadderPrimitive implements ISeriesPrimitive<Time> {
           for (const i of order) {
             const labelY = labelYs[i];
             if (labelY === null) continue;
+            // only the selected strike lists its days: on a desktop-width chart every strike's list
+            // stacked into one unreadable pile over the candles (the dashed lines still show them all)
+            if (!lines[i].selected) continue;
             const text = pointer(this.sides[i]) + (lines[i].selected ? `Strike · ${lines[i].days}` : lines[i].days);
             context.globalAlpha = lines[i].selected ? 1 : 0.75;
             // A halo in the background colour keeps the label legible

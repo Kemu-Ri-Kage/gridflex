@@ -19,6 +19,12 @@ one seeded market. Metric names are encoded onchain as `keccak256(bytes(metricNa
 reading during its dispute window. After that window, anyone can finalize the reading and it
 becomes immutable.
 
+`GridOracleV2` keeps that interface exactly and adds a way back from a leaked key: an offline
+owner can replace the reporter and the guardian, the guardian (or owner) can pause the oracle and
+void a reading that is not final yet, only the owner unpauses, and a reading is refused until its
+market day has ended. `DeployOracleV2.s.sol` deploys it; markets name it when created, so the
+factory stays. See `shared/oracle-v2.md`.
+
 `MockUSDT` is permissionlessly mintable test collateral with six decimals. `OutcomeToken` is
 the restricted ERC-20 implementation used for the YES and NO sides of a binary market.
 

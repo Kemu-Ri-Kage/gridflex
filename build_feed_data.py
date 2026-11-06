@@ -118,6 +118,13 @@ def write_addresses(output_dir: Path) -> None:
         "MarketFactory": source.get("MarketFactory"),
         "MockUSDT": source.get("MockUSDT"),
         "GridOracleDeployTx": source.get("transactions", {}).get("GridOracle"),
+        # Oracles replaced since (shared/oracle-v2.md): days up to each one's
+        # lastDayKey are read from it, not from GridOracle.
+        "retiredOracles": [
+            {"address": entry["address"], "lastDayKey": entry["lastDayKey"]}
+            for entry in source.get("legacyDeployments", {}).get("GridOracle", [])
+            if entry.get("lastDayKey")
+        ],
         # Only what the browser can't get from the chain itself: which
         # BinaryMarkets exist and where their history starts. Strike, day,
         # metric and state are read from each contract live, never from here.

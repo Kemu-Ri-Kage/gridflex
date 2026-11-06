@@ -2,6 +2,9 @@
 
 **Status: FROZEN as of 2026-09-11.**
 
+`GridOracleV2` (`shared/oracle-v2.md`) implements this interface unchanged and
+adds owner, guardian, pause and void functions around it.
+
 This is the frozen boundary between the Python data pipeline (this repo)
 and the Solidity oracle + market contracts on X Layer
 testnet (`contracts/`). Neither side changes this interface

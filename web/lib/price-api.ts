@@ -134,7 +134,7 @@ export function oracleReadingFrom(raw: unknown): OracleReading {
 export async function priceResult(
   records: readonly CommittedRecord[],
   evidence: DemoDayEvidence | null,
-  oracleAddress: string,
+  oracleAddressFor: (dayKey: number) => string,
   day: string | null,
   readOracle: (dayKey: number) => Promise<unknown>,
 ): Promise<ApiResult> {
@@ -209,7 +209,7 @@ export async function priceResult(
       sourceFiles: evidence && evidence.dayKey === record.dayKey ? evidence.sourceFiles : [],
       oracle: {
         chainId: 1952,
-        address: oracleAddress,
+        address: oracleAddressFor(record.dayKey),
         txHash: record.txHash,
         ...oracle,
       },

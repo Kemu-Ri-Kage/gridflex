@@ -2,6 +2,7 @@ import { createPublicClient, getAddress, keccak256, toBytes, type Hash } from 'v
 
 import { binaryMarketAbi, gridOracleAbi, xLayerTestnet, xLayerTransport } from '@/lib/contracts';
 import type { CommittedRecord } from '@/lib/feed-data';
+import { oracleForDay } from '@/lib/oracle-for-day';
 import { PRICE_METRIC_ID, readBoard, type MarketSnapshot } from '@/lib/price-api';
 import type { DemoDayEvidence, PublicAddresses } from '@/lib/site-data';
 import addressesJson from '@/public/data/addresses.json';
@@ -17,13 +18,16 @@ import evidenceJson from '@/public/data/evidence-demo-day.json';
 export const records = recordsJson as CommittedRecord[];
 export const evidence = evidenceJson as DemoDayEvidence;
 const addresses = addressesJson as PublicAddresses;
-export const oracleAddress = getAddress(addresses.GridOracle);
+/** The oracle that holds a day's reading: a retired one for days up to its last (lib/oracle-for-day.ts). */
+export function oracleAddressFor(dayKey: number) {
+  return getAddress(oracleForDay(addresses, dayKey));
+}
 
 const client = createPublicClient({ chain: xLayerTestnet, transport: xLayerTransport() });
 
 export function readOracle(dayKey: number): Promise<unknown> {
   return client.readContract({
-    address: oracleAddress,
+    address: oracleAddressFor(dayKey),
     abi: gridOracleAbi,
     functionName: 'getReading',
     args: [keccak256(toBytes(PRICE_METRIC_ID)), dayKey],

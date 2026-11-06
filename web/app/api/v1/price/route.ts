@@ -1,6 +1,6 @@
 import { priceResult } from '@/lib/price-api';
 
-import { evidence, oracleAddress, readOracle, records } from '../data';
+import { evidence, oracleAddressFor, readOracle, records } from '../data';
 import { apiRoute, json, preflight, requestQuery } from '../payment';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const GET = apiRoute(
   async (request) => {
     const day = (await requestQuery(request)).get('day');
-    return json(await priceResult(records, evidence, oracleAddress, day, readOracle));
+    return json(await priceResult(records, evidence, oracleAddressFor, day, readOracle));
   },
   { paid: true, maxAge: 60 },
 );

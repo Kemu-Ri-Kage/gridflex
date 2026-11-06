@@ -57,7 +57,7 @@ void test('a day is a real calendar date as YYYY-MM-DD, keyed as YYYYMMDD', () =
 });
 
 void test('the price defaults to the latest day and reports a matching oracle reading as verified', async () => {
-  const result = await priceResult(records, null, '0xoracle', null, async () => ({
+  const result = await priceResult(records, null, () => '0xoracle', null, async () => ({
     value: 3957n,
     sourceHash: '0xBB',
     publishedAt: 1n,
@@ -82,13 +82,13 @@ void test('the price defaults to the latest day and reports a matching oracle re
 
 void test('an unpublished day is not verified, and an unreachable chain claims no check', async () => {
   const zeros = [0n, 0, 0n, 0n, 0n, `0x${'0'.repeat(64)}`, 0n, false];
-  const unpublished = await priceResult(records, null, '0xo', '2026-09-07', async () => zeros);
+  const unpublished = await priceResult(records, null, () => '0xo', '2026-09-07', async () => zeros);
   const oracle = (unpublished.body as { oracle: Record<string, unknown> }).oracle;
   assert.equal(oracle.published, false);
   assert.equal(oracle.matches, null);
   assert.equal((unpublished.body as { verified: boolean }).verified, false);
 
-  const down = await priceResult(records, null, '0xo', '2026-09-08', async () => {
+  const down = await priceResult(records, null, () => '0xo', '2026-09-08', async () => {
     throw new Error('timeout');
   });
   const downOracle = (down.body as { oracle: Record<string, unknown> }).oracle;
@@ -101,8 +101,8 @@ void test('a bad day is a 400 and a missing day a 404 naming the range', async (
   const read = async () => {
     throw new Error('not called');
   };
-  assert.equal((await priceResult(records, null, '0xo', '09/08/2026', read)).status, 400);
-  const missing = await priceResult(records, null, '0xo', '2020-01-01', read);
+  assert.equal((await priceResult(records, null, () => '0xo', '09/08/2026', read)).status, 400);
+  const missing = await priceResult(records, null, () => '0xo', '2020-01-01', read);
   assert.equal(missing.status, 404);
   assert.deepEqual(missing.body, {
     error: 'No Texas power price for 2020-01-01.',

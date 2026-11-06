@@ -40,6 +40,7 @@ import {
   type LiveRead,
   type MarketLive,
 } from '@/lib/market-live';
+import { oracleForDay } from '@/lib/oracle-for-day';
 import { useAddresses } from '@/lib/site-data';
 
 export type { MarketLive } from '@/lib/market-live';
@@ -285,7 +286,7 @@ export function useOracleReading(
     let cancelled = false;
     void client
       .readContract({
-        address: getAddress(addresses.GridOracle),
+        address: getAddress(oracleForDay(addresses, dayKey)),
         abi: gridOracleAbi,
         functionName: 'getReading',
         args: [metricIdBytes, dayKey],

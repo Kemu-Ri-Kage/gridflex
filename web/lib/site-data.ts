@@ -52,6 +52,8 @@ export interface PublicAddresses {
   MarketFactory: string;
   MockUSDT: string;
   GridOracleDeployTx: string;
+  /** Replaced oracles and the last day each holds; see lib/oracle-for-day.ts. */
+  retiredOracles?: { address: string; lastDayKey: number }[];
   /** Listed BinaryMarkets; everything else about them is read from chain (lib/markets.tsx). */
   markets?: { market: string; createTxHash: string }[];
 }

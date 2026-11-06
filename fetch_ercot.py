@@ -151,6 +151,9 @@ METRICS_DIR = Path("data/metrics")
 PUBLISH_LEDGER = Path("data/publish-ledger.json")
 
 RATE_LIMIT_SLEEP = 1.5          # free plan allows 1 request/second
+# Pause between GridOracle reads: the public X Layer RPC is shared, same
+# courtesy publish.py and finalize.py give it.
+ORACLE_READ_SLEEP = 0.5
 
 # Only today and the last RECENT_DAYS market days before it (UTC) are
 # re-fetched on every run: GridStatus can still fill in or correct their
@@ -784,6 +787,58 @@ def published_readings():
             if isinstance(entry, dict) and entry.get("txHash")}
 
 
+def onchain_readings(metric_ids, days):
+    """{"<metricId>:<dayKey>": chain reading} for every (metric, day) GridOracle
+    already holds, read from the oracle itself rather than from the ledger.
+
+    The ledger only lists what the reporter's machine has committed and this
+    checkout has pulled. On 12 Oct the 9 Oct reading had been on chain for
+    four hours when a refresh here, without that ledger row, rewrote its file
+    with a new sourceHash and the site showed it unverified. Ledger rows
+    recovered from chain carry no txHash, so published_readings() misses
+    those too.
+
+    Only metrics publish.py can submit are asked about (the fuel mix never
+    goes on chain). Fails closed: a run that can't read the oracle stops
+    before it fetches or writes anything, rather than assume nothing is
+    published.
+    """
+    # Imported here, like gridstatusio in get_client(): web3 is needed only by
+    # a run that writes metric files, not by the tests or the feed build.
+    import publish
+
+    wanted = [m for m in metric_ids if m in publish.EXPECTED_METRICS]
+    if not wanted or not days:
+        return {}
+    try:
+        _, oracle = publish.load_deployment()
+        w3 = publish.make_web3(os.environ.get("XLAYER_RPC_URL", publish.DEFAULT_RPC_URL))
+        chain_id = w3.eth.chain_id
+        if chain_id != publish.EXPECTED_CHAIN_ID:
+            raise SystemExit(f"Wrong chain: got {chain_id}, expected "
+                             f"{publish.EXPECTED_CHAIN_ID}. Nothing was fetched or written.")
+        contract = publish.load_contract(w3, oracle)
+        found = {}
+        for metric_id in wanted:
+            for day in days:
+                probe = publish.MetricReading(
+                    path=Path("<fetch>"), metric_id=metric_id, day_key=day_key(day),
+                    market_day_start_utc=0, market_day_end_utc=0,
+                    value=0, source_hash="00" * 32)
+                current = publish.chain_reading(contract, probe)
+                time.sleep(ORACLE_READ_SLEEP)
+                if current is not None:
+                    found[probe.ledger_key] = current
+        return found
+    except SystemExit:
+        raise
+    except Exception as exc:
+        raise SystemExit(
+            "Could not read GridOracle to see which days are already published "
+            f"({type(exc).__name__}). Nothing was fetched or written; run again "
+            "when the X Layer RPC answers.")
+
+
 def write_metric(metric_id, day, value, source_hash, source_files,
                   start_utc, end_utc, extra=None, published=None):
     """
@@ -802,17 +857,24 @@ def write_metric(metric_id, day, value, source_hash, source_files,
     identifier is exactly the trap dayKey replaces; keeping the old names
     around "for compatibility" would just give it a second way back in.
 
-    A reading already published onchain (`published`, from
-    published_readings) is never rewritten. A later run over a different
-    date range hashes a different set of chunks, so rewriting it would
-    change its sourceHash and the feed would report a MISMATCH against the
-    chain. If the recomputed value differs from the published one, that is
-    printed as a warning, not written. Returns None when nothing was written.
+    A reading already published onchain is never rewritten. `published` is
+    the ledger merged with what GridOracle holds (see onchain_readings); a
+    published day is never written, whether or not its file exists. A later
+    run over a different date range hashes a different set of chunks, so
+    rewriting it would change its sourceHash and the feed would report a
+    MISMATCH against the chain. If the recomputed value differs from the
+    published one, that is printed as a warning, not written. Returns None
+    when nothing was written.
     """
     path = METRICS_DIR / f"{metric_id}__{day}.json"
     entry = (published or {}).get(f"{metric_id}:{day_key(day)}")
-    if entry is not None and path.exists():
-        if int(entry.get("value", value)) != value:
+    if entry is not None:
+        if not path.exists():
+            # A new file would carry this run's sourceHash, not the one on
+            # chain - restore the committed file from git instead.
+            print(f"  WARNING {metric_id} {day}: published onchain but {path} is "
+                  "missing - not recreated; restore it from git")
+        elif int(entry.get("value", value)) != value:
             print(f"  WARNING {metric_id} {day}: recomputed {value}, published "
                   f"{entry['value']} - published file kept unchanged")
         return None
@@ -864,10 +926,16 @@ def main():
     if start_date < recent_start:
         print(f"  filling missing days {start} to {recent_start - timedelta(days=1)}")
     print()
-    client = get_client()
 
     # Readings already onchain keep their committed file - see write_metric.
-    published = published_readings()
+    # The oracle is asked before any GridStatus request, so a run that can't
+    # tell which days are published spends nothing.
+    metric_ids = [DAY_AHEAD["metric_id"]]
+    if args.feed_metrics:
+        metric_ids += [BASIS["metric_id"], REAL_TIME["metric_id"], INDEX["metric_id"]]
+    days = [start_date + timedelta(days=i) for i in range((end_date - start_date).days)]
+    published = {**published_readings(), **onchain_readings(metric_ids, days)}
+    client = get_client()
 
     def write(*args, **kwargs):
         return write_metric(*args, published=published, **kwargs)

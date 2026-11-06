@@ -13,6 +13,12 @@
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID          the site deploy
 #   HC_PING_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID    alerts (optional)
 #
+# Scheduled runs are dry runs while the repository variable
+# SETTLE_SCHEDULED_DRY_RUN is 1: set it before this file first reaches main,
+# watch two nights, then delete it to go live.
+#   gh variable set SETTLE_SCHEDULED_DRY_RUN --body 1
+#   gh variable delete SETTLE_SCHEDULED_DRY_RUN
+#
 # Stop one run before it finalizes:  gh variable set SETTLE_HOLD --body 1
 # Resume:                            gh variable delete SETTLE_HOLD
 # Stop the schedule:                 gh workflow disable daily-settle
@@ -97,7 +103,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SETTLE_HOLD: ${{ vars.SETTLE_HOLD }}
-          SETTLE_DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '1' || '0' }}
+          # A manual run follows its checkbox; a scheduled run follows SETTLE_SCHEDULED_DRY_RUN.
+          SETTLE_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && (inputs.dry_run && '1' || '0') || (vars.SETTLE_SCHEDULED_DRY_RUN || '0') }}
         run: |
           git config user.name "gridflex-settle-bot"
           git config user.email "gridflex-settle-bot@users.noreply.github.com"

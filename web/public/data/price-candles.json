@@ -3111,6 +3111,198 @@
       "high": 7022,
       "low": 1684,
       "open": 1975
+    },
+    {
+      "average": 4121,
+      "close": 3859,
+      "dayKey": 20261013,
+      "high": 9261,
+      "low": 2277,
+      "open": 2827
+    },
+    {
+      "average": 5635,
+      "close": 4174,
+      "dayKey": 20261014,
+      "high": 12585,
+      "low": 3595,
+      "open": 4133
+    },
+    {
+      "average": 3949,
+      "close": 2587,
+      "dayKey": 20261015,
+      "high": 5924,
+      "low": 2587,
+      "open": 3961
+    },
+    {
+      "average": 1669,
+      "close": 2747,
+      "dayKey": 20261016,
+      "high": 2972,
+      "low": 1,
+      "open": 2398
+    },
+    {
+      "average": 2840,
+      "close": 4491,
+      "dayKey": 20261017,
+      "high": 5454,
+      "low": 819,
+      "open": 2855
+    },
+    {
+      "average": 2306,
+      "close": 2378,
+      "dayKey": 20261018,
+      "high": 5327,
+      "low": 229,
+      "open": 5327
+    },
+    {
+      "average": 2341,
+      "close": 2852,
+      "dayKey": 20261019,
+      "high": 4517,
+      "low": 760,
+      "open": 2050
+    },
+    {
+      "average": 2838,
+      "close": 2962,
+      "dayKey": 20261020,
+      "high": 5922,
+      "low": 797,
+      "open": 2465
+    },
+    {
+      "average": 3985,
+      "close": 3699,
+      "dayKey": 20261021,
+      "high": 10509,
+      "low": 1748,
+      "open": 2693
+    },
+    {
+      "average": 3048,
+      "close": 2500,
+      "dayKey": 20261022,
+      "high": 6333,
+      "low": 1569,
+      "open": 2861
+    },
+    {
+      "average": 1852,
+      "close": 1994,
+      "dayKey": 20261023,
+      "high": 3260,
+      "low": 316,
+      "open": 2239
+    },
+    {
+      "average": 1928,
+      "close": 2394,
+      "dayKey": 20261024,
+      "high": 3454,
+      "low": 443,
+      "open": 1682
+    },
+    {
+      "average": 2017,
+      "close": 2384,
+      "dayKey": 20261025,
+      "high": 3541,
+      "low": 400,
+      "open": 2193
+    },
+    {
+      "average": 3126,
+      "close": 3490,
+      "dayKey": 20261026,
+      "high": 6500,
+      "low": 1393,
+      "open": 2051
+    },
+    {
+      "average": 2865,
+      "close": 2112,
+      "dayKey": 20261027,
+      "high": 4174,
+      "low": 1329,
+      "open": 3500
+    },
+    {
+      "average": 2516,
+      "close": 2474,
+      "dayKey": 20261028,
+      "high": 5018,
+      "low": 1378,
+      "open": 1731
+    },
+    {
+      "average": 3773,
+      "close": 3493,
+      "dayKey": 20261029,
+      "high": 5284,
+      "low": 2666,
+      "open": 2666
+    },
+    {
+      "average": 3920,
+      "close": 4983,
+      "dayKey": 20261030,
+      "high": 5204,
+      "low": 2937,
+      "open": 3742
+    },
+    {
+      "average": 4148,
+      "close": 3611,
+      "dayKey": 20261031,
+      "high": 5464,
+      "low": 3407,
+      "open": 3886
+    },
+    {
+      "average": 2483,
+      "close": 3046,
+      "dayKey": 20261102,
+      "high": 4169,
+      "low": 1458,
+      "open": 1951
+    },
+    {
+      "average": 5080,
+      "close": 11778,
+      "dayKey": 20261103,
+      "high": 15000,
+      "low": 1225,
+      "open": 2565
+    },
+    {
+      "average": 3536,
+      "close": 1839,
+      "dayKey": 20261104,
+      "high": 7698,
+      "low": 1052,
+      "open": 7698
+    },
+    {
+      "average": 1986,
+      "close": 3731,
+      "dayKey": 20261105,
+      "high": 4287,
+      "low": 129,
+      "open": 1547
+    },
+    {
+      "average": 3566,
+      "close": 4567,
+      "dayKey": 20261106,
+      "high": 6915,
+      "low": 1272,
+      "open": 3870
     }
   ],
   "metricId": "ERCOT_HBNORTH_DA_AVG",
@@ -3150,6 +3342,10 @@
     {
       "dayKey": 20261002,
       "reason": "File /Users/platonteslenko/Desktop/gridflex/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+    },
+    {
+      "dayKey": 20261101,
+      "reason": "2026-11-01: 25/24 hours (no published price)"
     }
   ]
 }

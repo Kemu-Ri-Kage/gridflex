@@ -46,12 +46,21 @@ case "$1" in
     [[ -n "${STUB_PUBLISH_OUT:-}" ]] && echo "$STUB_PUBLISH_OUT"
     if [[ "$*" == *--live* ]]; then
       cat /dev/fd/3 > "$STUB_DIR/password-seen" 2>/dev/null || true
-      echo "{\\"run\\": \\"$RANDOM$RANDOM\\"}" > data/publish-ledger.json
+      if [[ -n "${STUB_LEDGER_JSON:-}" ]]; then
+        echo "$STUB_LEDGER_JSON" > data/publish-ledger.json
+      else
+        echo "{\\"run\\": \\"$RANDOM$RANDOM\\"}" > data/publish-ledger.json
+      fi
     fi
     [[ -n "${STUB_HOLD_AFTER_PUBLISH:-}" ]] && touch "$STUB_HOLD_AFTER_PUBLISH"
     exit "${STUB_PUBLISH_EXIT:-0}"
     ;;
   scripts/extend_ladder.py) printf "%s" "${STUB_LADDER_ROWS:-}" ;;
+  create_markets.py)
+    # Records one market in the ledger, as the real script does per market.
+    [[ "$*" == *--live* ]] && echo '{"made": 1}' > data/market-ledger.json
+    exit "${STUB_CREATE_EXIT:-0}"
+    ;;
 esac
 exit 0
 """
@@ -122,7 +131,8 @@ class DailySettleScriptTest(unittest.TestCase):
                "SETTLE_SECRET_CMD": str(self.secret), "SETTLE_RETRY_SECONDS": "0",
                "SETTLE_MAX_WAIT_SECONDS": "1", "REPORTER_KEYSTORE_PATH": "/stub/reporter.json",
                "SETTLER_KEYSTORE_PATH": "/stub/settler.json"}
-        for key in ("HC_PING_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "SETTLE_HOLD", "SETTLE_DRY_RUN"):
+        for key in ("HC_PING_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "SETTLE_HOLD", "SETTLE_DRY_RUN",
+                    "GITHUB_OUTPUT"):
             env.pop(key, None)
         env.update(env_extra)
         result = run(["bash", "daily_settle.sh", *args], cwd=self.repo, env=env, check=False)
@@ -168,7 +178,7 @@ class DailySettleScriptTest(unittest.TestCase):
         self.plans({"publishStart": 20261014, "publishEnd": 20261020}, {})
         (self.repo / "README.md").write_text("someone's unrelated edit\n")
         self.git("add", "README.md")
-        code, out, log = self.settle("--no-deploy")
+        code, out, log = self.settle("--live", "--chain", "--no-deploy")
         self.assertEqual(code, 0, out)
         publish = " ".join(self.calls(log, "publish.py"))
         for flag in ("--live", "--yes", "--metric ERCOT_HBNORTH_DA_AVG", "--start 20261014",
@@ -182,7 +192,7 @@ class DailySettleScriptTest(unittest.TestCase):
 
     def test_a_stop_word_stops_before_finalizing(self):
         self.plans({"publishStart": 20261014, "publishEnd": 20261014, "finalizeStart": 20261014})
-        code, out, log = self.settle("--no-deploy",
+        code, out, log = self.settle("--live", "--chain", "--no-deploy",
                                      STUB_PUBLISH_OUT="CORRECTION ERCOT_HBNORTH_DA_AVG:20261014")
         self.assertEqual(code, 1)
         self.assertIn("stop word", out)
@@ -191,7 +201,7 @@ class DailySettleScriptTest(unittest.TestCase):
 
     def test_a_failure_without_a_stop_word_is_retried_once(self):
         self.plans({"publishStart": 20261014, "publishEnd": 20261014})
-        code, out, log = self.settle("--no-deploy", STUB_PUBLISH_EXIT="1")
+        code, out, log = self.settle("--live", "--chain", "--no-deploy", STUB_PUBLISH_EXIT="1")
         self.assertEqual(code, 1)
         self.assertEqual(len(self.calls(log, "publish.py")), 2)
         self.assertIn("failed twice", out)
@@ -199,7 +209,7 @@ class DailySettleScriptTest(unittest.TestCase):
     def test_a_hold_set_during_the_dispute_window_stops_before_finalizing(self):
         self.plans({"publishStart": 20261014, "publishEnd": 20261014},
                    {"secondsToFinalizable": 1}, {"finalizeStart": 20261014})
-        code, out, log = self.settle("--no-deploy", STUB_HOLD_AFTER_PUBLISH=str(self.hold))
+        code, out, log = self.settle("--live", "--chain", "--no-deploy", STUB_HOLD_AFTER_PUBLISH=str(self.hold))
         self.assertEqual(code, 0, out)
         self.assertIn("stopped before finalizing", out)
         self.assertEqual(self.calls(log, "finalize.py"), [])
@@ -207,14 +217,14 @@ class DailySettleScriptTest(unittest.TestCase):
     def test_an_out_of_range_value_holds_finalizing(self):
         self.plans({"finalizeStart": 20261014,
                     "outOfRange": [{"metricId": "ERCOT_HBNORTH_DA_AVG", "dayKey": 20261014, "value": 150000}]})
-        code, out, log = self.settle("--no-deploy")
+        code, out, log = self.settle("--live", "--chain", "--no-deploy")
         self.assertEqual(code, 1)
         self.assertIn("finalizing held", out)
         self.assertEqual(self.calls(log, "finalize.py"), [])
 
     def test_alerts_after_the_run_fail_it(self):
         self.plans({"alerts": ["overdue"]})
-        code, out, _ = self.settle("--no-deploy", STUB_CHECK_EXIT="3")
+        code, out, _ = self.settle("--live", "--chain", "--no-deploy", STUB_CHECK_EXIT="3")
         self.assertEqual(code, 1)
         self.assertIn("alerts after the run", out)
 
@@ -228,11 +238,96 @@ class DailySettleScriptTest(unittest.TestCase):
         self.git("commit", "--quiet", "-m", "files")
         self.git("push", "--quiet", "origin", BRANCH)
         (self.repo / "shared" / "demo-markets.md").write_text("x\nrows 60-62\n")
-        code, out, log = self.settle("--no-deploy", STUB_LADDER_ROWS="60\n61\n62\n")
+        code, out, log = self.settle("--live", "--chain", "--no-deploy", STUB_LADDER_ROWS="60\n61\n62\n")
         self.assertEqual(code, 0, out)
         create = " ".join(self.calls(log, "create_markets.py"))
         self.assertIn("--market 60 --market 61 --market 62 --live --yes", create)
         self.assertIn("next week's ladder", self.git("log", "-1", "--format=%s"))
+
+    def ladder_files(self):
+        (self.repo / "shared").mkdir()
+        for name in ("demo-markets.md", "addresses.json"):
+            (self.repo / "shared" / name).write_text("x\n")
+        (self.repo / "data" / "market-ledger.json").write_text("{}\n")
+        self.git("add", "-A")
+        self.git("commit", "--quiet", "-m", "files")
+        self.git("push", "--quiet", "origin", BRANCH)
+
+    def test_a_failed_create_is_never_retried_and_keeps_what_was_made(self):
+        self.plans({"ladderRunningOut": True}, {})
+        self.ladder_files()
+        code, out, log = self.settle("--live", "--chain", "--no-deploy",
+                                     STUB_LADDER_ROWS="60\n61\n", STUB_CREATE_EXIT="1")
+        self.assertEqual(code, 1)
+        self.assertEqual(len(self.calls(log, "create_markets.py")), 1)
+        self.assertIn("not retried", out)
+        # The market it did make is committed and pushed, so the next run sees it.
+        self.assertEqual(self.git("show", "--name-only", "--format=", "HEAD"), "data/market-ledger.json")
+        self.assertEqual(self.git("rev-parse", "HEAD"),
+                         run(["git", "rev-parse", BRANCH], cwd=self.remote).stdout.strip())
+
+    # ------------------------------------------------------------ nothing live by default
+
+    def test_no_flags_is_a_dry_run(self):
+        self.plans({"publishStart": 20261014, "publishEnd": 20261014, "ladderRunningOut": True},
+                   {"finalizeStart": 20261014, "resolve": ["0xM"]})
+        head = self.git("rev-parse", "HEAD")
+        code, out, log = self.settle(SETTLE_DRY_RUN="0")
+        self.assertEqual(code, 0, out)
+        self.assertIn("DRY RUN", out)
+        self.assertNotIn("--live", log)
+        self.assertNotIn("secret", log)
+        self.assertEqual(self.calls(log, "create_markets.py"), [])
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+
+    def test_live_without_chain_sends_nothing_and_reads_no_secret(self):
+        self.plans({"publishStart": 20261014, "publishEnd": 20261014, "ladderRunningOut": True},
+                   {"finalizeStart": 20261014, "resolve": ["0xM"]})
+        code, out, log = self.settle("--live", "--no-deploy", STUB_LADDER_ROWS="60\n")
+        self.assertEqual(code, 0, out)
+        for script in ("publish.py", "finalize.py", "resolve_markets.py"):
+            self.assertNotIn("--live", " ".join(self.calls(log, script)), script)
+        self.assertEqual(self.calls(log, "create_markets.py"), [])
+        self.assertNotIn("secret", log)
+
+    def test_with_the_chain_off_due_work_is_reported_not_failed(self):
+        self.plans({"publishStart": 20261014, "publishEnd": 20261020, "alerts": ["overdue"]})
+        code, out, _ = self.settle("--live", "--no-deploy", STUB_CHECK_EXIT="3")
+        self.assertEqual(code, 0, out)
+        self.assertIn("due on chain, with the chain steps off: publish 20261014-20261020", out)
+        self.assertIn("./daily_settle.sh --live --chain", out)
+
+    def test_dry_run_flag_wins_over_live(self):
+        self.plans({"publishStart": 20261014, "publishEnd": 20261014})
+        code, out, log = self.settle("--live", "--chain", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("--live", " ".join(self.calls(log, "publish.py")))
+        self.assertNotIn("secret", log)
+
+    def test_never_switches_branches_itself(self):
+        self.git("checkout", "--quiet", "-b", "feat/other")
+        self.plans({})
+        code, out, _ = self.settle("--live", "--chain", "--no-deploy")
+        self.assertEqual(code, 1)
+        self.assertIn("check out feat/live first", out)
+        self.assertEqual(self.git("symbolic-ref", "--short", "HEAD"), "feat/other")
+
+    def test_publish_tells_telegram_the_values(self):
+        ledger = json.dumps({"ERCOT_HBNORTH_DA_AVG:20261014": {
+            "metricId": "ERCOT_HBNORTH_DA_AVG", "dayKey": 20261014, "value": 4123, "status": "published"}})
+        self.plans({"publishStart": 20261014, "publishEnd": 20261014}, {"secondsToFinalizable": 0})
+        code, out, _ = self.settle("--live", "--chain", "--no-deploy", STUB_LEDGER_JSON=ledger)
+        self.assertEqual(code, 0, out)
+        self.assertIn("Published 20261014-20261014: 20261014 $41.23/MWh", out)
+
+    def test_a_push_is_reported_to_the_github_deploy_job(self):
+        self.plans({"publishStart": 20261014, "publishEnd": 20261014}, {})
+        output = self.tmp / "github-output"
+        code, out, _ = self.settle("--live", "--chain", "--no-deploy", GITHUB_OUTPUT=str(output))
+        self.assertEqual(code, 0, out)
+        lines = output.read_text().splitlines()
+        self.assertIn("changed=1", lines)
+        self.assertIn(f"sha={self.git('rev-parse', 'HEAD')}", lines)
 
 
 class TestExtendLadder(unittest.TestCase):

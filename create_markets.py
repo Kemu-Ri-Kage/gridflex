@@ -737,6 +737,53 @@ def send_tx(w3: Web3, account, function, label: str, log_path: Path) -> tuple[An
     return receipt, receipt.gasUsed * gas_price
 
 
+IN_FLIGHT_CHECKS = 3
+IN_FLIGHT_RETRY_SECONDS = 5
+
+
+def assert_nothing_in_flight(w3: Web3, address: str) -> None:
+    """Refuse to send while an earlier transaction from this signer is still
+    pending: a create that timed out may yet land, and sending another now
+    could make the same market twice. The RPC is load-balanced, so the two
+    counts can come from different nodes; pending *below* latest is that lag
+    (see send_tx), not a pending transaction. "may still be in flight" is a
+    stop word for daily_settle.sh."""
+    for attempt in range(IN_FLIGHT_CHECKS):
+        pending = w3.eth.get_transaction_count(address, "pending")
+        latest = w3.eth.get_transaction_count(address, "latest")
+        if pending <= latest:
+            return
+        if attempt < IN_FLIGHT_CHECKS - 1:
+            time.sleep(IN_FLIGHT_RETRY_SECONDS)
+    raise PublisherError(
+        f"A transaction from {address} may still be in flight (pending nonce {pending}, "
+        f"latest {latest}); nothing was sent. Wait until it lands or drops, then run again."
+    )
+
+
+def untracked_same_day(
+    eligible: list[Evaluation], existing_pairs: dict[str, str], ledger: dict[str, dict[str, Any]]
+) -> list[str]:
+    """For the unattended run: markets already on chain for the metric and day
+    of a market about to be created, at another strike, that the ledger does
+    not know. A part-finished earlier run whose ledger never got committed
+    leaves exactly this (ladder strikes are recomputed from recent prices, so
+    they can differ), and creating more would grow the ladder unseen."""
+    known = {
+        Web3.to_checksum_address(entry["market"])
+        for entry in ledger.values() if isinstance(entry, dict) and entry.get("market")
+    }
+    found = []
+    for evaluation in eligible:
+        candidate = evaluation.candidate
+        prefix = f"{candidate.metric_hash.hex()}:{candidate.day_key}:"
+        for key, address in sorted(existing_pairs.items()):
+            if key.startswith(prefix) and Web3.to_checksum_address(address) not in known:
+                found.append(f"{candidate.metric_id} {candidate.day_key}: {address} at strike "
+                             f"{key.rsplit(':', 1)[1]}")
+    return found
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -1251,9 +1298,18 @@ def main(argv: list[str] | None = None) -> int:
             print("Nothing to create. No transactions were sent.")
             return 0
         refuse_unnamed_replays(eligible, args.market)
+        if args.yes:
+            untracked = untracked_same_day(eligible, pairs, ledger)
+            if untracked:
+                raise PublisherError(
+                    "Markets for these days are already on chain but not in the ledger, so an "
+                    "earlier run may have stopped part-way; a person must look before more are "
+                    "created: " + "; ".join(untracked)
+                )
 
         account = load_finalizer_account(unattended=args.yes)
         chain_id, balance = preflight(w3, addresses, account)
+        assert_nothing_in_flight(w3, account.address)
         initial_liquidity = int(round(args.initial_liquidity_musdt * 10**6))
 
         live_banner(

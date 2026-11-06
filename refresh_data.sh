@@ -3,6 +3,10 @@
 #
 #   ./refresh_data.sh              fetch, rebuild, commit, push, build, deploy
 #   ./refresh_data.sh --no-deploy  everything except the deploy
+#   ./refresh_data.sh --no-build   fetch, rebuild the feed data, commit and
+#                                  push, then stop: no pnpm build, no deploy
+#                                  (the daily settle job: the site is built
+#                                  in a separate job, away from the keys)
 #   ./refresh_data.sh --requests-lifted
 #                                  skip only the GridStatus request-count
 #                                  check (see below); rows are still checked
@@ -49,15 +53,17 @@
 set -euo pipefail
 
 deploy=1
+build=1
 fetch=1
 budget_args=()
 for arg in "$@"; do
   case "$arg" in
     --no-deploy) deploy=0 ;;
+    --no-build) build=0 deploy=0 ;;
     --no-fetch) fetch=0 ;;
     --requests-lifted) budget_args+=(--requests-lifted) ;;
     -h | --help)
-      sed -n '2,48p' "$0"
+      sed -n '2,52p' "$0"
       exit 0
       ;;
     *)
@@ -173,24 +179,30 @@ else
 fi
 git push --quiet "$git_remote" "HEAD:refs/heads/$branch"
 
-leftover="$(git status --porcelain --untracked-files=all -- "${build_paths[@]}")"
-if [[ -n "$leftover" ]]; then
-  echo "Not deploying: these build inputs differ from the commit:" >&2
-  echo "$leftover" >&2
-  exit 1
-fi
-commit="$(git rev-parse --short HEAD)"
+if [[ "$build" == 1 ]]; then
+  leftover="$(git status --porcelain --untracked-files=all -- "${build_paths[@]}")"
+  if [[ -n "$leftover" ]]; then
+    echo "Not deploying: these build inputs differ from the commit:" >&2
+    echo "$leftover" >&2
+    exit 1
+  fi
+  commit="$(git rev-parse --short HEAD)"
 
-echo
-echo "[5/6] Building the site from $commit"
-(cd "$repo_root/web" && "$pnpm_bin" build)
+  echo
+  echo "[5/6] Building the site from $commit"
+  (cd "$repo_root/web" && "$pnpm_bin" build)
 
-echo
-if [[ "$deploy" == 1 ]]; then
-  echo "[6/6] Deploying $commit"
-  (cd "$repo_root/web" && "$pnpm_bin" exec wrangler deploy --config dist/server/wrangler.json)
+  echo
+  if [[ "$deploy" == 1 ]]; then
+    echo "[6/6] Deploying $commit"
+    (cd "$repo_root/web" && "$pnpm_bin" exec wrangler deploy --config dist/server/wrangler.json)
+  else
+    echo "[6/6] Deploy skipped (--no-deploy)"
+  fi
 else
-  echo "[6/6] Deploy skipped (--no-deploy)"
+  echo
+  echo "[5/6] Build skipped (--no-build)"
+  echo "[6/6] Deploy skipped (--no-build)"
 fi
 
 echo

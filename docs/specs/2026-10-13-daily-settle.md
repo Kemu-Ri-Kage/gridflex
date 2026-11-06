@@ -400,6 +400,7 @@ other gaps found while fixing them.
 | The sync step switched branches mid-run, which changes the script under bash while it runs. | It refuses unless the right branch is already checked out. |
 | Python packages installed unpinned, so a new release could run in the job with the keys. | `requirements.lock`: exact versions with hashes, wheels only (`--only-binary=:all:`), nothing newer than two weeks when locked. |
 | The site build (hundreds of npm packages) ran in the same job as the chain keys. | Two jobs. **settle** runs Python only and has the chain keys. **deploy** gets only the Cloudflare token, installs npm packages with `--ignore-scripts`, re-runs the code guard, and builds. `refresh_data.sh --no-build` lets the settle job fetch without building. |
+| Nothing stopped the job sending to the first oracle once the chain was switched on. | `settle_due.py` asks the oracle for `guardian()`, which only GridOracleV2 has. With `--chain`, `daily_settle.sh` stops at step 2 unless that answers, before any key is read. |
 | Actions pinned by tag. | Every action is pinned to a full commit SHA (checked to be months old). Default token permission is `contents: read`. |
 
 ### 13.2 The reporter key

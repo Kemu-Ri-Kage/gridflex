@@ -73,7 +73,7 @@ printf 'stub-password-for-%s' "$1"
 
 EMPTY_PLAN = {"fetchNeeded": False, "publishStart": None, "publishEnd": None,
               "secondsToFinalizable": None, "finalizeStart": None, "outOfRange": [],
-              "resolve": [], "ladderRunningOut": False, "alerts": []}
+              "resolve": [], "ladderRunningOut": False, "alerts": [], "oracleRotatable": True}
 
 
 def run(cmd, cwd, env=None, check=True):
@@ -303,6 +303,19 @@ class DailySettleScriptTest(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertNotIn("--live", " ".join(self.calls(log, "publish.py")))
         self.assertNotIn("secret", log)
+
+    def test_sends_nothing_to_an_oracle_whose_reporter_cannot_be_replaced(self):
+        self.plans({"publishStart": 20261014, "publishEnd": 20261014, "oracleRotatable": False})
+        code, out, log = self.settle("--live", "--chain", "--no-deploy")
+        self.assertEqual(code, 1)
+        self.assertIn("not a GridOracleV2", out)
+        self.assertEqual(self.calls(log, "publish.py"), [])
+        self.assertNotIn("secret", log)
+
+    def test_the_first_oracle_is_fine_for_a_run_without_the_chain(self):
+        self.plans({"oracleRotatable": False})
+        code, out, _ = self.settle("--live", "--no-deploy")
+        self.assertEqual(code, 0, out)
 
     def test_never_switches_branches_itself(self):
         self.git("checkout", "--quiet", "-b", "feat/other")

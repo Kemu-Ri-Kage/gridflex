@@ -330,6 +330,11 @@ echo "On $branch at $(git rev-parse --short HEAD)"
 
 step "2 plan"
 replan
+# The first GridOracle's reporter can never be replaced, so its key never
+# goes into automation (daily-settle spec §13.2): send nothing to it.
+if [[ "$chain_live" == 1 && "$(plan_field oracleRotatable)" != "true" ]]; then
+  fail "the oracle in shared/addresses.json is not a GridOracleV2 (its reporter can't be replaced), so the job sends it nothing; switch over first (shared/oracle-v2.md)"
+fi
 
 # ------------------------------------------------------------------ 3. fetch
 

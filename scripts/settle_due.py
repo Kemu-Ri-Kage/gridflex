@@ -35,6 +35,9 @@ committed metric files, and reports:
   ladderRunningOut      no market day after tomorrow
   balances, lowGas      OKB of the reporter, and of the settler when
                         shared/addresses.json names one
+  oracleRotatable       the oracle is a GridOracleV2, whose reporter can be
+                        replaced; daily_settle.sh sends nothing to any other
+                        (daily-settle spec §13.2)
 
 Usage:
   python scripts/settle_due.py              # readable report
@@ -284,6 +287,14 @@ def gather(w3: Web3, block: int, now: int) -> dict[str, Any]:
         )
         time.sleep(RPC_COURTESY_SLEEP)
 
+    # Only GridOracleV2 answers guardian(): its reporter can be replaced, so
+    # it is the only oracle the job may send to. Any failure counts as no.
+    try:
+        w3.eth.call({"to": addresses["oracle"], "data": Web3.keccak(text="guardian()")[:4]}, block)
+        rotatable = True
+    except Exception:
+        rotatable = False
+
     balances = {}
     for label in ("reporter", "settler"):
         if config.get(label):
@@ -293,7 +304,7 @@ def gather(w3: Web3, block: int, now: int) -> dict[str, Any]:
     daily = [int(r["dayKey"]) for r in rows if r.get("metricId") == DAILY_METRIC]
     return {"markets": markets, "readings": readings, "files": files,
             "oracle_window": oracle_window, "last_market_day": max(daily) if daily else None,
-            "balances": balances}
+            "balances": balances, "oracle_rotatable": rotatable}
 
 
 # ---------------------------------------------------------------- output
@@ -323,6 +334,8 @@ def render(result: dict[str, Any]) -> str:
         f"  next finalizable:  {result['secondsToFinalizable'] if result['secondsToFinalizable'] is not None else '-'} s",
         f"  to resolve:        {len(result['resolve'])} market(s)",
         f"  last market day:   {result['lastMarketDay'] or 'none'}",
+        "  oracle:            " + ("GridOracleV2, reporter replaceable" if result.get("oracleRotatable")
+                                  else "the first GridOracle, reporter permanent: the job sends it nothing"),
     ]
     for label, wei in result["balances"].items():
         lines.append(f"  {label} balance:  {Web3.from_wei(int(wei), 'ether'):.4f} OKB")
@@ -368,6 +381,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     result = plan(state["markets"], state["readings"], state["files"], now,
                   state["oracle_window"], state["last_market_day"], state["balances"])
+    result["oracleRotatable"] = state["oracle_rotatable"]
     if args.json:
         path = Path(args.json)
         path.parent.mkdir(parents=True, exist_ok=True)

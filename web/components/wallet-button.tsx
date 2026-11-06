@@ -3,6 +3,10 @@
 import { ExternalLink, LogOut, Wallet } from 'lucide-react';
 
 import { useConnectFrom, WalletPromptHint } from '@/components/connection-help';
+import {
+  OpenInWalletApp,
+  useNeedsWalletApp,
+} from '@/components/open-in-wallet-app';
 import { Button } from '@/components/ui/button';
 import { WalletPicker } from '@/components/wallet-picker';
 import { useWeb3 } from '@/components/web3-provider';
@@ -44,6 +48,9 @@ export function WalletButton() {
     walletDetected,
   } = useWeb3();
   const connectFromHeader = useConnectFrom('header');
+  // A phone browser has no wallet to connect: show the way into the wallet
+  // apps instead of a "no wallet found" error and desktop install links.
+  const needsWalletApp = useNeedsWalletApp();
 
   if (account) {
     return (
@@ -80,12 +87,21 @@ export function WalletButton() {
           aria-live="polite"
           className="absolute right-0 top-full z-20 mt-2 w-[min(18rem,calc(100vw-2rem))] border border-border bg-card p-3 text-xs leading-5 shadow-none"
         >
-          <p className="text-down">{connectError}</p>
-          {walletDetected === false && (
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-              <InstallLink href={OKX_WALLET_URL} label="Install OKX Wallet" />
-              <InstallLink href={METAMASK_URL} label="Install MetaMask" />
-            </div>
+          {needsWalletApp ? (
+            <OpenInWalletApp />
+          ) : (
+            <>
+              <p className="text-down">{connectError}</p>
+              {walletDetected === false && (
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  <InstallLink
+                    href={OKX_WALLET_URL}
+                    label="Install OKX Wallet"
+                  />
+                  <InstallLink href={METAMASK_URL} label="Install MetaMask" />
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

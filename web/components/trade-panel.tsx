@@ -10,6 +10,10 @@ import {
   useConnectFrom,
   WalletPromptHint,
 } from '@/components/connection-help';
+import {
+  OpenInWalletApp,
+  useNeedsWalletApp,
+} from '@/components/open-in-wallet-app';
 import { PositionSummary } from '@/components/position-summary';
 import { SwitchPosition } from '@/components/switch-position';
 import {
@@ -332,29 +336,37 @@ export function TradePanel() {
 
   // Not on a market whose trading has closed: there is nothing to trade,
   // and the header still connects a wallet to redeem.
-  const connectButton = !account && !(ready && !tradingOpen) && (
-    <div className="grid gap-2">
-      <button
-        className={cn(
-          ctaClass('neutral'),
-          connecting && 'disabled:cursor-progress disabled:opacity-100',
-        )}
-        disabled={connecting}
-        onClick={connectFromTicket}
-        type="button"
-      >
-        {connecting ? (
-          'Check your wallet…'
-        ) : (
-          <>
-            Connect wallet to trade
-            <CtaArrow />
-          </>
-        )}
-      </button>
-      <WalletPromptHint origin="ticket" />
-    </div>
-  );
+  // A phone browser has no wallet: the ticket shows the way into the wallet
+  // apps instead of a Connect button that can only fail here.
+  const needsWalletApp = useNeedsWalletApp();
+  const connectButton =
+    !account &&
+    !(ready && !tradingOpen) &&
+    (needsWalletApp ? (
+      <OpenInWalletApp />
+    ) : (
+      <div className="grid gap-2">
+        <button
+          className={cn(
+            ctaClass('neutral'),
+            connecting && 'disabled:cursor-progress disabled:opacity-100',
+          )}
+          disabled={connecting}
+          onClick={connectFromTicket}
+          type="button"
+        >
+          {connecting ? (
+            'Check your wallet…'
+          ) : (
+            <>
+              Connect wallet to trade
+              <CtaArrow />
+            </>
+          )}
+        </button>
+        <WalletPromptHint origin="ticket" />
+      </div>
+    ));
 
   return (
     <section

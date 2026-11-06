@@ -9,6 +9,12 @@
  * is https://web.archive.org/web/20240613082757/https://www.okx.com/zh-hant/web3/build/docs/sdks/app-universal-link
  * The page URL is encoded into an okx:// link, and that whole link is
  * encoded again into OKX's https download link, as the guide's sample does.
+ * The host is web3.okx.com and the path ends in "/download/": that host's
+ * apple-app-site-association hands "/download/*" to the OKX Wallet app
+ * (com.okx.wallet), so iOS opens the app itself. www.okx.com/download
+ * belongs to the exchange app, and "/download" without the slash matches no
+ * pattern at all, so iOS stayed in Safari (checked 6 Nov 2026). Without the
+ * app installed, OKX redirects the same link to its download page.
  *
  * MetaMask: https://docs.metamask.io/metamask-connect/evm/guides/metamask-exclusive/use-deeplinks/
  * The page goes after /dapp/ unencoded: the app takes that path as it is
@@ -21,7 +27,7 @@
 
 export function okxWalletLink(pageUrl: string): string {
   const deepLink = `okx://wallet/dapp/url?dappUrl=${encodeURIComponent(pageUrl)}`;
-  return `https://www.okx.com/download?deeplink=${encodeURIComponent(deepLink)}`;
+  return `https://web3.okx.com/download/?deeplink=${encodeURIComponent(deepLink)}`;
 }
 
 /** Host, path and query only; a #hash is dropped, since nothing says it survives. */

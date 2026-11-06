@@ -14,7 +14,7 @@ const PAGE =
 void test('the OKX link encodes the page into okx://, then encodes that link again', () => {
   assert.equal(
     okxWalletLink(PAGE),
-    'https://www.okx.com/download?deeplink=' +
+    'https://web3.okx.com/download/?deeplink=' +
       'okx%3A%2F%2Fwallet%2Fdapp%2Furl%3FdappUrl%3D' +
       'https%253A%252F%252Fgridflex-web.teslenko-platon.workers.dev' +
       '%252Ftrade%253Fmarket%253D0xb22A449cdEfA3C4D226Ff69fd87d95f4FaadE604',

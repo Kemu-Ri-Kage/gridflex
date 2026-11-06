@@ -14,6 +14,7 @@ import { MarketsProvider } from '@/lib/markets';
 
 export const metadata: Metadata = {
   title: 'Terminal — GRIDFLEX',
+  alternates: { canonical: '/trade' },
 };
 
 export default function TradePage() {

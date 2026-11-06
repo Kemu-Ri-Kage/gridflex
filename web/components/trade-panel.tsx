@@ -10,6 +10,7 @@ import {
   useConnectFrom,
   WalletPromptHint,
 } from '@/components/connection-help';
+import { GetTestFunds } from '@/components/get-test-funds';
 import {
   OpenInWalletApp,
   useNeedsWalletApp,
@@ -152,6 +153,7 @@ export function TradePanel() {
     resolve,
     cancel,
     redeem,
+    refresh,
   } = useWeb3();
   const connectFromTicket = useConnectFrom('ticket');
   const { markets, select, now } = useMarkets();
@@ -471,16 +473,27 @@ export function TradePanel() {
                 <p className="text-xs leading-5 text-muted-foreground">
                   Free test dollars for trying a trade.
                 </p>
-                {funding.needsGas && <FaucetLink />}
-                <button
-                  className={ctaClass('neutral')}
-                  disabled={!configured || busy || funding.needsGas}
-                  onClick={() => void mintCollateral()}
-                  type="button"
-                >
-                  Get 1,000 test mUSDT
-                  <CtaArrow />
-                </button>
+                {/* One tap from GRIDFLEX's faucet; the manual route (OKX
+                    faucet, then mint) while it is off or if it fails. */}
+                <GetTestFunds
+                  account={account ?? ''}
+                  buttonClassName={ctaClass('neutral')}
+                  onFunded={() => void refresh()}
+                  fallback={
+                    <>
+                      {funding.needsGas && <FaucetLink />}
+                      <button
+                        className={ctaClass('neutral')}
+                        disabled={!configured || busy || funding.needsGas}
+                        onClick={() => void mintCollateral()}
+                        type="button"
+                      >
+                        Get 1,000 test mUSDT
+                        <CtaArrow />
+                      </button>
+                    </>
+                  }
+                />
               </div>
             )}
             {/* Visible but dimmed until there is mUSDT to buy with. */}

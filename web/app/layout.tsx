@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 
+import { WalletLinkArrival } from '@/components/open-in-wallet-app';
 import { Web3Provider } from '@/components/web3-provider';
 
 import './globals.css';
@@ -47,7 +48,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Web3Provider>{children}</Web3Provider>
+        <Web3Provider>
+          <WalletLinkArrival />
+          {children}
+        </Web3Provider>
       </body>
     </html>
   );

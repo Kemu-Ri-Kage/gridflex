@@ -3,12 +3,39 @@
 import { ExternalLink } from 'lucide-react';
 import * as React from 'react';
 
+import { useConnectFrom } from '@/components/connection-help';
 import { useWeb3 } from '@/components/web3-provider';
 import {
   isWalletAppPlatform,
   metaMaskLink,
   okxWalletLink,
 } from '@/lib/wallet-deeplinks';
+
+/** Query parameter the wallet links add: "connect as soon as you open". */
+const ARRIVAL_PARAM = 'connect';
+
+/**
+ * Mounted once inside the Web3 provider. When the page was opened from one
+ * of OpenInWalletApp's links, it now runs inside that wallet's own browser:
+ * ask to connect straight away, as the person already chose to, then drop
+ * the parameter so a reload or a shared link doesn't ask again. Does
+ * nothing anywhere else.
+ */
+export function WalletLinkArrival() {
+  const { walletDetected, account } = useWeb3();
+  const connect = useConnectFrom('header');
+  const handled = React.useRef(false);
+  React.useEffect(() => {
+    if (handled.current || walletDetected !== true || account) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(ARRIVAL_PARAM) !== '1') return;
+    handled.current = true;
+    url.searchParams.delete(ARRIVAL_PARAM);
+    window.history.replaceState(window.history.state, '', url.href);
+    connect();
+  }, [walletDetected, account, connect]);
+  return null;
+}
 
 function WalletAppButton({ href, label }: { href: string; label: string }) {
   return (
@@ -57,7 +84,11 @@ export function OpenInWalletApp({ className = '' }: { className?: string }) {
   const url = new URL(window.location.href);
   if (market && url.pathname === '/trade')
     url.searchParams.set('market', market);
+  // The copied link stays plain; the wallet links ask WalletLinkArrival to
+  // connect as soon as the page opens inside the app.
   const page = url.href;
+  url.searchParams.set(ARRIVAL_PARAM, '1');
+  const walletPage = url.href;
 
   const copy = () => {
     void navigator.clipboard?.writeText(page).then(
@@ -77,8 +108,8 @@ export function OpenInWalletApp({ className = '' }: { className?: string }) {
           wallet app, then tap Connect there.
         </p>
       </div>
-      <WalletAppButton href={okxWalletLink(page)} label="Open in OKX Wallet" />
-      <WalletAppButton href={metaMaskLink(page)} label="Open in MetaMask" />
+      <WalletAppButton href={okxWalletLink(walletPage)} label="Open in OKX Wallet" />
+      <WalletAppButton href={metaMaskLink(walletPage)} label="Open in MetaMask" />
       <p className="text-muted-foreground">
         No wallet app yet? The same button takes you to download it.
       </p>

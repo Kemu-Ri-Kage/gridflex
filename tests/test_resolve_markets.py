@@ -274,6 +274,19 @@ class TestMain(unittest.TestCase):
         self.assertIn("cancelled at confirmation", out)
         self.assertIn("resolve_markets summary", out)
 
+    def test_an_unattended_run_resolves_without_asking(self):
+        code, out, _ = self.main("--live", "--yes")
+        self.assertEqual(code, 0)
+        self.prompt.assert_not_called()
+        self.assertIn("Confirmed by --yes", out)
+        self.assertEqual(self.resolve.call_count, 2)
+
+    def test_yes_without_live_is_refused(self):
+        code, _, err = self.main("--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("--yes only makes sense with --live", err)
+        self.resolve.assert_not_called()
+
     def test_live_resolves_only_candidates(self):
         code, out, _ = self.main("--live")
         self.assertEqual(code, 0)

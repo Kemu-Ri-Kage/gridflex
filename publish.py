@@ -45,6 +45,8 @@ INT256_MAX = 2**255 - 1
 RECEIPT_TIMEOUT_SECONDS = 90
 MAX_GAS_BUMPS = 2
 EXPECTED_REVERT_ERROR = "ReadingAlreadyFinalized"
+# The most readings one unattended (--yes) run may touch: a week.
+UNATTENDED_MAX_READINGS = 7
 
 
 class PublisherError(RuntimeError):
@@ -291,7 +293,31 @@ def classify_revert(exc: Exception, selectors: dict[str, str]) -> RevertClassifi
     )
 
 
-def load_reporter_account():
+def keystore_password(role: str, unattended: bool = False) -> str:
+    """The keystore password for `role` ("REPORTER" or "FINALIZER").
+
+    <ROLE>_KEYSTORE_PASSWORD_FILE names a file to read it from. The daily
+    settle job passes a pipe there (/dev/fd/3), so the password never sits in
+    the environment or on disk. Otherwise it is typed, hidden. An unattended
+    run with no file stops with a clear message, rather than have getpass
+    read empty input and report the password as wrong.
+    """
+    file_name = os.environ.get(f"{role}_KEYSTORE_PASSWORD_FILE", "").strip()
+    if file_name:
+        try:
+            with open(Path(file_name).expanduser(), encoding="utf-8") as handle:
+                return handle.read().rstrip("\r\n")
+        except OSError as exc:
+            raise PublisherError(f"{role}_KEYSTORE_PASSWORD_FILE cannot be read.") from exc
+    if unattended:
+        raise PublisherError(
+            f"An unattended (--yes) run needs {role}_KEYSTORE_PASSWORD_FILE; "
+            "nobody is here to type the keystore password."
+        )
+    return getpass.getpass(f"Enter the {role.lower()} keystore password (hidden): ")
+
+
+def load_reporter_account(unattended: bool = False):
     keystore_path = os.environ.get("REPORTER_KEYSTORE_PATH", "").strip()
     env_key = os.environ.get("REPORTER_PRIVATE_KEY", "").strip()
     if keystore_path:
@@ -300,7 +326,7 @@ def load_reporter_account():
             keystore = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise PublisherError("Reporter keystore cannot be read or is not valid JSON.") from exc
-        password = getpass.getpass("Enter the reporter keystore password (hidden): ")
+        password = keystore_password("REPORTER", unattended)
         try:
             private_key = Account.decrypt(keystore, password)
         except (ValueError, TypeError) as exc:
@@ -392,12 +418,18 @@ def protect_against_stale_ledger(
     plan: Plan,
     ledger: dict[str, dict[str, Any]],
     submission_limit: int | None = None,
+    allow_corrections: bool = True,
 ) -> Plan:
     """Check every would-be submission on-chain before live mode.
 
     This extra guard is necessary for the team's ZIP hand-off workflow: it
     reconstructs missing public ledger rows and prevents an old ZIP from
     silently resetting a reading's dispute window.
+
+    With allow_corrections=False (unattended --yes runs) a reading whose
+    on-chain value would be replaced stops the run instead: a correction
+    restarts the dispute window and changes a price markets settle on, so a
+    person makes that call interactively.
     """
     safe_submit: list[MetricReading] = []
     for reading in plan.submit:
@@ -427,6 +459,12 @@ def protect_against_stale_ledger(
         if current["finalized"]:
             raise PublisherError(
                 f"{reading.ledger_key}: file value differs from immutable on-chain value."
+            )
+        if not allow_corrections:
+            raise PublisherError(
+                f"CORRECTION {reading.ledger_key}: on-chain value {current['value']} differs "
+                f"from the file's {reading.value}. Corrections are never made unattended; "
+                "run publish.py without --yes and confirm by hand."
             )
         print(
             f"CORRECTION {reading.ledger_key}: on-chain value {current['value']} "
@@ -751,6 +789,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--reconcile", action="store_true")
+    parser.add_argument(
+        "--yes", action="store_true",
+        help="skip the typed confirmation (the daily settle job only). Needs --live, one "
+        "--metric, --start, --end and --limit <= %d; never makes a correction." % UNATTENDED_MAX_READINGS,
+    )
     return parser
 
 
@@ -761,6 +804,17 @@ def validate_args(args: argparse.Namespace) -> None:
         raise PublisherError("--limit must be positive.")
     if args.start and args.end and args.start > args.end:
         raise PublisherError("--start must not be after --end.")
+    if getattr(args, "yes", False):
+        # Unattended runs are kept narrow: one metric, an explicit day range
+        # and a small batch, so a scheduling mistake can't publish a month.
+        if not args.live:
+            raise PublisherError("--yes only makes sense with --live.")
+        if not args.metric or len(args.metric) != 1:
+            raise PublisherError("--yes needs exactly one --metric.")
+        if args.start is None or args.end is None:
+            raise PublisherError("--yes needs both --start and --end.")
+        if args.limit is None or args.limit > UNATTENDED_MAX_READINGS:
+            raise PublisherError(f"--yes needs --limit of at most {UNATTENDED_MAX_READINGS}.")
     if args.check and args.live:
         raise PublisherError("Use --check and --live as separate commands.")
 
@@ -824,14 +878,16 @@ def main(argv: list[str] | None = None) -> int:
             print("\nDRY RUN ONLY — no transactions were sent.")
             return 1 if invalid else 0
 
-        account = load_reporter_account()
+        account = load_reporter_account(unattended=args.yes)
         w3 = make_web3(rpc_url)
         contract = load_contract(w3, oracle_address)
         selectors = build_error_selectors(contract.abi)
         chain_id, balance = preflight(w3, contract, account)
         recover_submitted_entries(w3, contract, account, ledger)
         plan = plan_from_ledger(readings, ledger)
-        plan = protect_against_stale_ledger(contract, plan, ledger, args.limit)
+        plan = protect_against_stale_ledger(
+            contract, plan, ledger, args.limit, allow_corrections=not args.yes
+        )
         print_plan(plan, invalid)
         if invalid:
             raise PublisherError("Live publication refused because metric validation failed.")
@@ -840,7 +896,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         gas_price = w3.eth.gas_price
         live_banner(chain_id, oracle_address, account.address, balance, len(plan.submit), gas_price)
-        if input('\nType "yes" to continue: ').strip() != "yes":
+        if args.yes:
+            print("\nConfirmed by --yes (unattended run).")
+        elif input('\nType "yes" to continue: ').strip() != "yes":
             print("Cancelled. No transactions were sent.")
             return 0
 

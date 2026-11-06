@@ -1,0 +1,115 @@
+# The daily settle job (daily_settle.sh, docs/specs/2026-10-13-daily-settle.md).
+#
+# GitHub runs scheduled workflows only from the default branch, so this file
+# must be on main. It checks out the live branch, feat/judging-sprint, and
+# settles from there.
+#
+# Secrets live in the "settle" Environment (Settings -> Environments), whose
+# deployment branches are limited to main, so a workflow pushed on any other
+# branch can't read them:
+#   REPORTER_KEYSTORE_JSON, REPORTER_KEYSTORE_PASSWORD   publishes readings
+#   SETTLER_KEYSTORE_JSON, SETTLER_KEYSTORE_PASSWORD     finalize, resolve, create markets
+#   GRIDSTATUS_API_KEY
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID          the site deploy
+#   HC_PING_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID    alerts (optional)
+#
+# Stop one run before it finalizes:  gh variable set SETTLE_HOLD --body 1
+# Resume:                            gh variable delete SETTLE_HOLD
+# Stop the schedule:                 gh workflow disable daily-settle
+name: daily-settle
+
+on:
+  schedule:
+    - cron: "20 0,3,9,15 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: send, commit, push and deploy nothing"
+        type: boolean
+        default: true
+
+concurrency:
+  group: daily-settle
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: settle
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/judging-sprint
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+
+      # Raw GridStatus responses: published hashes cite these files, and a
+      # cold cache costs extra rows. Evicted after 7 days unused.
+      - uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: raw-${{ github.run_id }}
+          restore-keys: raw-
+
+      - name: Write keystores
+        env:
+          REPORTER_KEYSTORE_JSON: ${{ secrets.REPORTER_KEYSTORE_JSON }}
+          SETTLER_KEYSTORE_JSON: ${{ secrets.SETTLER_KEYSTORE_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$REPORTER_KEYSTORE_JSON" > "$RUNNER_TEMP/reporter.json"
+          printf '%s' "$SETTLER_KEYSTORE_JSON" > "$RUNNER_TEMP/settler.json"
+
+      - name: Settle
+        env:
+          SETTLE_SECRET_CMD: ops/secret-from-env.sh
+          REPORTER_KEYSTORE_PATH: ${{ runner.temp }}/reporter.json
+          SETTLER_KEYSTORE_PATH: ${{ runner.temp }}/settler.json
+          REPORTER_KEYSTORE_PASSWORD: ${{ secrets.REPORTER_KEYSTORE_PASSWORD }}
+          SETTLER_KEYSTORE_PASSWORD: ${{ secrets.SETTLER_KEYSTORE_PASSWORD }}
+          GRIDSTATUS_API_KEY: ${{ secrets.GRIDSTATUS_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          HC_PING_URL: ${{ secrets.HC_PING_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SETTLE_HOLD: ${{ vars.SETTLE_HOLD }}
+          SETTLE_DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '1' || '0' }}
+        run: |
+          git config user.name "gridflex-settle-bot"
+          git config user.email "gridflex-settle-bot@users.noreply.github.com"
+          ./daily_settle.sh
+
+      - name: Remove keystores
+        if: always()
+        run: rm -f "$RUNNER_TEMP/reporter.json" "$RUNNER_TEMP/settler.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settle-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 30

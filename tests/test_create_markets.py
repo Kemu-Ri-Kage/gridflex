@@ -1192,3 +1192,22 @@ class TestWriteAddressesFileKeepsTheLadder(unittest.TestCase):
                 create_markets.write_addresses_file([ladder, dict(existing)])
             markets = json.loads(path.read_text(encoding="utf-8"))["markets"]
         self.assertEqual([m["market"] for m in markets], ["0xold", "0xnew"])
+
+
+class TestUnattendedCreate(unittest.TestCase):
+    """create_markets.py --yes (the daily settle job's ladder step) only ever
+    creates the rows it names."""
+
+    def check(self, argv):
+        create_markets.validate_args(create_markets.build_parser().parse_args(argv))
+
+    def test_named_rows_with_live_are_accepted(self):
+        self.check(["--market", "60", "--market", "61", "--live", "--yes"])
+
+    def test_yes_needs_live(self):
+        with self.assertRaisesRegex(PublisherError, "--live"):
+            self.check(["--market", "60", "--yes"])
+
+    def test_yes_never_creates_every_row(self):
+        with self.assertRaisesRegex(PublisherError, "at least one --market"):
+            self.check(["--live", "--yes"])

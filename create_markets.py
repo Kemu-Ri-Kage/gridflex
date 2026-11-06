@@ -1108,10 +1108,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--initial-liquidity-musdt", type=float, default=DEFAULT_INITIAL_LIQUIDITY / 10**6,
         help="initial pool liquidity in whole mUSDT per market (default 10000)",
     )
+    parser.add_argument(
+        "--yes", action="store_true",
+        help="skip the typed confirmation (the daily settle job only); needs --live and "
+        "at least one --market",
+    )
     return parser
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    if getattr(args, "yes", False):
+        # An unattended run creates only the rows it names - never "every
+        # row", which would also start the replay markets' clocks.
+        if not args.live:
+            raise PublisherError("--yes only makes sense with --live.")
+        if not args.market:
+            raise PublisherError("--yes needs at least one --market row.")
     if args.check and args.live:
         raise PublisherError("Use --check and --live as separate commands.")
     if args.limit is not None and args.limit <= 0:
@@ -1240,7 +1252,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         refuse_unnamed_replays(eligible, args.market)
 
-        account = load_finalizer_account()
+        account = load_finalizer_account(unattended=args.yes)
         chain_id, balance = preflight(w3, addresses, account)
         initial_liquidity = int(round(args.initial_liquidity_musdt * 10**6))
 
@@ -1253,7 +1265,9 @@ def main(argv: list[str] | None = None) -> int:
             for evaluation in to_backfill:
                 print(f"    #{evaluation.candidate.row} {evaluation.candidate.label} -> "
                       f"{evaluation.existing_address}")
-        if input('\nType "yes" to continue: ').strip() != "yes":
+        if args.yes:
+            print("\nConfirmed by --yes (unattended run).")
+        elif input('\nType "yes" to continue: ').strip() != "yes":
             print("Cancelled. No transactions were sent.")
             return 0
 

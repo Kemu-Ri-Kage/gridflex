@@ -339,10 +339,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--market", action="append", metavar="ADDRESS",
         help="only consider this market address (repeatable); default is every listed market",
     )
+    parser.add_argument(
+        "--yes", action="store_true",
+        help="skip the typed confirmation (the daily settle job only); needs --live",
+    )
     return parser
 
 
 def run(args: argparse.Namespace, summary: Summary) -> int:
+    if args.yes and not args.live:
+        raise PublisherError("--yes only makes sense with --live.")
     addresses = load_addresses()
     w3 = make_web3(os.environ.get("XLAYER_RPC_URL", DEFAULT_RPC_URL))
     chain_guard(w3)
@@ -376,7 +382,7 @@ def run(args: argparse.Namespace, summary: Summary) -> int:
         print("Nothing to resolve. No transactions were sent.")
         return 0
 
-    account = load_finalizer_account()
+    account = load_finalizer_account(unattended=args.yes)
     chain_id, balance = preflight(w3, addresses, account)
     print("GRIDFLEX resolve_markets.py - LIVE MODE\n")
     print(f"  Chain ID:            {chain_id}")
@@ -387,7 +393,9 @@ def run(args: argparse.Namespace, summary: Summary) -> int:
     for state in candidates:
         yes = yes_would_win(state.reading_value, state.threshold)
         print(f"    {state.address}  {state.metric_name} {state.day_key} -> {'YES' if yes else 'NO'}")
-    if input('\nType "yes" to continue: ').strip() != "yes":
+    if args.yes:
+        print("\nConfirmed by --yes (unattended run).")
+    elif input('\nType "yes" to continue: ').strip() != "yes":
         summary.mode = "live (cancelled at confirmation)"
         print("Cancelled. No transactions were sent.")
         return 0

@@ -39,6 +39,7 @@ from publish import (
     MAX_GAS_BUMPS,
     RECEIPT_TIMEOUT_SECONDS,
     ROOT,
+    UNATTENDED_MAX_READINGS,
     MetricReading,
     PublisherError,
     RevertClassification,
@@ -47,6 +48,7 @@ from publish import (
     chain_reading,
     classify_revert,
     collect_readings,
+    keystore_password,
     ledger_entry_from_chain,
     load_contract,
     load_deployment,
@@ -108,7 +110,7 @@ def format_wall_clock(epoch_seconds: int) -> str:
     )
 
 
-def load_finalizer_account():
+def load_finalizer_account(unattended: bool = False):
     keystore_path = os.environ.get("FINALIZER_KEYSTORE_PATH", "").strip()
     env_key = os.environ.get("FINALIZER_PRIVATE_KEY", "").strip()
     if keystore_path:
@@ -117,7 +119,7 @@ def load_finalizer_account():
             keystore = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise PublisherError("Finalizer keystore cannot be read or is not valid JSON.") from exc
-        password = getpass.getpass("Enter the finalizer keystore password (hidden): ")
+        password = keystore_password("FINALIZER", unattended)
         try:
             private_key = Account.decrypt(keystore, password)
         except (ValueError, TypeError) as exc:
@@ -496,6 +498,11 @@ def build_parser() -> argparse.ArgumentParser:
         "for each one just to learn that. Off by default: every discovered metric file is a "
         "candidate, same as today.",
     )
+    parser.add_argument(
+        "--yes", action="store_true",
+        help="skip the typed confirmation (the daily settle job only). Needs --live, one "
+        "--metric, --start and --limit <= %d." % UNATTENDED_MAX_READINGS,
+    )
     return parser
 
 
@@ -535,6 +542,17 @@ def validate_args(args: argparse.Namespace) -> None:
         raise PublisherError("--start must not be after --end.")
     if args.check and args.live:
         raise PublisherError("Use --check and --live as separate commands.")
+    if args.yes:
+        # Same narrow shape as publish.py --yes: one metric, a start day and
+        # a week at most. VALUE MISMATCH still stops the run (evaluate_reading).
+        if not args.live:
+            raise PublisherError("--yes only makes sense with --live.")
+        if not args.metric or len(args.metric) != 1:
+            raise PublisherError("--yes needs exactly one --metric.")
+        if args.start is None:
+            raise PublisherError("--yes needs --start.")
+        if args.limit is None or args.limit > UNATTENDED_MAX_READINGS:
+            raise PublisherError(f"--yes needs --limit of at most {UNATTENDED_MAX_READINGS}.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -637,11 +655,13 @@ def main(argv: list[str] | None = None) -> int:
             print_summary(summary, started, invalid)
             return 1 if summary.failed else 0
 
-        account = load_finalizer_account()
+        account = load_finalizer_account(unattended=args.yes)
         balance = w3.eth.get_balance(account.address)
         gas_price = w3.eth.gas_price
         confirmation_banner(chain_id, oracle_address, account.address, balance, eligible, gas_price)
-        if input('\nType "yes" to continue: ').strip() != "yes":
+        if args.yes:
+            print("\nConfirmed by --yes (unattended run).")
+        elif input('\nType "yes" to continue: ').strip() != "yes":
             print("Cancelled. No transactions were sent.")
             print_summary(summary, started, invalid)
             return 1 if summary.failed else 0

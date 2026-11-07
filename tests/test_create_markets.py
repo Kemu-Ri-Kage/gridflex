@@ -412,6 +412,7 @@ class TestBackfillDoesNotDuplicateCreation(unittest.TestCase):
                     create_markets, "preflight",
                     return_value=(create_markets.EXPECTED_CHAIN_ID, 10**18),
                 ), \
+                patch.object(create_markets, "assert_nothing_in_flight"), \
                 patch.object(
                     create_markets, "backfill_existing_market", return_value=backfilled_record
                 ) as mock_backfill, \
@@ -721,6 +722,7 @@ class TestToBackfillIncludesPartialLedgerEntries(unittest.TestCase):
                     create_markets, "preflight",
                     return_value=(create_markets.EXPECTED_CHAIN_ID, 10**18),
                 ), \
+                patch.object(create_markets, "assert_nothing_in_flight"), \
                 patch.object(
                     create_markets, "backfill_existing_market", return_value=backfilled_record
                 ) as mock_backfill, \
@@ -1140,6 +1142,56 @@ class TestRefuseUnnamedReplays(unittest.TestCase):
         create_markets.refuse_unnamed_replays([self.evaluation(live)], None)
 
 
+
+class TestNothingInFlight(unittest.TestCase):
+    """A create that timed out may still land; nothing more is sent until it has."""
+
+    def check(self, *counts):
+        replies = iter(counts)
+        w3 = MagicMock()
+        w3.eth.get_transaction_count.side_effect = lambda _address, _block: next(replies)
+        with patch.object(create_markets.time, "sleep"):
+            create_markets.assert_nothing_in_flight(w3, "0x" + "aa" * 20)
+
+    def test_nothing_pending_passes(self):
+        self.check(7, 7)
+
+    def test_a_lagging_pending_count_is_not_a_pending_transaction(self):
+        self.check(6, 7)
+
+    def test_a_transaction_that_lands_while_checking_passes(self):
+        self.check(8, 7, 8, 8)
+
+    def test_a_transaction_still_pending_stops_with_the_stop_word(self):
+        with self.assertRaisesRegex(PublisherError, "may still be in flight"):
+            self.check(8, 7, 8, 7, 8, 7)
+
+
+class TestUntrackedSameDay(unittest.TestCase):
+    CANDIDATE = create_markets.CandidateMarket(
+        row=60, metric_id="ERCOT_HBNORTH_DA_AVG", day_key=20261120, threshold=3500,
+        label="x", kind=create_markets.KIND_LIVE)
+    ELIGIBLE = [create_markets.Evaluation(CANDIDATE, create_markets.STATUS_ELIGIBLE)]
+    PREFIX = CANDIDATE.metric_hash.hex()
+    OTHER = Web3.to_checksum_address("0x" + "bb" * 20)
+
+    def test_a_fresh_day_is_fine(self):
+        pairs = {f"{self.PREFIX}:20261119:3500": "0x" + "cc" * 20}
+        self.assertEqual(create_markets.untracked_same_day(self.ELIGIBLE, pairs, {}), [])
+
+    def test_an_unrecorded_market_on_the_same_day_is_reported(self):
+        pairs = {f"{self.PREFIX}:20261120:3000": self.OTHER}
+        found = create_markets.untracked_same_day(self.ELIGIBLE, pairs, {})
+        self.assertEqual(len(found), 1)
+        self.assertIn("20261120", found[0])
+        self.assertIn("strike 3000", found[0])
+
+    def test_a_recorded_market_on_the_same_day_is_fine(self):
+        pairs = {f"{self.PREFIX}:20261120:3000": self.OTHER}
+        ledger = {"ERCOT_HBNORTH_DA_AVG:20261120:3000": {"market": self.OTHER.lower()}}
+        self.assertEqual(create_markets.untracked_same_day(self.ELIGIBLE, pairs, ledger), [])
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -1192,3 +1244,22 @@ class TestWriteAddressesFileKeepsTheLadder(unittest.TestCase):
                 create_markets.write_addresses_file([ladder, dict(existing)])
             markets = json.loads(path.read_text(encoding="utf-8"))["markets"]
         self.assertEqual([m["market"] for m in markets], ["0xold", "0xnew"])
+
+
+class TestUnattendedCreate(unittest.TestCase):
+    """create_markets.py --yes (the daily settle job's ladder step) only ever
+    creates the rows it names."""
+
+    def check(self, argv):
+        create_markets.validate_args(create_markets.build_parser().parse_args(argv))
+
+    def test_named_rows_with_live_are_accepted(self):
+        self.check(["--market", "60", "--market", "61", "--live", "--yes"])
+
+    def test_yes_needs_live(self):
+        with self.assertRaisesRegex(PublisherError, "--live"):
+            self.check(["--market", "60", "--yes"])
+
+    def test_yes_never_creates_every_row(self):
+        with self.assertRaisesRegex(PublisherError, "at least one --market"):
+            self.check(["--live", "--yes"])

@@ -178,6 +178,75 @@ class TestCliArguments(unittest.TestCase):
             publish.validate_args(args)
 
 
+class TestUnattendedMode(unittest.TestCase):
+    """--yes lets the daily settle job publish without a typed "yes", but only
+    in a narrow shape, and never to correct an on-chain value."""
+
+    GOOD = ["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG",
+            "--start", "20261014", "--end", "20261020", "--limit", "7"]
+
+    def check(self, argv):
+        publish.validate_args(publish.build_parser().parse_args(argv))
+
+    def test_a_narrow_unattended_run_is_accepted(self):
+        self.check(self.GOOD)
+
+    def test_yes_needs_live(self):
+        with self.assertRaisesRegex(publish.PublisherError, "--live"):
+            self.check([a for a in self.GOOD if a != "--live"])
+
+    def test_yes_needs_exactly_one_metric(self):
+        with self.assertRaisesRegex(publish.PublisherError, "one --metric"):
+            self.check(["--live", "--yes", "--start", "20261014", "--end", "20261020", "--limit", "7"])
+        with self.assertRaisesRegex(publish.PublisherError, "one --metric"):
+            self.check(self.GOOD + ["--metric", "ERCOT_WEST_NORTH_DA_BASIS"])
+
+    def test_yes_needs_a_closed_day_range(self):
+        with self.assertRaisesRegex(publish.PublisherError, "--start and --end"):
+            self.check(["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG",
+                        "--start", "20261014", "--limit", "7"])
+
+    def test_yes_caps_the_batch_at_a_week(self):
+        with self.assertRaisesRegex(publish.PublisherError, "at most 7"):
+            self.check(self.GOOD[:-1] + ["8"])
+        with self.assertRaisesRegex(publish.PublisherError, "at most 7"):
+            self.check(self.GOOD[:-2])
+
+    def test_password_comes_from_the_named_file(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as handle:
+            handle.write("hunter2\n")
+        self.addCleanup(Path(handle.name).unlink)
+        with patch.dict("os.environ", {"REPORTER_KEYSTORE_PASSWORD_FILE": handle.name}), \
+                patch.object(publish.getpass, "getpass", side_effect=AssertionError("must not prompt")):
+            self.assertEqual(publish.keystore_password("REPORTER", unattended=True), "hunter2")
+
+    def test_unattended_without_a_password_file_stops_clearly(self):
+        with patch.dict("os.environ", {}, clear=True), \
+                patch.object(publish.getpass, "getpass", side_effect=AssertionError("must not prompt")):
+            with self.assertRaisesRegex(publish.PublisherError, "REPORTER_KEYSTORE_PASSWORD_FILE"):
+                publish.keystore_password("REPORTER", unattended=True)
+
+    def test_an_attended_run_still_types_the_password(self):
+        with patch.dict("os.environ", {}, clear=True), \
+                patch.object(publish.getpass, "getpass", return_value="typed") as prompt:
+            self.assertEqual(publish.keystore_password("REPORTER"), "typed")
+        prompt.assert_called_once()
+
+    def test_an_unattended_run_never_corrects_an_onchain_value(self):
+        reading = publish.MetricReading(
+            path=Path("m.json"), metric_id="ERCOT_HBNORTH_DA_AVG", day_key=20261014,
+            market_day_start_utc=1, market_day_end_utc=2, value=3200, source_hash="11" * 32)
+        onchain = {"value": 3100, "sourceHash": "22" * 32, "finalized": False,
+                   "publishedAt": 1, "metricHash": "", "dayKey": 20261014,
+                   "marketDayStartUtc": 1, "marketDayEndUtc": 2}
+        plan = publish.Plan(submit=[reading])
+        with patch.object(publish, "chain_reading", return_value=onchain), \
+                patch.object(publish.time, "sleep"), \
+                patch.object(publish, "save_ledger"):
+            with self.assertRaisesRegex(publish.PublisherError, "CORRECTION"):
+                publish.protect_against_stale_ledger(None, plan, {}, 7, allow_corrections=False)
+
+
 class TestRevertClassification(unittest.TestCase):
     """publish-spec.md §2.7: classify reverts from the contract's own ABI."""
 
@@ -383,7 +452,7 @@ class TestLiveRunSummary(unittest.TestCase):
         assert match, f"label {label!r} not found in output:\n{output}"
         return int(match.group(1))
 
-    def _run_live(self, send_reading_side_effect, invalid=None):
+    def _run_live(self, send_reading_side_effect, invalid=None, argv=("--live",)):
         patches = [
             patch.object(publish, "load_deployment", return_value=(1952, "0xOracle")),
             patch.object(publish, "load_ledger", return_value={}),
@@ -398,17 +467,19 @@ class TestLiveRunSummary(unittest.TestCase):
             patch.object(
                 publish,
                 "protect_against_stale_ledger",
-                side_effect=lambda contract, plan, ledger, submission_limit=None: plan,
+                side_effect=lambda contract, plan, ledger, submission_limit=None, **_: plan,
             ),
             patch.object(publish, "send_reading", side_effect=send_reading_side_effect),
-            patch("builtins.input", return_value="yes"),
+            patch("builtins.input", return_value="yes")
+            if "--yes" not in argv
+            else patch("builtins.input", side_effect=AssertionError("--yes must not prompt")),
         ]
         with contextlib.ExitStack() as stack:
             for one_patch in patches:
                 stack.enter_context(one_patch)
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                exit_code = publish.main(["--live"])
+                exit_code = publish.main(list(argv))
         return exit_code, buffer.getvalue()
 
     def test_aborted_run_still_prints_summary_with_accurate_partial_counts(self):
@@ -450,6 +521,13 @@ class TestLiveRunSummary(unittest.TestCase):
         self.assertEqual(self._count("Submitted:", output), 1)
         self.assertEqual(self._count("Failed (UNEXPECTED):", output), 1)
         self.assertEqual(exit_code, 1)
+
+    def test_an_unattended_run_sends_without_asking(self):
+        exit_code, output = self._run_live(
+            [(1_000, 11), (1_000, 12), (1_000, 13)], argv=TestUnattendedMode.GOOD)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Confirmed by --yes", output)
+        self.assertEqual(self._count("Submitted:", output), 3)
 
     def test_clean_run_prints_zeros_and_exits_zero(self):
         exit_code, output = self._run_live([(1_000, 11), (1_000, 12), (1_000, 13)])

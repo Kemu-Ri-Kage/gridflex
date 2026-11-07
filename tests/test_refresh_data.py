@@ -261,6 +261,15 @@ class RefreshScriptTest(unittest.TestCase):
         self.assertFalse(any("wrangler" in c for c in self.calls()))
         self.assertIn("Deploy skipped", result.stdout)
 
+    def test_no_build_fetches_commits_and_pushes_but_never_runs_pnpm(self):
+        # The daily settle job: the site is built in a separate job, away from the keys.
+        result = self.refresh("--requests-lifted", "--no-build")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("python fetch_ercot.py --days 3 --fill-gaps", self.calls())
+        self.assertEqual(self.remote_head(), self.git("rev-parse", "HEAD"))
+        self.assertFalse(any(c.startswith("pnpm") for c in self.calls()))
+        self.assertIn("Build skipped (--no-build)", result.stdout)
+
     def test_no_fetch_rebuilds_commits_pushes_and_deploys_without_gridstatus(self):
         before = self.git("rev-parse", "HEAD")
         env = {k: v for k, v in os.environ.items() if k != "GRIDSTATUS_API_KEY"}

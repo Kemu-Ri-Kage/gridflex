@@ -1,0 +1,207 @@
+# The daily settle job (daily_settle.sh, docs/specs/2026-10-13-daily-settle.md,
+# shared/oracle-v2.md). This file must be on main: GitHub runs schedules from
+# the default branch only.
+#
+# What keeps the keys safe, in the order a run meets it:
+#   1. The "settle" Environment hands its secrets only to jobs on main
+#      (Settings -> Environments -> settle -> Deployment branches: main), and
+#      main is protected (a pull request with an approving review).
+#   2. The job works on feat/judging-sprint, where the data lives. It first
+#      merges main in, then runs main's own copy of ops/code-matches-main.sh,
+#      and stops unless the two differ in data files alone. So the code that
+#      can see a key is code that went through review on main.
+#   3. Nothing goes live by default. A live run needs the repository variable
+#      SETTLE_LIVE=yes, and chain transactions also need SETTLE_CHAIN=yes.
+#      If either is missing, mistyped or deleted, a run only plans and prints,
+#      and no key is passed to it or written to disk.
+#   4. The chain keys are only in the settle job, which runs Python alone:
+#      hash-pinned wheels, nothing runs while installing. The site is built
+#      in the deploy job, which never sees a chain key; its npm packages
+#      install with --ignore-scripts.
+#   5. Every action is pinned to a commit.
+#
+# Secrets (Environment "settle"):
+#   GRIDSTATUS_API_KEY                                   fetch
+#   REPORTER_KEYSTORE_JSON, REPORTER_KEYSTORE_PASSWORD   publish: GridOracleV2's
+#                                                        reporter only, never
+#                                                        the first oracle's
+#   SETTLER_KEYSTORE_JSON, SETTLER_KEYSTORE_PASSWORD     finalize, resolve, create
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID          the deploy job only
+#   HC_PING_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID    alerts (optional)
+# Repository variables:
+#   SETTLE_LIVE=yes    fetch, commit, push and redeploy
+#   SETTLE_CHAIN=yes   also publish, finalize, resolve and create markets
+#   SETTLE_HOLD=1      stop a run before it finalizes
+#
+#   gh variable set SETTLE_LIVE --body yes     gh variable delete SETTLE_LIVE
+#   gh workflow disable daily-settle           stops the schedule
+name: daily-settle
+
+on:
+  schedule:
+    - cron: "20 0,3,9,15 * * *"
+  workflow_dispatch:
+    inputs:
+      live:
+        description: "Live run (still needs SETTLE_LIVE=yes, and SETTLE_CHAIN=yes for the chain)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-settle
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  settle:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: settle
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.settle.outputs.changed }}
+      sha: ${{ steps.settle.outputs.sha }}
+    env:
+      # "1" only when every switch says yes; anything else is a dry run.
+      LIVE: ${{ (github.event_name == 'schedule' || inputs.live) && vars.SETTLE_LIVE == 'yes' && '1' || '0' }}
+      CHAIN: ${{ (github.event_name == 'schedule' || inputs.live) && vars.SETTLE_LIVE == 'yes' && vars.SETTLE_CHAIN == 'yes' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: feat/judging-sprint
+          fetch-depth: 0
+
+      - name: Bring in main, and refuse any code that is not on main
+        run: |
+          git config user.name "gridflex-settle-bot"
+          git config user.email "gridflex-settle-bot@users.noreply.github.com"
+          git merge --no-edit origin/main
+          git show origin/main:ops/code-matches-main.sh | bash -s -- origin/main
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Python packages (hash-pinned wheels only)
+        run: |
+          pip install --require-hashes --only-binary=:all: --no-deps -r requirements.lock
+
+      # Raw GridStatus responses: published hashes cite these files, and a
+      # cold cache costs extra rows. Evicted after 7 days unused.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: data/raw
+          key: raw-${{ github.run_id }}
+          restore-keys: raw-
+
+      - name: Write keystores
+        if: env.CHAIN == '1'
+        env:
+          REPORTER_KEYSTORE_JSON: ${{ secrets.REPORTER_KEYSTORE_JSON }}
+          SETTLER_KEYSTORE_JSON: ${{ secrets.SETTLER_KEYSTORE_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$REPORTER_KEYSTORE_JSON" > "$RUNNER_TEMP/reporter.json"
+          printf '%s' "$SETTLER_KEYSTORE_JSON" > "$RUNNER_TEMP/settler.json"
+
+      - name: Settle
+        id: settle
+        env:
+          SETTLE_SECRET_CMD: ops/secret-from-env.sh
+          REPORTER_KEYSTORE_PATH: ${{ runner.temp }}/reporter.json
+          SETTLER_KEYSTORE_PATH: ${{ runner.temp }}/settler.json
+          # Empty unless this is a live chain run.
+          REPORTER_KEYSTORE_PASSWORD: ${{ env.CHAIN == '1' && secrets.REPORTER_KEYSTORE_PASSWORD || '' }}
+          SETTLER_KEYSTORE_PASSWORD: ${{ env.CHAIN == '1' && secrets.SETTLER_KEYSTORE_PASSWORD || '' }}
+          GRIDSTATUS_API_KEY: ${{ env.LIVE == '1' && secrets.GRIDSTATUS_API_KEY || '' }}
+          HC_PING_URL: ${{ secrets.HC_PING_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SETTLE_HOLD: ${{ vars.SETTLE_HOLD }}
+        run: |
+          args=(--no-deploy)
+          if [[ "$LIVE" == 1 ]]; then args+=(--live); fi
+          if [[ "$CHAIN" == 1 ]]; then args+=(--chain); fi
+          ./daily_settle.sh "${args[@]}"
+
+      - name: Remove keystores
+        if: always()
+        run: rm -f "$RUNNER_TEMP/reporter.json" "$RUNNER_TEMP/settler.json"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: settle-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 30
+
+  # The site, built and deployed apart from the chain keys: this job gets the
+  # Cloudflare token and nothing else.
+  deploy:
+    needs: settle
+    if: ${{ !cancelled() && needs.settle.outputs.changed == '1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: settle
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: feat/judging-sprint
+          fetch-depth: 0
+
+      - name: Refuse any code that is not on main
+        env:
+          PUSHED: ${{ needs.settle.outputs.sha }}
+        run: |
+          echo "The settle job pushed $PUSHED; deploying $(git rev-parse HEAD)."
+          git show origin/main:ops/code-matches-main.sh | bash -s -- origin/main
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Python packages (hash-pinned wheels only)
+        run: |
+          pip install --require-hashes --only-binary=:all: --no-deps -r requirements.lock
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install site packages (no install scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+        working-directory: web
+
+      - name: Build and deploy the site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          git config user.name "gridflex-settle-bot"
+          git config user.email "gridflex-settle-bot@users.noreply.github.com"
+          ./refresh_data.sh --no-fetch
+          scripts/check_secrets.sh --build
+
+      - name: Tell Telegram the deploy failed
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          [[ -n "$TELEGRAM_BOT_TOKEN" && -n "$TELEGRAM_CHAT_ID" ]] || exit 0
+          curl -fsS -m 15 -o /dev/null \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=GRIDFLEX settle: the site deploy failed (run ${{ github.run_id }})." \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" || true

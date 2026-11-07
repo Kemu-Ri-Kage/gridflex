@@ -240,7 +240,12 @@ for all of them.
 Either way, the banner still shows chain ID, oracle contract address,
 finalizer signer address (derived from the configured key, never the key
 itself), wallet balance, estimated duration/cost, and requires the same
-typed `"yes"` `publish.py` does — no `--force`/`--yes` flag to skip it.
+typed `"yes"` `publish.py` does. There is no `--force` flag. The daily
+settle job may pass `--yes` instead, under the same narrow rules as
+`publish.py` (`publish-spec.md` §2.5): only with `--live`, one `--metric`,
+`--start`, `--limit` of at most 7, and the password from
+`FINALIZER_KEYSTORE_PASSWORD_FILE`. A VALUE MISMATCH (§3) still stops the
+run. `resolve_markets.py --live --yes` works the same way.
 
 ---
 
@@ -406,10 +411,9 @@ no bypass flag.
 
 ## 9. Non-goals (explicitly out of scope)
 
-- Any unattended scheduling (cron, always-on process, or an in-process
-  sleep-loop waiting out a dispute window) — `publish-spec.md` §4.2's
-  rejection applies unchanged; §2 above reports remaining time instead of
-  waiting for exactly this reason.
+- Scheduling or an in-process sleep-loop waiting out a dispute window inside
+  `finalize.py`. §2 reports remaining time instead; the daily settle job
+  (`daily_settle.sh`) does the waiting outside and calls `finalize.py --yes`.
 - Automatically resubmitting or correcting a reading whose on-chain value
   doesn't match the local file (§3) — that's `publish.py`'s job, run by
   the reporter-key holder, which `finalize.py` never holds. `finalize.py`

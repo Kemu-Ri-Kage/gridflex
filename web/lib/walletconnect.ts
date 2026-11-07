@@ -25,11 +25,24 @@ export const walletConnectInfo: WalletInfo = {
 const X_LAYER_TESTNET = 1952;
 const X_LAYER_TESTNET_RPC = 'https://testrpc.xlayer.tech/terigon';
 
-/** The WalletConnect explorer IDs of MetaMask and OKX Wallet, listed first. */
+/**
+ * The WalletConnect explorer IDs of MetaMask and OKX Wallet, listed first.
+ * OKX has two entries, both named "OKX Wallet". This one is the standalone
+ * "OKX Wallet: Portal to Web3" app (com.okx.wallet, okxwallet://), the same
+ * app lib/wallet-deeplinks.ts opens.
+ */
 const RECOMMENDED_WALLETS = [
   'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96',
-  '971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709',
+  '5d9f1395b3a8e848684848dc4147cbd05c8d54bb737eac78fe103901fe6b01a1',
 ];
+
+/**
+ * The other "OKX Wallet" entry opens the OKX exchange app (okex://), whose
+ * Web3 part is blocked in some regions: in the UK it answered "OKX Web3
+ * software services currently aren't available in your region" (7 Nov 2026).
+ * Hidden so the list shows one OKX Wallet, the one that works.
+ */
+const EXCLUDED_WALLETS = ['971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709'];
 
 /** Requests the wallet app has to show the person: each needs a trip to it. */
 const APPROVAL_METHODS = new Set([
@@ -201,6 +214,7 @@ function load(): Promise<EthereumProvider> {
         qrModalOptions: {
           themeMode: 'dark',
           explorerRecommendedWalletIds: RECOMMENDED_WALLETS,
+          explorerExcludedWalletIds: EXCLUDED_WALLETS,
         },
         metadata: {
           name: 'GRIDFLEX',

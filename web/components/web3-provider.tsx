@@ -12,6 +12,7 @@ import {
   type Address,
   type Hash,
   type RpcLog,
+  UnknownRpcError,
 } from 'viem';
 
 import {
@@ -417,6 +418,12 @@ function applyRpcVerdict(
 }
 
 function errorMessage(error: unknown): string {
+  // viem's "An unknown RPC error occurred." says nothing: the wallet's own
+  // words do (WalletConnect's errors carry no code, so viem files them there).
+  if (error instanceof BaseError && error.walk((e) => e instanceof UnknownRpcError)) {
+    const walletSaid = walletErrorMessage(error);
+    if (walletSaid) return walletSaid;
+  }
   if (error instanceof BaseError) return error.shortMessage;
   if (error instanceof Error) return error.message;
   return 'The wallet rejected or could not complete the request.';

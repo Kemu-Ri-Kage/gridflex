@@ -187,18 +187,53 @@ type EthereumProvider = Awaited<
   ReturnType<(typeof import('@walletconnect/ethereum-provider'))['EthereumProvider']['init']>
 >;
 
+type Session = {
+  peer?: { metadata?: PeerMetadata };
+  namespaces?: Record<string, { chains?: string[]; accounts?: string[] }>;
+};
+
+/**
+ * Whether the wallet approved `chainId` for this session. WalletConnect
+ * refuses every request on any other chain ("Missing or invalid. request()
+ * chainId"), even after the wallet answered a switch to it, because the
+ * library then switches locally and the site looks connected.
+ */
+export function sessionAllowsChain(session: Session | undefined, chainId: number): boolean {
+  const eip155 = session?.namespaces?.eip155;
+  const caip = `eip155:${chainId}`;
+  return Boolean(
+    eip155?.chains?.includes(caip) || eip155?.accounts?.some((a) => a.startsWith(`${caip}:`)),
+  );
+}
+
+export function chainNotAllowedMessage(wallet: string): string {
+  return `${wallet} didn't allow X Layer Testnet over WalletConnect, so it can't sign from this browser. Use “Open in OKX Wallet” or “Open in MetaMask” instead.`;
+}
+
 /**
  * Wraps the WalletConnect provider in the shape every other wallet has:
  * eth_requestAccounts opens the WalletConnect sheet (enable() pairs first
  * when there is no session), and each request that needs the wallet app
- * shows the approval prompt while it waits.
+ * shows the approval prompt while it waits. A request on a chain the
+ * session doesn't allow fails with chainNotAllowedMessage instead of
+ * WalletConnect's own words; a switch waits up to `switchWaitMs` for the
+ * wallet to add the chain to the session.
  */
 export function wrapProvider(
   provider: Pick<EthereumProvider, 'request' | 'enable' | 'on' | 'removeListener'> & {
-    session?: { peer?: { metadata?: PeerMetadata } };
+    session?: Session;
+    chainId?: number;
+    disconnect?: () => Promise<void>;
   },
   store = approvals,
+  switchWaitMs = 5000,
 ): WalletProvider {
+  const walletName = () => provider.session?.peer?.metadata?.name || 'your wallet app';
+  const allowed = (chainId: number) =>
+    !provider.session || sessionAllowsChain(provider.session, chainId);
+  const send = (args: { method: string; params?: unknown }) =>
+    provider.request(args as Parameters<EthereumProvider['request']>[0]);
+
   return {
     async request(args) {
       if (args.method === 'eth_requestAccounts') {
@@ -212,13 +247,31 @@ export function wrapProvider(
           throw error;
         }
       }
-      if (!APPROVAL_METHODS.has(args.method)) {
-        return provider.request(args as Parameters<EthereumProvider['request']>[0]);
+      if (!APPROVAL_METHODS.has(args.method)) return send(args);
+      const switching = args.method === 'wallet_switchEthereumChain';
+      if (!switching && args.method !== 'wallet_addEthereumChain' && provider.chainId !== undefined) {
+        if (!allowed(provider.chainId)) throw new Error(chainNotAllowedMessage(walletName()));
       }
       const metadata = provider.session?.peer?.metadata;
-      store.begin({ wallet: metadata?.name || 'your wallet app', link: walletAppLink(metadata) });
+      store.begin({ wallet: walletName(), link: walletAppLink(metadata) });
       try {
-        return await provider.request(args as Parameters<EthereumProvider['request']>[0]);
+        const result = await send(args);
+        if (switching) {
+          const [{ chainId }] = args.params as [{ chainId: string }];
+          const target = Number(chainId);
+          // A wallet that switches adds the chain with a session update,
+          // which may land just after its answer.
+          for (let waited = 0; !allowed(target) && waited < switchWaitMs; waited += 250) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+          }
+          if (!allowed(target)) {
+            const message = chainNotAllowedMessage(walletName());
+            // Connecting fails here, so the session would only linger.
+            await provider.disconnect?.().catch(() => undefined);
+            throw new Error(message);
+          }
+        }
+        return result;
       } finally {
         store.end();
       }
@@ -298,7 +351,13 @@ export async function restoreWalletConnect(
   if (!connectedBefore && !hasStoredSession(await storedEntries())) return undefined;
   try {
     const provider = await load();
-    return provider.session ? { info: walletConnectInfo, provider: wrapProvider(provider) } : undefined;
+    if (!provider.session) return undefined;
+    // Such a session only looks connected: every transaction would fail.
+    if (!sessionAllowsChain(provider.session, X_LAYER_TESTNET)) {
+      await provider.disconnect().catch(() => undefined);
+      return undefined;
+    }
+    return { info: walletConnectInfo, provider: wrapProvider(provider) };
   } catch {
     return undefined;
   }

@@ -3,7 +3,9 @@ import { test } from 'node:test';
 
 import {
   approvalStore,
+  chainNotAllowedMessage,
   hasStoredSession,
+  sessionAllowsChain,
   walletAppLink,
   walletConnectAvailable,
   wrapProvider,
@@ -101,4 +103,73 @@ void test('a transaction shows “approve in OKX Wallet” until the wallet answ
   release();
   assert.equal(await sent, '0xhash');
   assert.equal(store.snapshot(), null);
+});
+
+const ON_X_LAYER = { eip155: { chains: ['eip155:1', 'eip155:1952'], accounts: ['eip155:1952:0xabc'] } };
+const NOT_ON_X_LAYER = { eip155: { chains: ['eip155:1', 'eip155:196'], accounts: ['eip155:1:0xabc'] } };
+
+void test('a session allows a chain only when the wallet approved it', () => {
+  assert.equal(sessionAllowsChain({ namespaces: ON_X_LAYER }, 1952), true);
+  assert.equal(sessionAllowsChain({ namespaces: { eip155: { accounts: ['eip155:1952:0xabc'] } } }, 1952), true);
+  assert.equal(sessionAllowsChain({ namespaces: NOT_ON_X_LAYER }, 1952), false);
+  assert.equal(sessionAllowsChain({ namespaces: { eip155: { chains: ['eip155:19520'] } } }, 1952), false);
+  assert.equal(sessionAllowsChain(undefined, 1952), false);
+});
+
+function walletOn(namespaces: object, chainId = 1952) {
+  const seen: string[] = [];
+  let disconnected = false;
+  const provider = {
+    chainId,
+    session: { peer: { metadata: { name: 'OKX Wallet' } }, namespaces },
+    enable: () => Promise.resolve(['0xabc']),
+    request: (args: { method: string }) => {
+      seen.push(args.method);
+      return Promise.resolve(args.method === 'eth_sendTransaction' ? '0xhash' : null);
+    },
+    disconnect: () => {
+      disconnected = true;
+      return Promise.resolve();
+    },
+    on: () => undefined,
+    removeListener: () => undefined,
+  };
+  return { provider, seen, disconnected: () => disconnected };
+}
+
+void test('a transaction on a chain the session lacks fails in plain words, without a wallet trip', async () => {
+  const { provider, seen } = walletOn(NOT_ON_X_LAYER);
+  const wrapped = wrapProvider(provider as never, approvalStore(), 0);
+  await assert.rejects(wrapped.request({ method: 'eth_sendTransaction', params: [{}] }), {
+    message: chainNotAllowedMessage('OKX Wallet'),
+  });
+  assert.deepEqual(seen, []);
+});
+
+void test('a transaction on an approved chain goes to the wallet', async () => {
+  const { provider } = walletOn(ON_X_LAYER);
+  const wrapped = wrapProvider(provider as never, approvalStore(), 0);
+  assert.equal(await wrapped.request({ method: 'eth_sendTransaction', params: [{}] }), '0xhash');
+});
+
+void test('a switch the wallet answers without adding the chain fails and ends the session', async () => {
+  const { provider, disconnected } = walletOn(NOT_ON_X_LAYER, 1);
+  const wrapped = wrapProvider(provider as never, approvalStore(), 0);
+  await assert.rejects(
+    wrapped.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x7a0' }] }),
+    { message: chainNotAllowedMessage('OKX Wallet') },
+  );
+  assert.equal(disconnected(), true);
+});
+
+void test('a switch succeeds once the wallet adds the chain to the session', async () => {
+  const { provider } = walletOn(NOT_ON_X_LAYER, 1);
+  const wrapped = wrapProvider(provider as never, approvalStore(), 2000);
+  setTimeout(() => {
+    provider.session.namespaces = ON_X_LAYER;
+  }, 300);
+  assert.equal(
+    await wrapped.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x7a0' }] }),
+    null,
+  );
 });

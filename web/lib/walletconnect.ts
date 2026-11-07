@@ -65,27 +65,69 @@ export function walletConnectAvailable(projectId = WALLETCONNECT_PROJECT_ID): bo
   return projectId.trim().length > 0;
 }
 
-type Storage = Pick<globalThis.Storage, 'length' | 'key' | 'getItem'>;
+/**
+ * Where the library keeps its sessions in a browser: an IndexedDB database,
+ * not localStorage (@walletconnect/keyvaluestorage, src/browser).
+ */
+const SESSION_DB = 'WALLET_CONNECT_V2_INDEXED_DB';
+const SESSION_STORE = 'keyvaluestorage';
 
 /**
- * True when this browser holds a WalletConnect session, read from storage
- * without loading the library: so a page load only fetches it when there is
- * a session to restore. The library keeps sessions under
- * "wc@2:client:<version>//session" as a JSON array.
+ * True when these stored entries hold a WalletConnect session: the library
+ * keeps them under "wc@2:client:<version>//session" as a JSON array, and its
+ * IndexedDB store turns the slashes into one colon ("wc@2:client:0.3:session").
  */
-export function hasStoredSession(storage: Storage | undefined): boolean {
-  try {
-    if (!storage) return false;
-    for (let i = 0; i < storage.length; i++) {
-      const key = storage.key(i);
-      if (!key?.startsWith('wc@2:client:') || !key.endsWith('//session')) continue;
-      const sessions = JSON.parse(storage.getItem(key) ?? '[]') as unknown;
+export function hasStoredSession(entries: Iterable<[string, unknown]>): boolean {
+  for (const [key, value] of entries) {
+    if (!/^wc@2:client:.*(:|\/\/)session$/.test(key)) continue;
+    try {
+      const sessions = typeof value === 'string' ? (JSON.parse(value) as unknown) : value;
       if (Array.isArray(sessions) && sessions.length > 0) return true;
+    } catch {
+      // Unreadable: not a session.
+    }
+  }
+  return false;
+}
+
+function settled<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * The library's stored entries, read without loading it: so a page load
+ * only fetches it when there is a session to restore. Never creates the
+ * database: the library makes its store only when it creates the database
+ * itself, so an empty one left here would break it.
+ */
+async function storedEntries(idb = pageIndexedDb()): Promise<[string, unknown][]> {
+  if (!idb) return [];
+  try {
+    if (typeof idb.databases === 'function') {
+      const names = (await idb.databases()).map((database) => database.name);
+      if (!names.includes(SESSION_DB)) return [];
+    }
+    const request = idb.open(SESSION_DB);
+    // Runs only when the database is missing: aborting leaves none behind.
+    request.onupgradeneeded = () => request.transaction?.abort();
+    const db = await settled(request);
+    try {
+      if (!db.objectStoreNames.contains(SESSION_STORE)) return [];
+      const store = db.transaction(SESSION_STORE, 'readonly').objectStore(SESSION_STORE);
+      const [keys, values] = await Promise.all([settled(store.getAllKeys()), settled(store.getAll())]);
+      return keys.flatMap((key, i): [string, unknown][] =>
+        typeof key === 'string' ? [[key, values[i] as unknown]] : [],
+      );
+    } finally {
+      db.close();
     }
   } catch {
     // Storage refused or unreadable: nothing to restore.
+    return [];
   }
-  return false;
 }
 
 type PeerMetadata = {
@@ -236,19 +278,24 @@ export async function walletConnectWallet(): Promise<DiscoveredWallet> {
   return { info: walletConnectInfo, provider: wrapProvider(await load()) };
 }
 
-function pageStorage(): Storage | undefined {
+function pageIndexedDb(): IDBFactory | undefined {
   try {
-    return typeof window === 'undefined' ? undefined : window.localStorage;
+    return typeof window === 'undefined' ? undefined : window.indexedDB;
   } catch {
     return undefined;
   }
 }
 
-/** The wallet from a session saved by an earlier visit, or undefined. */
+/**
+ * The wallet from a session saved by an earlier visit, or undefined.
+ * `connectedBefore`: this browser remembers connecting with WalletConnect,
+ * so the library is worth loading without looking for a session first.
+ */
 export async function restoreWalletConnect(
-  storage: Storage | undefined = pageStorage(),
+  connectedBefore = false,
 ): Promise<DiscoveredWallet | undefined> {
-  if (!walletConnectAvailable() || !hasStoredSession(storage)) return undefined;
+  if (!walletConnectAvailable()) return undefined;
+  if (!connectedBefore && !hasStoredSession(await storedEntries())) return undefined;
   try {
     const provider = await load();
     return provider.session ? { info: walletConnectInfo, provider: wrapProvider(provider) } : undefined;

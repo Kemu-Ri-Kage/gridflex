@@ -9,15 +9,6 @@ import {
   wrapProvider,
 } from './walletconnect.ts';
 
-function storage(entries: Record<string, string>) {
-  const keys = Object.keys(entries);
-  return {
-    length: keys.length,
-    key: (i: number) => keys[i] ?? null,
-    getItem: (key: string) => entries[key] ?? null,
-  };
-}
-
 void test('WalletConnect is off until a project ID is set', () => {
   assert.equal(walletConnectAvailable(''), false);
   assert.equal(walletConnectAvailable('  '), false);
@@ -25,12 +16,18 @@ void test('WalletConnect is off until a project ID is set', () => {
 });
 
 void test('a stored session is found without loading the library', () => {
-  assert.equal(hasStoredSession(undefined), false);
-  assert.equal(hasStoredSession(storage({})), false);
-  assert.equal(hasStoredSession(storage({ 'wc@2:client:0.3//session': '[]' })), false);
-  assert.equal(hasStoredSession(storage({ 'wc@2:client:0.3//session': '[{"topic":"t"}]' })), true);
-  assert.equal(hasStoredSession(storage({ 'wc@2:client:0.3//session': 'not json' })), false);
-  assert.equal(hasStoredSession(storage({ 'other//session': '[{"topic":"t"}]' })), false);
+  const key = 'wc@2:client:0.3//session';
+  assert.equal(hasStoredSession([]), false);
+  assert.equal(hasStoredSession([[key, '[]']]), false);
+  assert.equal(hasStoredSession([[key, '[{"topic":"t"}]']]), true);
+  assert.equal(hasStoredSession([[key, [{ topic: 't' }]]]), true);
+  assert.equal(hasStoredSession([[key, 'not json']]), false);
+  assert.equal(hasStoredSession([['other//session', '[{"topic":"t"}]']]), false);
+  assert.equal(hasStoredSession([['wc_storage_version', 1], [key, '[{"topic":"t"}]']]), true);
+  // As IndexedDB stores the key.
+  assert.equal(hasStoredSession([['wc@2:client:0.3:session', '[{"topic":"t"}]']]), true);
+  assert.equal(hasStoredSession([['wc@2:client:0.3:session', '[]']]), false);
+  assert.equal(hasStoredSession([['wc@2:client:0.3:proposal', '[{"id":1}]']]), false);
 });
 
 void test('the wallet app link prefers the https link and refuses script links', () => {

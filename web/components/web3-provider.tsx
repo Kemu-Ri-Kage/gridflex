@@ -714,7 +714,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       ('rdns' in remembered && remembered.rdns === WALLETCONNECT_RDNS)
     ) {
       restoreTried.current = true;
-      void restoreWalletConnect().then((found) => {
+      void restoreWalletConnect(remembered !== undefined).then((found) => {
         if (found) void adoptAuthorised(found);
       });
       return;

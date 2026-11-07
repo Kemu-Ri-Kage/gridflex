@@ -12,7 +12,7 @@ import type { DiscoveredWallet, WalletInfo, WalletProvider } from './wallet-disc
  * dapp ships it in its page); what limits it is the project's domain
  * allowlist there. Empty switches WalletConnect off everywhere.
  */
-export const WALLETCONNECT_PROJECT_ID = '';
+export const WALLETCONNECT_PROJECT_ID = '65e4cc7b305f7c9688636805bcaf9ebd';
 
 export const WALLETCONNECT_RDNS = 'com.walletconnect';
 

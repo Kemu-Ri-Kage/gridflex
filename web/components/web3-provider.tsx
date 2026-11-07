@@ -87,6 +87,13 @@ import {
   type WalletInfo,
   type WalletProvider,
 } from '@/lib/wallet-discovery';
+import {
+  disconnectWalletConnect,
+  restoreWalletConnect,
+  walletConnectAvailable,
+  walletConnectWallet,
+  WALLETCONNECT_RDNS,
+} from '@/lib/walletconnect';
 
 declare global {
   interface Window {
@@ -215,6 +222,13 @@ type Web3ContextValue = {
   /** The reverted transaction behind `error`, linked beside it. */
   failedTransaction?: Hash;
   connect: () => Promise<void>;
+  /** WalletConnect is set up (lib/walletconnect.ts), so it can be offered. */
+  walletConnectReady: boolean;
+  /**
+   * Connect a phone wallet app over WalletConnect, staying on this page: the
+   * app opens only to approve. On a desktop it shows a QR code to scan.
+   */
+  connectWalletConnect: () => Promise<void>;
   disconnect: () => void;
   refresh: () => Promise<void>;
   mintCollateral: () => Promise<void>;
@@ -652,6 +666,37 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     });
   }, [connectFlight, askForWallet, connectTo]);
 
+  const connectWalletConnect = React.useCallback(
+    () =>
+      connectFlight.run(async () => {
+        setConnectError(undefined);
+        let chosen: DiscoveredWallet;
+        try {
+          chosen = await walletConnectWallet();
+        } catch (loadError) {
+          setConnectError(
+            `WalletConnect didn't start: ${errorMessage(loadError)}`,
+          );
+          return;
+        }
+        await connectTo(chosen);
+      }),
+    [connectFlight, connectTo],
+  );
+
+  /** Use a wallet the browser still lets this site see, without a click. */
+  const adoptAuthorised = React.useCallback(
+    (found: DiscoveredWallet) =>
+      authorisedAccount(found.provider, xLayerTestnet.id).then((address) => {
+        if (!address || walletRef.current || connectFlight.running()) return;
+        walletRef.current = found;
+        setWallet(found.info);
+        setAccount(getAddress(address));
+        checkRpc(found.provider);
+      }),
+    [connectFlight, checkRpc],
+  );
+
   // After a reload, reconnect to the wallet last connected without a click,
   // if it still lets this site see an account and is on X Layer:
   // authorisedAccount never opens a prompt, so this can't surprise anyone
@@ -661,23 +706,30 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (restoreTried.current || !wallets) return;
     const remembered = loadRememberedWallet(browserStorage());
-    if (!remembered) {
+    // A WalletConnect session outlives the page: iOS often reloads Safari
+    // on the way back from the wallet app, even mid-connect, before the
+    // wallet was remembered. Its saved session restores without a prompt.
+    if (
+      !remembered ||
+      ('rdns' in remembered && remembered.rdns === WALLETCONNECT_RDNS)
+    ) {
       restoreTried.current = true;
+      void restoreWalletConnect().then((found) => {
+        if (found) void adoptAuthorised(found);
+      });
       return;
     }
     const found = findRememberedWallet(wallets, remembered);
     if (!found) return;
     restoreTried.current = true;
-    void authorisedAccount(found.provider, xLayerTestnet.id).then((address) => {
-      if (!address || walletRef.current || connectFlight.running()) return;
-      walletRef.current = found;
-      setWallet(found.info);
-      setAccount(getAddress(address));
-      checkRpc(found.provider);
-    });
-  }, [wallets, connectFlight, checkRpc]);
+    void adoptAuthorised(found);
+  }, [wallets, adoptAuthorised]);
 
   const disconnect = React.useCallback(() => {
+    // A WalletConnect session is ended in the wallet app as well.
+    if (walletRef.current?.info.rdns === WALLETCONNECT_RDNS) {
+      void disconnectWalletConnect();
+    }
     setAccount(undefined);
     forgetWallet();
     setConnectError(undefined);
@@ -1447,6 +1499,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       lastTransaction,
       failedTransaction,
       connect,
+      walletConnectReady: walletConnectAvailable(),
+      connectWalletConnect,
       disconnect,
       refresh,
       mintCollateral,
@@ -1481,6 +1535,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       lastTransaction,
       failedTransaction,
       connect,
+      connectWalletConnect,
       disconnect,
       refresh,
       mintCollateral,

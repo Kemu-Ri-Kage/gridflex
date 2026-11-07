@@ -4,7 +4,7 @@ import { ExternalLink } from 'lucide-react';
 import * as React from 'react';
 
 import { useConnectFrom } from '@/components/connection-help';
-import { useWeb3 } from '@/components/web3-provider';
+import { NO_WALLET_MESSAGE, useWeb3 } from '@/components/web3-provider';
 import {
   isWalletAppPlatform,
   metaMaskLink,
@@ -64,9 +64,11 @@ export function useNeedsWalletApp(): boolean {
 }
 
 /**
- * On a phone browser with no wallet in it: open this page in OKX Wallet's or
- * MetaMask's own browser, where Connect, the network switch and every
- * signature work in place. Each button opens the app when it's installed
+ * On a phone browser with no wallet in it. First, when WalletConnect is set
+ * up (lib/walletconnect.ts): connect the wallet app and stay in this
+ * browser, the app opening only to approve. Or open this page in OKX
+ * Wallet's or MetaMask's own browser, where Connect, the network switch and
+ * every signature work in place. Each button opens the app when it's installed
  * and its download page when it isn't, so one tap covers both. Plain links,
  * built before the tap: iOS only lets a direct tap open another app. The
  * browsers inside chat apps (Telegram, X, Discord) can block that jump, so
@@ -74,7 +76,13 @@ export function useNeedsWalletApp(): boolean {
  * Renders nothing anywhere else.
  */
 export function OpenInWalletApp({ className = '' }: { className?: string }) {
-  const { market } = useWeb3();
+  const {
+    market,
+    walletConnectReady,
+    connectWalletConnect,
+    connecting,
+    connectError,
+  } = useWeb3();
   const needed = useNeedsWalletApp();
   const [copied, setCopied] = React.useState(false);
   if (!needed) return null;
@@ -99,15 +107,34 @@ export function OpenInWalletApp({ className = '' }: { className?: string }) {
 
   return (
     <div className={`flex flex-col gap-2 text-xs leading-5 ${className}`}>
+      {connectError && connectError !== NO_WALLET_MESSAGE && (
+        <p className="text-down">{connectError}</p>
+      )}
       <div>
         <p className="font-medium text-foreground">
           Connect with your wallet app
         </p>
         <p className="text-muted-foreground">
-          Phone browsers have no wallet built in. Open GRIDFLEX inside your
-          wallet app, then tap Connect there.
+          {walletConnectReady
+            ? 'Stay on this page: your wallet app opens only to approve, then you come back here.'
+            : 'Phone browsers have no wallet built in. Open GRIDFLEX inside your wallet app, then tap Connect there.'}
         </p>
       </div>
+      {walletConnectReady && (
+        <>
+          <button
+            className="flex h-10 w-full items-center justify-center rounded-[2px] bg-primary px-3 font-mono text-sm text-primary-foreground hover:bg-primary/85 disabled:opacity-60"
+            disabled={connecting}
+            onClick={() => void connectWalletConnect()}
+            type="button"
+          >
+            {connecting ? 'Approve in your wallet app…' : 'Connect, stay in this browser'}
+          </button>
+          <p className="text-muted-foreground">
+            Or open GRIDFLEX inside your wallet app:
+          </p>
+        </>
+      )}
       <WalletAppButton href={okxWalletLink(walletPage)} label="Open in OKX Wallet" />
       <WalletAppButton href={metaMaskLink(walletPage)} label="Open in MetaMask" />
       <p className="text-muted-foreground">

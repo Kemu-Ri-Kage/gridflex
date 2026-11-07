@@ -46,6 +46,8 @@ export function WalletButton() {
     connectError,
     connecting,
     walletDetected,
+    walletConnectReady,
+    connectWalletConnect,
   } = useWeb3();
   const connectFromHeader = useConnectFrom('header');
   // A phone browser has no wallet to connect: show the way into the wallet
@@ -100,6 +102,16 @@ export function WalletButton() {
                   />
                   <InstallLink href={METAMASK_URL} label="Install MetaMask" />
                 </div>
+              )}
+              {walletDetected === false && walletConnectReady && (
+                <button
+                  className="mt-2 font-mono text-foreground underline underline-offset-4"
+                  disabled={connecting}
+                  onClick={() => void connectWalletConnect()}
+                  type="button"
+                >
+                  Or scan a QR code with your phone wallet
+                </button>
               )}
             </>
           )}

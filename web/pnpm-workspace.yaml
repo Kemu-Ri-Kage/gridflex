@@ -1,4 +1,5 @@
 allowBuilds:
+  '@reown/appkit': false
   esbuild: true
   sharp: true
   workerd: true

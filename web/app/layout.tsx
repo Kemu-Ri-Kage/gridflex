@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 
 import { WalletLinkArrival } from '@/components/open-in-wallet-app';
+import { WalletApproval } from '@/components/wallet-approval';
 import { Web3Provider } from '@/components/web3-provider';
 
 import './globals.css';
@@ -83,6 +84,7 @@ export default function RootLayout({
         <Web3Provider>
           <WalletLinkArrival />
           {children}
+          <WalletApproval />
         </Web3Provider>
       </body>
     </html>

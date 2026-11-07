@@ -164,6 +164,28 @@ class TestWriteAddresses(unittest.TestCase):
                 build_feed_data.ADDRESSES_SOURCE = original
             written = json.loads((root / "addresses.json").read_text())
         self.assertEqual(written["markets"], [])
+        self.assertEqual(written["retiredOracles"], [])
+
+    def test_retired_oracles_carry_their_last_day(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_path = root / "addresses.json"
+            source_path.write_text(json.dumps({
+                "chainId": 1952, "GridOracle": "0xnew",
+                "legacyDeployments": {
+                    "GridOracle": [{"address": "0xold", "lastDayKey": 20261020, "status": "retired"}],
+                    "MarketFactory": [{"address": "0xfactory", "status": "superseded"}],
+                },
+            }))
+            original = build_feed_data.ADDRESSES_SOURCE
+            build_feed_data.ADDRESSES_SOURCE = source_path
+            try:
+                build_feed_data.write_addresses(root)
+            finally:
+                build_feed_data.ADDRESSES_SOURCE = original
+            written = json.loads((root / "addresses.json").read_text())
+        self.assertEqual(written["GridOracle"], "0xnew")
+        self.assertEqual(written["retiredOracles"], [{"address": "0xold", "lastDayKey": 20261020}])
 
 
 def make_hourly_day(prices, first_start_utc="2026-09-09T05:00:00Z"):

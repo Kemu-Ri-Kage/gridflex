@@ -9,6 +9,7 @@ from pathlib import Path
 
 CONTRACT_NAMES = (
     "GridOracle",
+    "GridOracleV2",
     "BinaryMarket",
     "MarketFactory",
     "MockUSDT",

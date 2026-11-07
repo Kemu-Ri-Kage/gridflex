@@ -128,7 +128,7 @@ export function OpenInWalletApp({ className = '' }: { className?: string }) {
             onClick={() => void connectWalletConnect()}
             type="button"
           >
-            {connecting ? 'Approve in your wallet app…' : 'Connect, stay in this browser'}
+            {connecting ? 'Approve in your wallet app…' : 'Connect and stay here'}
           </button>
           <p className="text-muted-foreground">
             Or open GRIDFLEX inside your wallet app:

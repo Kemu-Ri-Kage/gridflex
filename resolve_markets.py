@@ -52,6 +52,7 @@ from hexbytes import HexBytes
 from web3 import Web3
 from web3.logs import DISCARD
 
+from chain_guard import oracle_identity
 from create_markets import (
     RPC_COURTESY_SLEEP,
     format_close,
@@ -84,6 +85,7 @@ STATUS_CANCELLED = "cancelled"
 STATUS_NOT_CLOSED = "not_closed"
 STATUS_NOT_PUBLISHED = "reading_not_published"
 STATUS_NOT_FINAL = "reading_not_final"
+STATUS_FOREIGN_ORACLE = "foreign_oracle"
 
 STATUS_TEXT = {
     STATUS_CANDIDATE: "CANDIDATE",
@@ -92,6 +94,7 @@ STATUS_TEXT = {
     STATUS_NOT_CLOSED: "SKIP trading not closed",
     STATUS_NOT_PUBLISHED: "SKIP no reading published",
     STATUS_NOT_FINAL: "SKIP reading not final",
+    STATUS_FOREIGN_ORACLE: "SKIP its oracle() is not the pinned oracle",
 }
 
 
@@ -110,6 +113,9 @@ class MarketState:
     reading_final: bool
     # The MarketFactory that created it; None for the current factory.
     legacy_factory: str | None = None
+    # market.oracle() is not the oracle shared/pins.json names: a market from
+    # the permissionless factory that settles on someone else's oracle.
+    foreign_oracle: bool = False
 
     @property
     def metric_name(self) -> str:
@@ -128,7 +134,9 @@ class Summary:
 
 
 def classify(state: MarketState, chain_now: int) -> str:
-    """resolve()'s own checks, in its order."""
+    """resolve()'s own checks, in its order, after the market's own oracle."""
+    if state.foreign_oracle:
+        return STATUS_FOREIGN_ORACLE
     if state.resolved:
         return STATUS_RESOLVED
     if state.cancelled:
@@ -177,6 +185,7 @@ def read_market(w3: Web3, oracle_contract, address: str, binary_market_abi: Any,
     def read(name: str):
         return pinned_call(getattr(market.functions, name)(), block_number)
 
+    market_oracle = Web3.to_checksum_address(read("oracle"))
     metric_hash = HexBytes(read("metricId"))
     day_key = int(read("dayKey"))
     raw = pinned_call(oracle_contract.functions.getReading(metric_hash, day_key), block_number)
@@ -195,6 +204,7 @@ def read_market(w3: Web3, oracle_contract, address: str, binary_market_abi: Any,
         reading_final=bool(pinned_call(oracle_contract.functions.isFinal(metric_hash, day_key), block_number))
         if published else False,
         legacy_factory=legacy_factory,
+        foreign_oracle=market_oracle != Web3.to_checksum_address(oracle_contract.address),
     )
 
 
@@ -341,7 +351,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--yes", action="store_true",
-        help="skip the typed confirmation (the daily settle job only); needs --live",
+        help="skip the typed confirmation (the daily settle job only); needs --live and at "
+        "least one --market, and the oracle must be the pinned GridOracleV2",
     )
     return parser
 
@@ -349,6 +360,10 @@ def build_parser() -> argparse.ArgumentParser:
 def run(args: argparse.Namespace, summary: Summary) -> int:
     if args.yes and not args.live:
         raise PublisherError("--yes only makes sense with --live.")
+    if args.yes and not args.market:
+        # Unattended runs act only on the markets the job planned, never on
+        # everything the permissionless factory lists.
+        raise PublisherError("--yes needs at least one --market address.")
     addresses = load_addresses()
     w3 = make_web3(os.environ.get("XLAYER_RPC_URL", DEFAULT_RPC_URL))
     chain_guard(w3)
@@ -365,14 +380,19 @@ def run(args: argparse.Namespace, summary: Summary) -> int:
 
     print(f"GRIDFLEX resolve_markets - {len(states)} market(s) at block {block_number}, "
           f"chain time {format_close(now)}\n")
-    candidates = []
+    candidates, foreign = [], []
     for state in states:
         status = classify(state, now)
         summary.statuses[status] = summary.statuses.get(status, 0) + 1
         if status == STATUS_CANDIDATE:
             candidates.append(state)
+        elif status == STATUS_FOREIGN_ORACLE:
+            foreign.append(state.address)
         print("\n".join(describe(state, status)))
         print()
+    if foreign and args.yes:
+        raise PublisherError(f"--market {foreign}: oracle() is not the pinned oracle; "
+                             "a planned market must never settle elsewhere. Nothing was sent.")
 
     if not args.live:
         print("DRY RUN ONLY - no transactions were sent.")
@@ -382,6 +402,9 @@ def run(args: argparse.Namespace, summary: Summary) -> int:
         print("Nothing to resolve. No transactions were sent.")
         return 0
 
+    if args.yes:
+        # Before any key is read: unattended sends go to the pinned GridOracleV2 only.
+        oracle_identity(w3, addresses["oracle"], block=block_number)
     account = load_finalizer_account(unattended=args.yes)
     chain_id, balance = preflight(w3, addresses, account)
     print("GRIDFLEX resolve_markets.py - LIVE MODE\n")

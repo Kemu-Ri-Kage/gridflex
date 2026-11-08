@@ -23,7 +23,21 @@ from hexbytes import HexBytes
 from web3 import HTTPProvider, Web3
 from web3.exceptions import TimeExhausted
 
-from scripts.validate_metrics import validate as validate_metric_file
+from chain_guard import (
+    PublisherError,
+    assert_addresses_match_pins,
+    assert_signer,
+    load_pins,
+    oracle_identity,
+)
+from scripts.validate_metrics import (
+    RANGE_MAX_CENTS,
+    RANGE_MIN_CENTS,
+    ProvenanceError,
+    check_range,
+    validate as validate_metric_file,
+    verify_provenance,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -47,10 +61,6 @@ MAX_GAS_BUMPS = 2
 EXPECTED_REVERT_ERROR = "ReadingAlreadyFinalized"
 # The most readings one unattended (--yes) run may touch: a week.
 UNATTENDED_MAX_READINGS = 7
-
-
-class PublisherError(RuntimeError):
-    """A safe, user-facing publisher failure."""
 
 
 @dataclass(frozen=True)
@@ -104,6 +114,8 @@ def load_deployment() -> tuple[int, str]:
         raise PublisherError(
             f"Deployment config has chainId {chain_id}; expected {EXPECTED_CHAIN_ID}."
         )
+    # The reviewed pins decide which oracle this is, not the data branch.
+    assert_addresses_match_pins(chain_id, oracle, config.get("MarketFactory"), config.get("MockUSDT"))
     return chain_id, oracle
 
 
@@ -185,6 +197,9 @@ def collect_readings(args: argparse.Namespace) -> tuple[list[MetricReading], lis
         readings = [item for item in readings if item.day_key >= args.start]
     if args.end is not None:
         readings = [item for item in readings if item.day_key <= args.end]
+    if getattr(args, "day", None):
+        allowed = set(args.day)
+        readings = [item for item in readings if item.day_key in allowed]
     if args.days is not None and readings:
         unique_days = sorted({item.day_key for item in readings})
         allowed_days = set(unique_days[-args.days :])
@@ -750,6 +765,28 @@ def send_reading(
     raise AssertionError("unreachable")
 
 
+@dataclass(frozen=True)
+class ReporterAddress:
+    """The reporter's address alone, for reads that need no key."""
+    address: str
+
+
+def gate_unattended_readings(readings: list[MetricReading], invalid: list[str]) -> None:
+    """An unattended run publishes a reading only when its file is valid, its
+    value is inside the range band, and its sourceHash and value reproduce
+    from data/raw/<sourceFiles> (PROVENANCE is a settle-job stop word)."""
+    if invalid:
+        raise PublisherError("PROVENANCE: invalid metric files: " + "; ".join(invalid))
+    for reading in readings:
+        try:
+            check_range(reading.path, RANGE_MIN_CENTS, RANGE_MAX_CENTS)
+            verify_provenance(reading.path)
+        except ProvenanceError as exc:
+            raise PublisherError(f"{exc}; nothing was signed or sent.") from exc
+        except (OSError, ValueError) as exc:
+            raise PublisherError(f"PROVENANCE: {reading.ledger_key}: {exc}; nothing was signed or sent.") from exc
+
+
 def print_plan(plan: Plan, invalid: list[str]) -> None:
     print("GRIDFLEX publish plan")
     print(f"  Readings to submit:              {len(plan.submit)}")
@@ -786,13 +823,19 @@ def build_parser() -> argparse.ArgumentParser:
     date_group.add_argument("--days", type=int)
     parser.add_argument("--end", type=parse_day)
     parser.add_argument("--limit", type=int)
+    parser.add_argument(
+        "--day", action="append", type=parse_day,
+        help="only these days (repeatable); the settle job passes exactly its plan",
+    )
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--reconcile", action="store_true")
     parser.add_argument(
         "--yes", action="store_true",
         help="skip the typed confirmation (the daily settle job only). Needs --live, one "
-        "--metric, --start, --end and --limit <= %d; never makes a correction." % UNATTENDED_MAX_READINGS,
+        "--metric, --start, --end, --day for each planned day and --limit <= %d; never makes a "
+        "correction; publishes only to the pinned GridOracleV2 and only readings whose sourceHash "
+        "and value reproduce from data/raw." % UNATTENDED_MAX_READINGS,
     )
     return parser
 
@@ -815,6 +858,10 @@ def validate_args(args: argparse.Namespace) -> None:
             raise PublisherError("--yes needs both --start and --end.")
         if args.limit is None or args.limit > UNATTENDED_MAX_READINGS:
             raise PublisherError(f"--yes needs --limit of at most {UNATTENDED_MAX_READINGS}.")
+        if not args.day:
+            raise PublisherError("--yes needs --day for each planned day.")
+        if any(not args.start <= day <= args.end for day in args.day):
+            raise PublisherError("--day must lie between --start and --end.")
     if args.check and args.live:
         raise PublisherError("Use --check and --live as separate commands.")
 
@@ -852,10 +899,11 @@ def main(argv: list[str] | None = None) -> int:
                 "against chain before reporting an accurate plan.",
                 file=sys.stderr,
             )
+            # Recovery needs only the reporter's address (its nonce), never
+            # its key: a dry run reads no keystore (audit finding S14).
             w3 = make_web3(rpc_url)
             contract = load_contract(w3, oracle_address)
-            account = load_reporter_account()
-            recover_submitted_entries(w3, contract, account, ledger)
+            recover_submitted_entries(w3, contract, ReporterAddress(load_pins().active_reporter), ledger)
 
         plan = plan_from_ledger(readings, ledger)
 
@@ -878,8 +926,16 @@ def main(argv: list[str] | None = None) -> int:
             print("\nDRY RUN ONLY — no transactions were sent.")
             return 1 if invalid else 0
 
-        account = load_reporter_account(unattended=args.yes)
+        identity = None
         w3 = make_web3(rpc_url)
+        if args.yes:
+            # Before any key is read: the pinned GridOracleV2 only (S4), and
+            # every reading must trace to its raw data (S7).
+            identity = oracle_identity(w3, oracle_address)
+            gate_unattended_readings(plan_from_ledger(readings, ledger).submit, invalid)
+        account = load_reporter_account(unattended=args.yes)
+        if identity is not None:
+            assert_signer(identity, account.address)
         contract = load_contract(w3, oracle_address)
         selectors = build_error_selectors(contract.abi)
         chain_id, balance = preflight(w3, contract, account)
@@ -894,6 +950,8 @@ def main(argv: list[str] | None = None) -> int:
         if not plan.submit:
             print("Nothing to submit. No transactions were sent.")
             return 0
+        if args.yes:
+            gate_unattended_readings(plan.submit, invalid)
         gas_price = w3.eth.gas_price
         live_banner(chain_id, oracle_address, account.address, balance, len(plan.submit), gas_price)
         if args.yes:

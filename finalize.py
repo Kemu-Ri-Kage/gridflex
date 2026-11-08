@@ -30,6 +30,7 @@ from hexbytes import HexBytes
 from web3 import Web3
 from web3.exceptions import TimeExhausted
 
+from chain_guard import oracle_identity
 from publish import (
     DEFAULT_RPC_URL,
     EXPECTED_CHAIN_ID,
@@ -501,7 +502,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--yes", action="store_true",
         help="skip the typed confirmation (the daily settle job only). Needs --live, one "
-        "--metric, --start and --limit <= %d." % UNATTENDED_MAX_READINGS,
+        "--metric, --start, --end and --limit <= %d, and the pinned GridOracleV2." % UNATTENDED_MAX_READINGS,
     )
     return parser
 
@@ -549,8 +550,9 @@ def validate_args(args: argparse.Namespace) -> None:
             raise PublisherError("--yes only makes sense with --live.")
         if not args.metric or len(args.metric) != 1:
             raise PublisherError("--yes needs exactly one --metric.")
-        if args.start is None:
-            raise PublisherError("--yes needs --start.")
+        if args.start is None or args.end is None:
+            # Both ends, so a run touches only the days the job planned.
+            raise PublisherError("--yes needs both --start and --end.")
         if args.limit is None or args.limit > UNATTENDED_MAX_READINGS:
             raise PublisherError(f"--yes needs --limit of at most {UNATTENDED_MAX_READINGS}.")
 
@@ -655,6 +657,9 @@ def main(argv: list[str] | None = None) -> int:
             print_summary(summary, started, invalid)
             return 1 if summary.failed else 0
 
+        if args.yes:
+            # Before any key is read: unattended sends go to the pinned GridOracleV2 only.
+            oracle_identity(w3, oracle_address)
         account = load_finalizer_account(unattended=args.yes)
         balance = w3.eth.get_balance(account.address)
         gas_price = w3.eth.gas_price

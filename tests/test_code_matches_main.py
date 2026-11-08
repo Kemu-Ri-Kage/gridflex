@@ -2,6 +2,7 @@
 when it differs from main in data files alone. Each test builds a throwaway
 repo with a main and a live branch and runs the real script."""
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import os
 import shutil
 import subprocess

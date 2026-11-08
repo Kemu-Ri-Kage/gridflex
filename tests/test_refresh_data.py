@@ -6,6 +6,7 @@ steps by rewriting data files, the pnpm stub records what the working tree
 and HEAD looked like at build and deploy time. No network, no GridStatus.
 """
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import os
 import shutil
 import stat

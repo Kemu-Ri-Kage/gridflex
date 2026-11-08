@@ -1,3 +1,4 @@
+import net_guard  # noqa: F401  (tests never reach the network)
 import argparse
 import contextlib
 import io
@@ -183,7 +184,8 @@ class TestUnattendedMode(unittest.TestCase):
     in a narrow shape, and never to correct an on-chain value."""
 
     GOOD = ["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG",
-            "--start", "20261014", "--end", "20261020", "--limit", "7"]
+            "--start", "20261014", "--end", "20261020",
+            "--day", "20261014", "--day", "20261015", "--day", "20261016", "--limit", "7"]
 
     def check(self, argv):
         publish.validate_args(publish.build_parser().parse_args(argv))
@@ -194,6 +196,23 @@ class TestUnattendedMode(unittest.TestCase):
     def test_yes_needs_live(self):
         with self.assertRaisesRegex(publish.PublisherError, "--live"):
             self.check([a for a in self.GOOD if a != "--live"])
+
+    def test_yes_needs_the_planned_days(self):
+        # S6: an unattended run touches only the days the job planned.
+        with self.assertRaisesRegex(publish.PublisherError, "--day"):
+            self.check(self.GOOD[:8] + self.GOOD[-2:])
+        with self.assertRaisesRegex(publish.PublisherError, "between --start and --end"):
+            self.check(self.GOOD + ["--day", "20261021"])
+
+    def test_day_filters_the_readings(self):
+        args = publish.build_parser().parse_args(["--day", "20261015"])
+        readings = [MagicMock(day_key=d, metric_id="ERCOT_HBNORTH_DA_AVG") for d in (20261014, 20261015)]
+        args.metric = ["ERCOT_HBNORTH_DA_AVG"]
+        with patch.object(publish, "load_reading", side_effect=readings), \
+                patch.object(publish.METRICS_DIR.__class__, "glob",
+                             return_value=[Path("ERCOT_HBNORTH_DA_AVG__a.json"), Path("ERCOT_HBNORTH_DA_AVG__b.json")]):
+            kept, _ = publish.collect_readings(args)
+        self.assertEqual([r.day_key for r in kept], [20261015])
 
     def test_yes_needs_exactly_one_metric(self):
         with self.assertRaisesRegex(publish.PublisherError, "one --metric"):
@@ -523,11 +542,47 @@ class TestLiveRunSummary(unittest.TestCase):
         self.assertEqual(exit_code, 1)
 
     def test_an_unattended_run_sends_without_asking(self):
-        exit_code, output = self._run_live(
-            [(1_000, 11), (1_000, 12), (1_000, 13)], argv=TestUnattendedMode.GOOD)
+        identity = {"reporter": "0xSigner"}
+        with patch.object(publish, "oracle_identity", return_value=identity) as check_identity, \
+                patch.object(publish, "assert_signer") as check_signer, \
+                patch.object(publish, "gate_unattended_readings") as gate:
+            exit_code, output = self._run_live(
+                [(1_000, 11), (1_000, 12), (1_000, 13)], argv=TestUnattendedMode.GOOD)
         self.assertEqual(exit_code, 0)
         self.assertIn("Confirmed by --yes", output)
         self.assertEqual(self._count("Submitted:", output), 3)
+        check_identity.assert_called_once()
+        check_signer.assert_called_once_with(identity, "0xSigner")
+        self.assertEqual(gate.call_count, 2)   # before the key, and on the final plan
+
+    def test_an_unattended_run_to_an_unverified_oracle_reads_no_key(self):
+        # S4: with the committed pins (no GridOracleV2), --yes stops before any key.
+        with patch.object(publish, "load_reporter_account") as load_key, \
+                patch.object(publish, "make_web3", return_value=self.w3), \
+                patch.object(publish, "load_ledger", return_value={}), \
+                patch.object(publish, "collect_readings", return_value=(self.readings, [])), \
+                contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()) as err:
+            exit_code = publish.main(list(TestUnattendedMode.GOOD))
+        self.assertEqual(exit_code, 1)
+        load_key.assert_not_called()
+        self.assertIn("ORACLE IDENTITY", err.getvalue())
+
+    def test_an_unattended_run_with_a_provenance_failure_reads_no_key(self):
+        with patch.object(publish, "oracle_identity", return_value={"reporter": "0xSigner"}), \
+                patch.object(publish, "verify_provenance",
+                             side_effect=publish.ProvenanceError("raw file x is missing")), \
+                patch.object(publish, "check_range"), \
+                patch.object(publish, "load_reporter_account") as load_key, \
+                patch.object(publish, "make_web3", return_value=self.w3), \
+                patch.object(publish, "load_ledger", return_value={}), \
+                patch.object(publish, "collect_readings", return_value=(self.readings, [])), \
+                contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()) as err:
+            exit_code = publish.main(list(TestUnattendedMode.GOOD))
+        self.assertEqual(exit_code, 1)
+        load_key.assert_not_called()
+        self.assertIn("PROVENANCE", err.getvalue())
 
     def test_clean_run_prints_zeros_and_exits_zero(self):
         exit_code, output = self._run_live([(1_000, 11), (1_000, 12), (1_000, 13)])
@@ -711,7 +766,9 @@ class TestDryRunReconcilesPendingEntries(unittest.TestCase):
                 exit_code = publish.main([])
 
         mock_recover.assert_called_once()
-        mock_load_account.assert_called_once()
+        # S14: the dry path recovers with the pinned reporter address, no key.
+        mock_load_account.assert_not_called()
+        self.assertEqual(mock_recover.call_args.args[2].address, "0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902")
         mock_make_web3.assert_called_once()
         self.assertEqual(exit_code, 0)
         output = buffer.getvalue()

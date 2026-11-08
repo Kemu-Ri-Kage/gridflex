@@ -35,9 +35,18 @@ committed metric files, and reports:
   ladderRunningOut      no market day after tomorrow
   balances, lowGas      OKB of the reporter, and of the settler when
                         shared/addresses.json names one
-  oracleRotatable       the oracle is a GridOracleV2, whose reporter can be
-                        replaced; daily_settle.sh sends nothing to any other
-                        (daily-settle spec §13.2)
+  oracleVerified        the oracle passed chain_guard.oracle_identity(): it
+                        is the pinned GridOracleV2 (bytecode hash, reporter,
+                        guardian, owner); daily_settle.sh --chain sends
+                        nothing otherwise (daily-settle spec §13.2, §14)
+  oracleIdentity        why it did not pass, when it did not
+  unverifiedMarkets     ledger rows left out of every plan: not in
+                        shared/addresses.json with the same terms, not listed
+                        by a pinned factory, or the contract's own oracle,
+                        metric, day, strike or close disagree (an alert)
+
+Inputs are the committed files only (git show HEAD:...), never the working
+tree, and a run refuses when a tracked data path it reads is dirty.
 
 Usage:
   python scripts/settle_due.py              # readable report
@@ -54,6 +63,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -69,6 +79,7 @@ from hexbytes import HexBytes  # noqa: E402
 from web3 import Web3  # noqa: E402
 
 import resolve_markets as rm  # noqa: E402
+from chain_guard import OracleIdentityError, load_pins, oracle_identity  # noqa: E402
 from create_markets import RPC_COURTESY_SLEEP, load_abi, load_addresses  # noqa: E402
 from publish import (  # noqa: E402
     DEFAULT_RPC_URL,
@@ -95,7 +106,10 @@ RANGE_MAX_CENTS = 100_000     # $1,000/MWh
 LOW_GAS_WEI = 5 * 10**15      # 0.005 OKB
 
 ALERT_FIELDS = ("overdue", "cancelRisk", "unsettleable", "fileDrift",
-                "outOfRange", "ladderRunningOut", "lowGas")
+                "outOfRange", "ladderRunningOut", "lowGas", "unverifiedMarkets")
+
+# The tracked inputs this script reads; a run refuses when any is dirty.
+INPUT_PATHS = ("data/metrics", "data/market-ledger.json", "shared/addresses.json")
 
 CENTRAL = ZoneInfo("America/Chicago")
 
@@ -142,7 +156,8 @@ def is_dst_changeover(day: date) -> bool:
 
 def plan(markets: list[Market], readings: dict[tuple[str, int], Reading],
          files: dict[tuple[str, int], dict[str, Any]], now: int, oracle_window: int,
-         last_market_day: int | None, balances: dict[str, int] | None = None) -> dict[str, Any]:
+         last_market_day: int | None, balances: dict[str, int] | None = None,
+         unverified: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Everything the job and the alerts need, from one consistent snapshot.
     Pure: no chain or file access, so every rule here is unit-tested."""
     today = datetime.fromtimestamp(now, timezone.utc).date()
@@ -215,6 +230,7 @@ def plan(markets: list[Market], readings: dict[tuple[str, int], Reading],
         "ladderRunningOut": ladder_short,
         "balances": {label: str(wei) for label, wei in balances.items()},
         "lowGas": low_gas,
+        "unverifiedMarkets": list(unverified or []),
     }
     result["alerts"] = [name for name in ALERT_FIELDS if result[name]]
     return result
@@ -222,45 +238,136 @@ def plan(markets: list[Market], readings: dict[tuple[str, int], Reading],
 
 # ---------------------------------------------------------------- reading state
 
+def git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
+
+
+def refuse_dirty_inputs() -> None:
+    """The plan must describe what is committed: a fetch that failed half-way,
+    or any hand edit, must not steer a chain step."""
+    status = git("status", "--porcelain", "--untracked-files=all", "--", *INPUT_PATHS)
+    if status.returncode != 0:
+        raise PublisherError(f"git status failed: {status.stderr.strip()}")
+    if status.stdout.strip():
+        raise PublisherError("uncommitted changes in the plan's inputs, refusing to plan from them:\n"
+                             + status.stdout.rstrip())
+
+
+def committed_json(relative: str) -> Any | None:
+    """A file's JSON at HEAD, or None when HEAD has no such file."""
+    shown = git("show", f"HEAD:{relative}")
+    if shown.returncode != 0:
+        if "does not exist" in shown.stderr or "exists on disk, but not in" in shown.stderr:
+            return None
+        raise PublisherError(f"git show HEAD:{relative} failed: {shown.stderr.strip()}")
+    try:
+        return json.loads(shown.stdout)
+    except json.JSONDecodeError as exc:
+        raise PublisherError(f"Invalid JSON in HEAD:{relative}: {exc}") from exc
+
+
 def load_files(keys: set[tuple[str, int]]) -> dict[tuple[str, int], dict[str, Any]]:
     """The committed metric file for each (metricId, dayKey), when it exists."""
     found = {}
     for metric_id, key in keys:
-        path = METRICS_DIR / f"{metric_id}__{day_of(key).isoformat()}.json"
-        if path.exists():
-            record = load_json(path)
+        record = committed_json(f"data/metrics/{metric_id}__{day_of(key).isoformat()}.json")
+        if record is not None:
             found[(metric_id, key)] = {"value": record.get("value"),
                                        "sourceHash": record.get("sourceHash")}
     return found
 
 
+def verify_market(row: dict[str, Any], listed: dict[str, dict[str, Any]], on_factory: set[str],
+                  chain: dict[str, Any] | None, oracle: str, metric_hashes: dict[str, str]) -> str | None:
+    """Why a market-ledger row is not a market the job may act on, or None.
+    `chain` is the contract's own view (None when it was not read: settled).
+    Pure, so every rule is unit-tested."""
+    try:
+        address = Web3.to_checksum_address(row["market"])
+    except (KeyError, TypeError, ValueError):
+        return "not an address"
+    entry = listed.get(address)
+    if entry is None:
+        return "not in shared/addresses.json"
+    for field in ("metricId", "dayKey", "threshold", "resolveAfter"):
+        if str(entry.get(field)) != str(row.get(field)):
+            return f"{field} differs from shared/addresses.json"
+    if address not in on_factory:
+        return "not listed by a pinned MarketFactory"
+    if row.get("metricId") not in metric_hashes.values():
+        return "metricId is not pinned"
+    if chain is None:
+        return None
+    if Web3.to_checksum_address(chain["oracle"]) != oracle:
+        return f"its oracle() is {chain['oracle']}, not the pinned {oracle}"
+    if metric_hashes.get(chain["metricId"]) != row.get("metricId"):
+        return "its metricId() differs from the ledger"
+    for field in ("dayKey", "threshold", "resolveAfter", "disputeWindow"):
+        if int(chain[field]) != int(row[field]):
+            return f"its {field}() differs from the ledger"
+    return None
+
+
 def gather(w3: Web3, block: int, now: int) -> dict[str, Any]:
     """Read every input plan() needs, pinned to `block`."""
-    addresses = load_addresses()
-    config = load_json(ADDRESSES_PATH)
-    ledger = load_json(MARKET_LEDGER) if MARKET_LEDGER.exists() else {}
+    refuse_dirty_inputs()
+    addresses = load_addresses()   # also checks the core addresses against shared/pins.json
+    pins = load_pins()
+    config = committed_json("shared/addresses.json") or {}
+    ledger = committed_json("data/market-ledger.json") or {}
     rows = [row for row in ledger.values() if isinstance(row, dict) and "market" in row]
     today = datetime.fromtimestamp(now, timezone.utc).date()
     cutoff = day_key(today - timedelta(days=LOOKBACK_DAYS))
 
     oracle = w3.eth.contract(address=addresses["oracle"], abi=load_abi("GridOracle"))
     market_abi = load_abi("BinaryMarket")
+    factory_abi = load_abi("MarketFactory")
     oracle_window = int(rm.pinned_call(oracle.functions.disputeWindow(), block))
 
-    markets = []
+    listed = {}
+    for entry in config.get("markets", []) or []:
+        try:
+            listed[Web3.to_checksum_address(entry["market"])] = entry
+        except (KeyError, TypeError, ValueError):
+            continue
+    on_factory: set[str] = set()
+    for factory_address in (pins.factory, *pins.legacy_factories):
+        factory = w3.eth.contract(address=factory_address, abi=factory_abi)
+        on_factory |= {Web3.to_checksum_address(a)
+                       for a in rm.pinned_call(factory.functions.getMarkets(), block)}
+    metric_hashes = pins.metric_hashes()
+
+    markets, unverified = [], []
     for row in rows:
         if int(row["dayKey"]) < cutoff:
             continue
-        contract = w3.eth.contract(address=Web3.to_checksum_address(row["market"]), abi=market_abi)
+        reason = verify_market(row, listed, on_factory, None, addresses["oracle"], metric_hashes)
+        if reason:
+            unverified.append({"market": str(row.get("market")), "dayKey": row.get("dayKey"), "reason": reason})
+            continue
+        address = Web3.to_checksum_address(row["market"])
+        contract = w3.eth.contract(address=address, abi=market_abi)
+        resolved = bool(rm.pinned_call(contract.functions.resolved(), block))
+        cancelled = bool(rm.pinned_call(contract.functions.cancelled(), block))
+        if not resolved and not cancelled:
+            # Only a market a chain step could act on is read in full.
+            chain = {"oracle": rm.pinned_call(contract.functions.oracle(), block),
+                     "metricId": HexBytes(rm.pinned_call(contract.functions.metricId(), block)).hex().removeprefix("0x"),
+                     **{f: rm.pinned_call(getattr(contract.functions, f)(), block)
+                        for f in ("dayKey", "threshold", "resolveAfter", "disputeWindow")}}
+            reason = verify_market(row, listed, on_factory, chain, addresses["oracle"], metric_hashes)
+            if reason:
+                unverified.append({"market": address, "dayKey": row.get("dayKey"), "reason": reason})
+                continue
         markets.append(Market(
-            address=Web3.to_checksum_address(row["market"]),
+            address=address,
             metric_id=row["metricId"],
             day_key=int(row["dayKey"]),
             threshold=int(row["threshold"]),
             resolve_after=int(row["resolveAfter"]),
             dispute_window=int(row["disputeWindow"]),
-            resolved=bool(rm.pinned_call(contract.functions.resolved(), block)),
-            cancelled=bool(rm.pinned_call(contract.functions.cancelled(), block)),
+            resolved=resolved,
+            cancelled=cancelled,
         ))
         time.sleep(RPC_COURTESY_SLEEP)
 
@@ -287,13 +394,13 @@ def gather(w3: Web3, block: int, now: int) -> dict[str, Any]:
         )
         time.sleep(RPC_COURTESY_SLEEP)
 
-    # Only GridOracleV2 answers guardian(): its reporter can be replaced, so
-    # it is the only oracle the job may send to. Any failure counts as no.
+    # Only the pinned GridOracleV2, proven by bytecode hash and its role
+    # addresses, may be sent to (chain_guard.oracle_identity). Any failure is no.
     try:
-        w3.eth.call({"to": addresses["oracle"], "data": Web3.keccak(text="guardian()")[:4]}, block)
-        rotatable = True
-    except Exception:
-        rotatable = False
+        oracle_identity(w3, addresses["oracle"], pins, block)
+        verified, identity_error = True, None
+    except OracleIdentityError as exc:
+        verified, identity_error = False, str(exc)
 
     balances = {}
     for label in ("reporter", "settler"):
@@ -304,7 +411,8 @@ def gather(w3: Web3, block: int, now: int) -> dict[str, Any]:
     daily = [int(r["dayKey"]) for r in rows if r.get("metricId") == DAILY_METRIC]
     return {"markets": markets, "readings": readings, "files": files,
             "oracle_window": oracle_window, "last_market_day": max(daily) if daily else None,
-            "balances": balances, "oracle_rotatable": rotatable}
+            "balances": balances, "oracle_verified": verified, "oracle_identity_error": identity_error,
+            "unverified": unverified}
 
 
 # ---------------------------------------------------------------- output
@@ -334,8 +442,8 @@ def render(result: dict[str, Any]) -> str:
         f"  next finalizable:  {result['secondsToFinalizable'] if result['secondsToFinalizable'] is not None else '-'} s",
         f"  to resolve:        {len(result['resolve'])} market(s)",
         f"  last market day:   {result['lastMarketDay'] or 'none'}",
-        "  oracle:            " + ("GridOracleV2, reporter replaceable" if result.get("oracleRotatable")
-                                  else "the first GridOracle, reporter permanent: the job sends it nothing"),
+        "  oracle:            " + ("the pinned GridOracleV2, identity verified" if result.get("oracleVerified")
+                                  else "not a verified GridOracleV2: the job sends it nothing"),
     ]
     for label, wei in result["balances"].items():
         lines.append(f"  {label} balance:  {Web3.from_wei(int(wei), 'ether'):.4f} OKB")
@@ -351,6 +459,8 @@ def render(result: dict[str, Any]) -> str:
             "outOfRange": f"reading outside -$50..$1,000/MWh, finalizing held: {days(result['outOfRange'])}",
             "ladderRunningOut": f"no market day after tomorrow (last: {result['lastMarketDay'] or 'none'})",
             "lowGas": f"below 0.005 OKB: {', '.join(result['lowGas'])}",
+            "unverifiedMarkets": f"{len(result['unverifiedMarkets'])} ledger market(s) left out, not verified: "
+                                 + "; ".join(f"{m['market']} ({m['reason']})" for m in result["unverifiedMarkets"]),
         }
         lines += [f"  - {labels[name]}" for name in result["alerts"]]
     else:
@@ -380,8 +490,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"settle_due: could not read the chain ({type(exc).__name__}): {exc}", file=sys.stderr)
         return 2
     result = plan(state["markets"], state["readings"], state["files"], now,
-                  state["oracle_window"], state["last_market_day"], state["balances"])
-    result["oracleRotatable"] = state["oracle_rotatable"]
+                  state["oracle_window"], state["last_market_day"], state["balances"], state["unverified"])
+    result["oracleVerified"] = state["oracle_verified"]
+    result["oracleIdentity"] = state["oracle_identity_error"]
     if args.json:
         path = Path(args.json)
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -1,3 +1,4 @@
+import net_guard  # noqa: F401  (tests never reach the network)
 import contextlib
 import io
 import json
@@ -651,8 +652,10 @@ class TestDryRunAndLiveConfirmation(BaseFinalizeTest):
                 patch("builtins.input", side_effect=AssertionError("--yes must not prompt")):
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                exit_code = finalize.main(["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG",
-                                           "--start", "20260908", "--limit", "7"])
+                with patch.object(finalize, "oracle_identity") as check_identity:
+                    exit_code = finalize.main(["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG",
+                                               "--start", "20260908", "--end", "20260914", "--limit", "7"])
+        check_identity.assert_called_once()
         load_key.assert_called_once_with(unattended=True)
         mock_attempt.assert_called_once()
         self.assertIn("Confirmed by --yes", buffer.getvalue())
@@ -661,12 +664,15 @@ class TestDryRunAndLiveConfirmation(BaseFinalizeTest):
     def test_yes_is_kept_narrow(self):
         def check(argv):
             finalize.validate_args(finalize.build_parser().parse_args(argv))
-        good = ["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG", "--start", "20260908", "--limit", "7"]
+        good = ["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG", "--start", "20260908",
+                "--end", "20260914", "--limit", "7"]
         check(good)
         for broken, reason in [
             ([a for a in good if a != "--live"], "--live"),
-            (["--live", "--yes", "--start", "20260908", "--limit", "7"], "one --metric"),
-            (["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG", "--limit", "7"], "--start"),
+            (["--live", "--yes", "--start", "20260908", "--end", "20260914", "--limit", "7"], "one --metric"),
+            (["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG", "--end", "20260914", "--limit", "7"], "--start"),
+            # S6: the last planned day bounds the run too.
+            (["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG", "--start", "20260908", "--limit", "7"], "--end"),
             (good[:-1] + ["8"], "at most 7"),
         ]:
             with self.subTest(reason=reason), self.assertRaisesRegex(publish.PublisherError, reason):

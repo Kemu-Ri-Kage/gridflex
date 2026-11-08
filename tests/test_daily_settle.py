@@ -5,6 +5,7 @@ plans, the chain scripts record their arguments, and plan_field's inline
 reader runs on the real interpreter. No network, no keys, no chain.
 """
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import json
 import os
 import shutil

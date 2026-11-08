@@ -5,6 +5,7 @@ exactly one get_api_usage() call and nothing else. No network: the client is
 a mock.
 """
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import io
 import tempfile
 import unittest

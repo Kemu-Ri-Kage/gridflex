@@ -8,6 +8,7 @@ Chain access is faked at the scripts' own seams, as the other suites do.
 
 from __future__ import annotations
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import contextlib
 import io
 import json
@@ -22,9 +23,11 @@ import create_markets
 import resolve_markets as rm
 from publish import PublisherError
 
+import dataclasses
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import state_report  # noqa: E402
+import chain_guard  # noqa: E402
 
 CURRENT = Web3.to_checksum_address("0x" + "aa" * 20)
 OLD = Web3.to_checksum_address("0x" + "bb" * 20)
@@ -37,7 +40,17 @@ class TestLoadAddressesLegacyFactories(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "addresses.json"
             path.write_text(json.dumps(config), encoding="utf-8")
-            with patch.object(create_markets, "ADDRESSES_PATH", path):
+            # The fixture's own addresses are the pins here: this tests parsing.
+            pins = chain_guard.load_pins()
+            pins = dataclasses.replace(
+                pins, oracle_v1=Web3.to_checksum_address(config["GridOracle"]),
+                factory=Web3.to_checksum_address(config["MarketFactory"]),
+                collateral=Web3.to_checksum_address(config["MockUSDT"]),
+                legacy_factories=tuple(Web3.to_checksum_address(e["address"]) for e in
+                                       config.get("legacyDeployments", {}).get("MarketFactory", [])
+                                       if isinstance(e, dict) and Web3.is_address(e.get("address"))))
+            with patch.object(create_markets, "ADDRESSES_PATH", path), \
+                    patch.object(chain_guard, "load_pins", return_value=pins):
                 return create_markets.load_addresses()
 
     def base(self, **extra):

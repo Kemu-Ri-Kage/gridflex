@@ -2,6 +2,7 @@
 alerts. The rules live in plan(), which takes plain data, so no RPC is made.
 """
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import sys
 import unittest
 from datetime import datetime, timezone

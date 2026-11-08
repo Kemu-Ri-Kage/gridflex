@@ -81,6 +81,7 @@ from web3 import Web3
 from web3.exceptions import BadFunctionCallOutput, TimeExhausted
 from web3.logs import DISCARD  # the receipt's token Transfer/Approval logs aren't MarketCreated
 
+from chain_guard import assert_addresses_match_pins, oracle_identity
 from finalize import (
     DEMO_MARKETS_PATH,
     SUMMARY_TABLE_COLUMNS,
@@ -351,6 +352,8 @@ def load_addresses() -> dict[str, Any]:
             raise PublisherError(
                 f"Invalid legacyDeployments.MarketFactory entry in {ADDRESSES_PATH}: {entry!r}"
             ) from exc
+    # The reviewed pins decide these addresses, not the data branch.
+    assert_addresses_match_pins(chain_id, oracle, factory, collateral, legacy)
     return {
         "chainId": chain_id,
         "oracle": oracle,
@@ -1306,6 +1309,9 @@ def main(argv: list[str] | None = None) -> int:
                     "earlier run may have stopped part-way; a person must look before more are "
                     "created: " + "; ".join(untracked)
                 )
+            # Before any key is read: unattended creation only against the
+            # pinned GridOracleV2 (the factory's markets settle on it).
+            oracle_identity(w3, addresses["oracle"])
 
         account = load_finalizer_account(unattended=args.yes)
         chain_id, balance = preflight(w3, addresses, account)

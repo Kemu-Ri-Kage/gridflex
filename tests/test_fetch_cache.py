@@ -5,6 +5,7 @@ re-fetched chunk never destroys bytes a published hash was computed from;
 and a reading already onchain is never rewritten by a later run.
 """
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import hashlib
 import json
 import tempfile
@@ -458,6 +459,8 @@ class TestWhatARefreshFetches(unittest.TestCase):
             patch.object(fetch_ercot, "fuel_shares", return_value={}),
             patch.object(fetch_ercot, "METRICS_DIR", Path(self.tmp.name)),
             patch.object(fetch_ercot, "PUBLISH_LEDGER", Path(self.tmp.name) / "none.json"),
+            # S10: the oracle read is mocked too; these tests never reach the chain.
+            patch.object(fetch_ercot, "onchain_readings", return_value={}),
             patch("builtins.print"),
         ]
         for one in self.patches:

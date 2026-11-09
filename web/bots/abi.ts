@@ -99,3 +99,76 @@ export const texasPowerOptionsAbi = [
     outputs: [{ type: 'uint64' }],
   },
 ] as const;
+
+const perpOrder = [
+  { name: 'account', type: 'address' },
+  { name: 'createdAt', type: 'uint64' },
+  { name: 'pending', type: 'bool' },
+  { name: 'isOpen', type: 'bool' },
+  { name: 'isLong', type: 'bool' },
+  { name: 'acceptablePriceCents', type: 'int64' },
+  { name: 'size', type: 'uint256' },
+  { name: 'positionId', type: 'uint256' },
+  { name: 'escrow', type: 'uint256' },
+  { name: 'reserveHeld', type: 'uint256' },
+] as const;
+
+const poolRequest = [
+  { name: 'account', type: 'address' },
+  { name: 'createdAt', type: 'uint64' },
+  { name: 'pending', type: 'bool' },
+  { name: 'isDeposit', type: 'bool' },
+  { name: 'amount', type: 'uint256' },
+] as const;
+
+/** contracts/src/TexasPowerPerp.sol, the functions the keeper calls. */
+export const texasPowerPerpAbi = [
+  {
+    type: 'function',
+    name: 'nextOrderId',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'nextPoolRequestId',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getOrder',
+    stateMutability: 'view',
+    inputs: [{ name: 'orderId', type: 'uint256' }],
+    outputs: [{ type: 'tuple', components: perpOrder }],
+  },
+  {
+    type: 'function',
+    name: 'getPoolRequest',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [{ type: 'tuple', components: poolRequest }],
+  },
+  {
+    type: 'function',
+    name: 'executeOrder',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'orderId', type: 'uint256' },
+      { name: 'roundId', type: 'uint64' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'executePoolRequest',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'requestId', type: 'uint256' },
+      { name: 'roundId', type: 'uint64' },
+    ],
+    outputs: [],
+  },
+] as const;

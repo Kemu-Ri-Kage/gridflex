@@ -755,9 +755,17 @@ class TestDemoMarketsDocument(unittest.TestCase):
     def setUp(self):
         self.candidates = create_markets.parse_demo_markets_candidates()
 
-    def test_parses_two_replay_and_seventy_eight_live_texas_power_markets(self):
+    # Rows 1-80 were written by hand and are pinned one by one. The daily
+    # settle job's ladder (scripts/extend_ladder.py) appends rows to this live
+    # file every day, so rows after these are checked by shape instead.
+    HAND_WRITTEN_ROWS = 80
+
+    def test_parses_the_hand_written_rows_then_any_automatic_ladder_rows(self):
         self.assertEqual(
-            [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates],
+            [
+                (c.row, c.kind, c.metric_id, c.day_key, c.threshold)
+                for c in self.candidates[: self.HAND_WRITTEN_ROWS]
+            ],
             [
                 (1, "replay", "ERCOT_HBNORTH_DA_AVG", 20250911, 2500),
                 (2, "live", "ERCOT_HBNORTH_DA_AVG", 20260926, 4500),
@@ -845,6 +853,17 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (80, "live", "ERCOT_HBNORTH_DA_AVG", 20261115, 4500),
             ],
         )
+        ladder = self.candidates[self.HAND_WRITTEN_ROWS:]
+        first = self.HAND_WRITTEN_ROWS + 1
+        self.assertEqual([c.row for c in ladder], list(range(first, first + len(ladder))))
+        self.assertEqual([c.day_key for c in ladder], sorted(c.day_key for c in ladder))
+        for c in ladder:
+            with self.subTest(row=c.row):
+                self.assertEqual((c.kind, c.metric_id), ("live", "ERCOT_HBNORTH_DA_AVG"))
+                self.assertGreater(c.day_key, 20261115)
+                # whole $5 strikes, never below $5 (extend_ladder.py)
+                self.assertGreaterEqual(c.threshold, 500)
+                self.assertEqual(c.threshold % 500, 0)
 
     def test_trading_close_column_matches_what_the_script_computes(self):
         text = create_markets.DEMO_MARKETS_PATH.read_text(encoding="utf-8")
@@ -1116,11 +1135,17 @@ class TestMainDryRunByKind(unittest.TestCase):
             "2026-09-22 07:45 CDT (Texas) / 13:45 BST (London)",
             output,
         )
-        self.assertIn("Eligible to create:           80", output)
+        # at this run's clock (22 Sep) every row is still open, so all are
+        # eligible: the 80 hand-written rows plus any the daily ladder added
+        eligible = len(create_markets.parse_demo_markets_candidates())
+        self.assertGreaterEqual(eligible, 80)
+        self.assertRegex(output, rf"Eligible to create:\s+{eligible}\b")
         self.assertIn("DRY RUN ONLY", output)
 
     def test_unknown_market_row_is_an_error(self):
-        exit_code, _, err = self.run_main(["--market", "99"])
+        # one past the last row, so the daily ladder's new rows never make it real
+        missing = len(create_markets.parse_demo_markets_candidates()) + 1
+        exit_code, _, err = self.run_main(["--market", str(missing)])
         self.assertEqual(exit_code, 1)
         self.assertIn("no such row", err)
 

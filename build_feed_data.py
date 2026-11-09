@@ -37,6 +37,8 @@ WEB_DATA_DIR = ROOT / "web" / "public" / "data"
 # live outside public/, which Vite won't let JavaScript import from.
 WEB_GENERATED_DIR = ROOT / "web" / "lib" / "generated"
 ADDRESSES_SOURCE = ROOT / "shared" / "addresses.json"
+# Contracts of the futures and options markets (contracts/script/DeployDerivatives.s.sol).
+DERIVATIVES_CONTRACTS = ("LivePriceFeed", "TexasPowerPerp", "TexasPowerOptions")
 METRICS_DIR = ROOT / "data" / "metrics"
 RAW_DIR = ROOT / "data" / "raw"
 
@@ -126,6 +128,11 @@ def write_addresses(output_dir: Path) -> None:
             for entry in source.get("markets", [])
         ],
     }
+    # The futures and options contracts, once deployed: the /futures and /options
+    # screens show "opening on testnet" until their address is here.
+    for name in DERIVATIVES_CONTRACTS:
+        if source.get(name):
+            public[name] = source[name]
     path = output_dir / "addresses.json"
     path.write_text(json.dumps(public, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 

@@ -151,6 +151,39 @@ class TestWriteAddresses(unittest.TestCase):
         self.assertEqual(written["markets"], [{"market": "0xmarket", "createTxHash": "0xcreate"}])
         self.assertEqual(written["GridOracleDeployTx"], "0xdeploy")
 
+    def _published(self, source):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_path = root / "addresses.json"
+            source_path.write_text(json.dumps(source))
+            original = build_feed_data.ADDRESSES_SOURCE
+            build_feed_data.ADDRESSES_SOURCE = source_path
+            try:
+                build_feed_data.write_addresses(root)
+            finally:
+                build_feed_data.ADDRESSES_SOURCE = original
+            return json.loads((root / "addresses.json").read_text())
+
+    def test_deployed_futures_and_options_contracts_reach_the_site(self):
+        written = self._published(
+            {
+                "chainId": 1952,
+                "LivePriceFeed": "0xfeed",
+                "TexasPowerPerp": "0xperp",
+                "TexasPowerOptions": "0xoptions",
+                "SomethingElse": "0xnope",
+            }
+        )
+        self.assertEqual(written["LivePriceFeed"], "0xfeed")
+        self.assertEqual(written["TexasPowerPerp"], "0xperp")
+        self.assertEqual(written["TexasPowerOptions"], "0xoptions")
+        self.assertNotIn("SomethingElse", written)
+
+    def test_contracts_not_deployed_yet_are_left_out(self):
+        written = self._published({"chainId": 1952, "TexasPowerPerp": ""})
+        for name in ("LivePriceFeed", "TexasPowerPerp", "TexasPowerOptions"):
+            self.assertNotIn(name, written)
+
     def test_no_markets_key_publishes_an_empty_list(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

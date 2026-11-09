@@ -70,3 +70,31 @@ Known gaps to settle in review:
 - Only the owner funds the pool. Public pool shares need a fair value for open options.
 - The quote bot is trusted: it sees pending orders and could quote up to their limits, and a
   wrong quote costs the pool. Guardian pause stops it; the bot's key is replaceable.
+
+## Deploying the futures and options markets (X Layer testnet)
+
+`DeployDerivatives.s.sol` deploys `LivePriceFeed`, `TexasPowerPerp` on it, and
+`TexasPowerOptions` on the existing `GridOracle` in one run, with the plan's settings (5-minute
+rounds, a -$50 to $300 band, $5 strikes). It refuses any chain but 1952, a reporter that is
+also the quoter, and an owner that is also the deployer. Every contract is owned from the start
+by the offline owner; the deployer key only pays gas.
+
+```bash
+export DEPLOYER_ADDRESS=0x...   # pays gas, signs with --account below
+export OWNER_ADDRESS=0x...      # offline owner
+export GUARDIAN_ADDRESS=0x...   # can pause
+export REPORTER_ADDRESS=0x...   # price bot key (new, never the v1 oracle reporter)
+export QUOTER_ADDRESS=0x...     # quote bot key (new, its own)
+export COLLATERAL_ADDRESS=0x... # MockUSDT from shared/addresses.json
+export ORACLE_ADDRESS=0x...     # GridOracle from shared/addresses.json
+# OPTIONS_METRIC defaults to ERCOT_HBNORTH_DA_AVG (then the quote bot keeps
+# OPTIONS_CLOSE=dayAheadAuction)
+forge script script/DeployDerivatives.s.sol --rpc-url https://testrpc.xlayer.tech/terigon \
+  --account <deployer-keystore> --sender "$DEPLOYER_ADDRESS" --broadcast
+```
+
+Then add the three printed addresses to `shared/addresses.json` as `LivePriceFeed`,
+`TexasPowerPerp` and `TexasPowerOptions`; `build_feed_data.py` publishes them to
+`web/public/data/addresses.json`, and the /futures and /options screens open. Seed the pools
+after: `TexasPowerPerp.deposit` while no position is open, and `TexasPowerOptions.fundPool`
+from the owner.

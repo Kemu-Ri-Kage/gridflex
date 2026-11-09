@@ -6,6 +6,7 @@ import {
   runQuoteBot,
   texasDayKey,
   texasDayStartMs,
+  texasLocalMs,
   upcomingExpiries,
   type QuoteVersion,
 } from './quote-bot.ts';
@@ -25,15 +26,44 @@ void test('a Texas day starts at local midnight, 06:00 UTC in winter and 05:00 U
   assert.equal(texasDayKey(Date.parse('2026-11-12T06:00:00Z')), 20261112);
 });
 
-void test('the next seven Texas days are listed, each closing when it starts', () => {
-  const plans = upcomingExpiries(Date.parse('2026-11-09T17:45:00Z'));
+void test('by default each day closes at 12:30 Texas time the day before, before the day-ahead auction', () => {
+  const plans = upcomingExpiries(Date.parse('2026-11-09T17:45:00Z')); // 11:45 in Texas
   assert.deepEqual(
     plans.map((p) => p.dayKey),
     [20261110, 20261111, 20261112, 20261113, 20261114, 20261115, 20261116],
   );
   assert.equal(
     plans[0].tradingCloseUtc,
+    Date.parse('2026-11-09T18:30:00Z') / 1000,
+  );
+  // after 12:30 in Texas, tomorrow has closed: it is no longer listed
+  const later = upcomingExpiries(Date.parse('2026-11-09T18:25:00Z'));
+  assert.equal(later[0].dayKey, 20261111);
+});
+
+void test('real-time-settled options may trade until the day starts', () => {
+  const plans = upcomingExpiries(
+    Date.parse('2026-11-09T18:25:00Z'),
+    7,
+    'dayStart',
+  );
+  assert.equal(plans[0].dayKey, 20261110);
+  assert.equal(
+    plans[0].tradingCloseUtc,
     Date.parse('2026-11-10T06:00:00Z') / 1000,
+  );
+});
+
+void test('12:30 Texas time is found across a daylight-saving change', () => {
+  // 8 Mar 2026: clocks go forward at 2am, so 12:30 is CDT (17:30 UTC)
+  assert.equal(
+    new Date(texasLocalMs(20260308, 12, 30)).toISOString(),
+    '2026-03-08T17:30:00.000Z',
+  );
+  // 1 Nov 2026: clocks go back at 2am, so 12:30 is CST (18:30 UTC)
+  assert.equal(
+    new Date(texasLocalMs(20261101, 12, 30)).toISOString(),
+    '2026-11-01T18:30:00.000Z',
   );
 });
 

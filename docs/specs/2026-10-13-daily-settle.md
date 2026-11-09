@@ -179,10 +179,10 @@ Rules that stay in force:
    - **ladder running out:** no market day after tomorrow
    - **low gas:** reporter or settler below 0.005 OKB (balances read as in `state_report.py:250-255`)
 4. **The dispute window keeps a person in the loop.** After publishing, Telegram receives: "Published 15 Oct: $31.20/MWh. Finalizes at 01:31 UTC." It also says how to stop it:
-   - GitHub: `gh variable set SETTLE_HOLD --body 1` and cancel the run
-   - Mac: `touch ~/.gridflex-settle-hold`
+   - GitHub: create the branch `settle-hold` (`git push origin HEAD:refs/heads/settle-hold`), or `gh run cancel <id>`
+   - A local run also honours `touch ~/.gridflex-settle-hold`
 
-   The job checks the hold again right before finalizing.
+   The job reads the hold again before publishing, after the wait (before finalizing), before resolving and before creating markets; an unreadable hold counts as a hold (§14.5).
 5. **GitHub's own email** on failed scheduled runs, as a backup.
 
 ---
@@ -386,6 +386,11 @@ How to stop each one (`CLAUDE.md:92-93` requires saying this):
 
 ## 13. Security fixes after David's audit (6 Nov 2026)
 
+*Parts of this section are superseded by §14 (the second audit, 8 Nov):
+the run no longer merges or pulls `origin/main`, the three address files
+are no longer free data, and the `guardian()` probe is replaced by a full
+identity check.*
+
 David's independent review of `feat/daily-settle` found three real
 problems. All three are fixed on `fix/settle-hardening`, and so are the
 other gaps found while fixing them.
@@ -452,4 +457,140 @@ that is due to Telegram, and holds no chain key at all.
    of plans, live but without `SETTLE_CHAIN`, against what is really due.
 5. `gh variable set SETTLE_CHAIN --body yes`. Then watch the first
    night's Telegram messages.
+
+## 14. Corrective round after the second audit (8 Nov 2026)
+
+The audit of `6042707` found that the code check could be bypassed (S1),
+that main was unprotected (S2), that contract addresses were free data (S3),
+and nine smaller gaps (S4-S14). This round closes each one with the smallest
+change that does, keeps runs fail-closed, and keeps Stage A (data and site)
+and Stage B (chain) apart.
+
+### 14.1 One reviewed commit per run (S1)
+
+- The code a run executes is the code of `$GITHUB_SHA`, the exact main
+  commit GitHub started it for. `origin/main`, which can move during a run,
+  is never used.
+- `ops/settle-preflight.sh` (main's copy, `git show "$GITHUB_SHA":… | bash`)
+  merges that exact commit into `feat/judging-sprint`, runs main's
+  `ops/code-matches-main.sh --allow-verified "$GITHUB_SHA"`, then
+  `scripts/verify_data.py --base "$GITHUB_SHA"`, and records
+  `SETTLE_CODE_SHA` and `SETTLE_CHECKED_HEAD`.
+- `daily_settle.sh` never fetches or pulls. A live run refuses without
+  those two values. Before every chain step, every commit and every push it
+  checks that HEAD is the checked commit plus its own single data commits,
+  that the code still matches, that the address files are as verified, and
+  that nothing outside the data paths changed in the working tree. A
+  rejected push fails the run; nothing is pulled.
+- The script body is one function, so bash has parsed all of it before
+  anything runs: editing the file on disk mid-run changes nothing.
+- Python packages are installed from main's `requirements.lock`
+  (`git show "$GITHUB_SHA":requirements.lock`), before any branch code runs.
+- The deploy job checks out exactly `needs.settle.outputs.sha`, runs the
+  preflight in check-only mode, and builds with `refresh_data.sh --no-fetch
+  --no-commit`, which refuses unless the rebuilt data equals that commit.
+
+### 14.2 Reviewed pins and verified data (S3, S4)
+
+- `shared/pins.json` (main only; the code check treats it as code) pins the
+  chain, the first oracle and its reporter, the factory, the legacy
+  factories, the collateral and the metric names. The GridOracleV2 fields
+  (`oracleV2`, `oracleV2CodeHash`, `v2Reporter`, `v2Guardian`, `v2Owner`)
+  and `settler` stay `null` until the oracle-v2 switch pull request sets them
+  all together.
+- Every address loader (`create_markets.load_addresses`,
+  `publish.load_deployment`, and through them every chain script and the
+  fetch) refuses an `addresses.json` whose oracle, factory, collateral or
+  legacy factories differ from the pins.
+- `shared/addresses.json`, `shared/demo-markets.md` and
+  `web/public/data/addresses.json` may differ from main only with
+  `verify_data.py`'s approval: core keys unchanged, markets append-only, each
+  appended market listed by the pinned factory with the pinned oracle,
+  collateral and metric and the same terms on chain, the ledger and the
+  table appended one to one, and the site's copy equal to main's or to
+  `write_addresses()` of the verified file.
+- `chain_guard.oracle_identity()` replaces the `guardian()` probe. Every
+  unattended (`--yes`) send in publish, finalize, resolve and create calls it
+  before any key is read: the v2 pins must be set; the chain must be the
+  pinned one; the address must be the pinned v2 and not v1; there must be
+  bytecode whose keccak256 is the pinned hash; `guardian()`, `reporter()` and
+  `owner()` must each return one 32-byte word with a non-zero address equal to
+  its pin. Publish also checks the decrypted key is `reporter()` before
+  sending. `settle_due.py` reports the result as `oracleVerified`.
+- Interactive (typed `yes`) runs keep the address pins but not the v2
+  identity, so an operator can still settle on the first oracle by hand.
+
+### 14.3 Every chain step scoped (S6)
+
+- `settle_due.py` plans only ledger markets that `addresses.json` lists with
+  the same terms, that a pinned factory lists, and whose own `oracle()`,
+  `metricId()`, `dayKey()`, `threshold()`, `resolveAfter()` and
+  `disputeWindow()` agree. Anything else is reported as `unverifiedMarkets`,
+  an alert that stops a chain run.
+- publish gets `--day` for each planned day, finalize `--start` and `--end`,
+  and resolve `--market` for each planned market. `resolve_markets.py --yes`
+  needs `--market`, and skips (and under `--yes` refuses) any market whose
+  `oracle()` is not the pinned one.
+- The ladder creates only the rows `extend_ladder.py` added in this run (not
+  in the committed table, at most 21), and re-runs `verify_data.py` before
+  pushing what it created.
+
+### 14.4 Data validated before it is published (S7)
+
+- `refresh_data.sh` validates every new or changed metric file before it
+  stages anything: structure, the -$50..$1,000/MWh band for price metrics,
+  and after a fetch the provenance check below. Any failure exits non-zero
+  with nothing committed. `--no-push` and `--no-commit` let the settle job
+  push only its checked commit and the deploy job build only that commit.
+- A failed fetch puts the tree back to the bound commit and the run goes on
+  with committed data. `settle_due.py` reads metric files, the market ledger
+  and `addresses.json` from `git show HEAD:` and refuses when they are dirty.
+- Provenance (`scripts/validate_metrics.py --provenance`): `sourceHash` must
+  equal sha256 over `data/raw/<sourceFiles>` in order, and the value and day
+  bounds must equal `fetch_ercot.day_ahead_average()` of those raw rows.
+  `publish.py --yes` applies it, and the range, to every reading before any
+  key is read; a failure says `PROVENANCE`, a stop word.
+
+### 14.5 Holds, failures, leaks (S5, S8, S9)
+
+- The hold is the branch `settle-hold` (`git push origin
+  HEAD:refs/heads/settle-hold`). It is read with `git ls-remote` at the start,
+  before publishing, after the dispute-window wait, before resolving and
+  before creating markets. If it can't be read during a live run, that is a
+  hold. `SETTLE_HOLD=1` is now only a start-of-run hold.
+- `set -Eeuo pipefail`; command output is captured synchronously
+  (`cmd | redact | tee`), so a stop word printed as the last byte is seen;
+  every plan field read fails the run when the plan is missing or unreadable.
+  New stop words: `still pending`, `reverted`, `PROVENANCE`,
+  `not in the ledger`, `ORACLE IDENTITY`, `not the pinned oracle`.
+- No artifact upload. Healthchecks gets `step=<name> exit=<code>` only.
+  Everything printed, every step's output file and every Telegram text goes
+  through `ops/redact.sh`, which removes the values of every secret the job
+  can hold and anything shaped like a bot token or a ping URL.
+
+### 14.6 Low items (S10-S14) and Stage separation
+
+- S10: `tests/net_guard.py`, imported by every test module, refuses any
+  non-localhost socket; the fetch tests mock the oracle read.
+- S11: the workflow passes the raw variables to bash and compares them with
+  `== "yes"`; `YES`, `Yes` and `yes ` are dry runs.
+- S12: a live `workflow_dispatch` also needs `github.actor` in the
+  repository variable `SETTLE_OPERATORS` (comma-separated logins). Scheduled
+  runs are unaffected.
+- S13: pnpm comes from `web/package.json` `packageManager` (`pnpm@12.9.1`,
+  the version installed locally); `scripts/check_pnpm_pin.py` checks it
+  against the lockfile in CI.
+- S14: `publish.py`'s dry path recovers `submitted` rows with the pinned
+  reporter address and never loads a key.
+- Stage B stays off: the workflow refuses `SETTLE_CHAIN=yes` while main's
+  pins have no GridOracleV2, the keystore steps run only with `CHAIN=1`, and
+  Stage A never passes `--chain`.
+
+### 14.7 The oracle-v2 switch pull request
+
+When GridOracleV2 is deployed, the switch pull request to main must set, in
+one change: `oracleV2`, `oracleV2CodeHash` (`cast keccak $(cast code <addr>)`),
+`v2Reporter`, `v2Guardian`, `v2Owner` and `settler` in `shared/pins.json`, and
+`GridOracle` in `shared/addresses.json`. `shared/oracle-v2.md` (on
+`feat/oracle-v2`) should gain this step when that branch is merged.
 

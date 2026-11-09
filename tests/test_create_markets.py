@@ -758,10 +758,10 @@ class TestDemoMarketsDocument(unittest.TestCase):
     def setUp(self):
         self.candidates = create_markets.parse_demo_markets_candidates()
 
-    def test_parses_two_replay_and_fifty_seven_live_texas_power_markets(self):
-        self.assertEqual(
-            [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates],
-            [
+    # Rows 1-59 are frozen (they name deployed markets and history); later
+    # rows are the weekly ladder, data the settle job appends, so they are
+    # only checked for shape (audit finding S3, decision D9).
+    FROZEN_ROWS = [
                 (1, "replay", "ERCOT_HBNORTH_DA_AVG", 20250911, 2500),
                 (2, "live", "ERCOT_HBNORTH_DA_AVG", 20260926, 4500),
                 (3, "live", "ERCOT_HBNORTH_DA_AVG", 20260930, 4500),
@@ -824,8 +824,23 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (57, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 3000),
                 (58, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 4000),
                 (59, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 5000),
-            ],
+    ]
+
+    def test_the_frozen_rows_1_to_59_are_exactly_as_deployed(self):
+        self.assertEqual(
+            [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates[:59]],
+            self.FROZEN_ROWS,
         )
+
+    def test_later_ladder_rows_are_well_formed(self):
+        later = self.candidates[59:]
+        self.assertEqual([c.row for c in later], list(range(60, 60 + len(later))))
+        for c in later:
+            with self.subTest(row=c.row):
+                self.assertEqual((c.kind, c.metric_id), ("live", "ERCOT_HBNORTH_DA_AVG"))
+                self.assertEqual(c.threshold % 500, 0)
+                self.assertGreater(c.threshold, 0)
+                self.assertGreater(c.day_key, 20261020)
 
     def test_trading_close_column_matches_what_the_script_computes(self):
         text = create_markets.DEMO_MARKETS_PATH.read_text(encoding="utf-8")
@@ -1097,7 +1112,9 @@ class TestMainDryRunByKind(unittest.TestCase):
             "2026-09-22 07:45 CDT (Texas) / 13:45 BST (London)",
             output,
         )
-        self.assertIn("Eligible to create:           59", output)
+        rows = len(create_markets.parse_demo_markets_candidates())
+        self.assertGreaterEqual(rows, 59)
+        self.assertIn(f"Eligible to create:           {rows}", output)
         self.assertIn("DRY RUN ONLY", output)
 
     def test_unknown_market_row_is_an_error(self):

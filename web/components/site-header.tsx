@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { LivePriceChip } from '@/components/live-price';
 import { Badge } from '@/components/ui/badge';
 import { WalletButton } from '@/components/wallet-button';
 
@@ -82,6 +83,7 @@ export function TerminalHeader() {
             </Link>
             <span className="px-3 py-2 text-sm text-foreground">Trade</span>
           </nav>
+          <LivePriceChip className="hidden lg:flex" />
         </div>
         {/* The page's one disclaimer line (design-brief.md §5) wraps rather
             than shortens on narrow screens - both names must stay, and a

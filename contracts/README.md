@@ -44,13 +44,11 @@ liquidation. Orders fill at the first price round published after the order (a r
 order's own block never counts); once that round exists the trader cannot cancel. The bigger
 side pays funding to the pool, growing with the imbalance; open and close fees go to the pool.
 Liquidity providers deposit for pool shares (this contract's ERC-20) and withdraw only cash no
-position or pending order has reserved. Not deployed.
+position or pending order has reserved; while positions are open, deposits and withdrawals
+fill at the next price round like orders, so nobody moves money at a pool value they know is
+stale. If the feed is silent for 3 days, anyone can close any position at the last index (at
+its entry price if the feed is paused). Not deployed.
 
 Known gaps to settle in review before any deploy beyond testnet:
-- Pool deposits and withdrawals price at the latest published index, so a provider who sees
-  ERCOT's next price first could withdraw before a loss reaches the pool. Fix: fill pool
-  withdrawals at the next print, like orders.
-- If the price feed stops for good, open positions cannot close. Fix: after a long outage,
-  let anyone close positions at the last valid index.
 - A wrong price round cannot be removed from `LivePriceFeed`; the guardian can only pause.
   Orders whose fill round is the bad one can be cancelled by their traders while paused.

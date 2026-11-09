@@ -87,8 +87,8 @@ contract TexasPowerPerpTest is Test {
     function _checkBooks() internal view {
         assertEq(
             usdt.balanceOf(address(perp)),
-            perp.poolCash() + perp.traderCollateral() + perp.orderEscrow(),
-            "token balance = pool + traders + escrow"
+            perp.poolCash() + perp.traderCollateral() + perp.orderEscrow() + perp.depositEscrow(),
+            "token balance = pool + traders + order and deposit escrow"
         );
         assertLe(perp.totalReserved(), perp.poolCash(), "reserves covered");
     }
@@ -407,18 +407,164 @@ contract TexasPowerPerpTest is Test {
         assertEq(perp.poolValue(), perp.poolCash() + 43_300_000); // traders down $43.30
     }
 
-    function testWithdrawalsStopAtReservedCash() public {
+    // ------------------------------------------------------------ pool moves at the next print
+
+    /// Alice long 10 MWh at $44.33 (round 4), then the provider's request; the fill round
+    /// (round 5) has index (4400 + 4500 + 5200) / 3 = 4700.
+    function _openAliceThenRequest(bool deposit, uint256 amount)
+        internal
+        returns (uint256 requestId)
+    {
         _seed(4400);
         perp.executeOrder(_open(alice, true, 10 * MWH, 4500), _publish(4500));
+        vm.prank(deposit ? bob : lp);
+        requestId = deposit ? perp.requestDeposit(amount) : perp.requestWithdraw(amount);
+    }
+
+    function testInstantPoolMovesOnlyWhileNoPositionIsOpen() public {
+        _seed(4400);
+        perp.executeOrder(_open(alice, true, MWH, 4500), _publish(4500));
+        vm.prank(bob);
+        vm.expectRevert(TexasPowerPerp.PositionsOpenUseRequest.selector);
+        perp.deposit(1e6);
+        vm.prank(lp);
+        vm.expectRevert(TexasPowerPerp.PositionsOpenUseRequest.selector);
+        perp.withdraw(1e9);
+    }
+
+    function testAWithdrawalFillsAtTheNextRoundsPoolValue() public {
+        uint256 shares = perp.balanceOf(lp) / 10;
+        uint256 requestId = _openAliceThenRequest(false, shares);
+        assertEq(perp.balanceOf(address(perp)), shares); // held until the fill
+        uint256 cash = perp.poolCash();
+        uint256 supply = perp.totalSupply();
+        uint256 before = usdt.balanceOf(lp);
+
+        perp.executePoolRequest(requestId, _publish(5200));
+        // traders are up 10 MWh x ($47.00 - $44.33) at the fill round
+        uint256 value = cash - 26_700_000;
+        uint256 expected = shares * (value + 1) / (supply + 1e3);
+        assertEq(usdt.balanceOf(lp) - before, expected);
+        assertEq(perp.balanceOf(address(perp)), 0);
+        assertEq(perp.totalSupply(), supply - shares);
+        _checkBooks();
+    }
+
+    function testADepositFillsAtTheNextRoundsPoolValue() public {
+        uint256 requestId = _openAliceThenRequest(true, 100_000e6);
+        assertEq(perp.depositEscrow(), 100_000e6);
+        uint256 cash = perp.poolCash();
+        uint256 supply = perp.totalSupply();
+
+        perp.executePoolRequest(requestId, _publish(5200));
+        uint256 value = cash - 26_700_000;
+        assertEq(perp.balanceOf(bob), uint256(100_000e6) * (supply + 1e3) / (value + 1));
+        assertEq(perp.depositEscrow(), 0);
+        assertEq(perp.poolCash(), cash + 100_000e6);
+        _checkBooks();
+    }
+
+    function testProvidersCannotBackOutOnceTheFillRoundExists() public {
+        uint256 requestId = _openAliceThenRequest(false, 1e12);
+        _publish(9000);
+        vm.warp(block.timestamp + 1 hours);
+        vm.prank(lp);
+        vm.expectRevert(
+            abi.encodeWithSelector(TexasPowerPerp.OrderCannotBeCancelledYet.selector, requestId)
+        );
+        perp.cancelPoolRequest(requestId);
+    }
+
+    function testABigWithdrawalWaitsForFreeCashAtTheSamePrice() public {
+        uint256 all = perp.balanceOf(lp);
+        uint256 requestId = _openAliceThenRequest(false, all);
+        uint64 fill = _publish(5200);
+        vm.expectRevert(); // FreeLiquidityTooLow: alice's reserve is locked
+        perp.executePoolRequest(requestId, fill);
+        assertTrue(perp.getPoolRequest(requestId).pending);
+
+        uint256 closeId = _close(alice, 1);
+        perp.executeOrder(closeId, _publish(5200)); // alice leaves, freeing the reserve
+        perp.executePoolRequest(requestId, fill); // the same fill round, the same terms
+        assertFalse(perp.getPoolRequest(requestId).pending);
+        assertEq(perp.totalSupply(), 0);
+        assertLt(perp.poolCash(), 1e6); // only the rounding left by the virtual shares
+        _checkBooks();
+    }
+
+    function testPoolRequestsCanBeTakenBackWhileTheFeedIsPaused() public {
+        uint256 shares = perp.balanceOf(lp) / 4;
+        uint256 withdrawal = _openAliceThenRequest(false, shares);
+        vm.prank(bob);
+        uint256 deposit = perp.requestDeposit(1000e6);
+        uint256 bobBefore = usdt.balanceOf(bob);
+
+        vm.prank(guardian);
+        feed.pause();
+        vm.prank(lp);
+        perp.cancelPoolRequest(withdrawal);
+        vm.prank(bob);
+        perp.cancelPoolRequest(deposit);
+
+        assertEq(perp.balanceOf(address(perp)), 0);
+        assertEq(perp.balanceOf(lp), POOL_SEED * 1e3);
+        assertEq(usdt.balanceOf(bob) - bobBefore, 1000e6);
+        _checkBooks();
+    }
+
+    // ------------------------------------------------------------ feed outage
+
+    function testAnyoneClosesPositionsAfterThreeSilentDays() public {
+        _seed(4400);
+        perp.executeOrder(_open(alice, true, 10 * MWH, 4500), _publish(4500));
+        _seed(5200); // latest index $52.00, interval ending T0 + 1800
+        uint64 lastEnd = T0 + 1800;
+
+        vm.warp(lastEnd + 3 days - 1);
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(TexasPowerPerp.FeedNotSilent.selector, uint256(lastEnd) + 3 days)
+        );
+        perp.emergencyClose(1);
+
+        vm.warp(lastEnd + 3 days);
+        uint256 funding = perp.fundingOwed(1);
+        uint256 before = usdt.balanceOf(alice);
+        vm.prank(bob);
+        perp.emergencyClose(1);
+        // at the last index: 10 MWh x ($52 - $44.33), minus funding and the close fee
+        assertEq(usdt.balanceOf(alice) - before, 943_300_000 + 76_700_000 - funding - 520_000);
+        assertFalse(_position(1).open);
+        _checkBooks();
+    }
+
+    function testAPausedFeedClosesFlatAtTheEntryPrice() public {
+        _seed(4400);
+        perp.executeOrder(_open(alice, true, 10 * MWH, 4500), _publish(4500));
+        _seed(9000); // possibly a bad print, so the guardian pauses
+        vm.prank(guardian);
+        feed.pause();
+        vm.warp(T0 + 1800 + 3 days);
+        uint256 funding = perp.fundingOwed(1);
+        uint256 before = usdt.balanceOf(alice);
+        perp.emergencyClose(1);
+        assertEq(usdt.balanceOf(alice) - before, 943_300_000 - funding - 443_300);
+        _checkBooks();
+    }
+
+    function testAnEmergencyCloseClearsAPendingCloseAndFreesThePool() public {
+        _seed(4400);
+        perp.executeOrder(_open(alice, true, 10 * MWH, 4500), _publish(4500));
+        uint256 closeId = _close(alice, 1);
+        vm.warp(T0 + 900 + 3 days); // nothing published since the fill
+        perp.emergencyClose(1);
+        assertFalse(perp.getOrder(closeId).pending);
+        assertEq(perp.totalReserved(), 0);
+
         uint256 shares = perp.balanceOf(lp);
-
         vm.prank(lp);
-        vm.expectRevert();
-        perp.withdraw(shares);
-
-        vm.prank(lp);
-        uint256 out = perp.withdraw(shares / 2);
-        assertGt(out, 0);
+        perp.withdraw(shares); // nothing open: instant again
+        assertEq(perp.totalSupply(), 0);
         _checkBooks();
     }
 

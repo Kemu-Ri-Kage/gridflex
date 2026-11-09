@@ -25,7 +25,11 @@ import { LivePriceFeed } from "./LivePriceFeed.sol";
 ///           that grows with the imbalance (up to maxFundingCentsPerMwhHour).
 ///         - Fees: feeBps of the position's value at open and at close, to the pool.
 ///         - Liquidity providers deposit collateral for pool shares (this ERC-20) and can
-///           withdraw whatever is not reserved.
+///           withdraw whatever is not reserved. While positions are open, deposits and
+///           withdrawals fill at the next price round too, so nobody can move money in or
+///           out at a pool value they already know is stale.
+///         - If the price feed falls silent for OUTAGE_EXIT_AFTER, anyone can close any
+///           position at the last index (at its entry price if the feed is paused).
 ///         Sizes are in thousandths of a MWh (1,000 = 1 MWh); prices are cents per MWh;
 ///         the collateral has 6 decimals, so 1 cent on 1 MWh is 10 units per size unit.
 contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
@@ -42,6 +46,15 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
         uint256 positionId;
         uint256 escrow;
         uint256 reserveHeld;
+    }
+
+    struct PoolRequest {
+        address account;
+        uint64 createdAt;
+        bool pending;
+        bool isDeposit;
+        /// @dev Collateral for a deposit, pool shares for a withdrawal.
+        uint256 amount;
     }
 
     struct Position {
@@ -69,6 +82,8 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
     /// @dev Virtual shares and assets against share-price manipulation of an empty pool.
     uint256 internal constant VIRTUAL_SHARES = 1e3;
     uint256 internal constant VIRTUAL_ASSETS = 1;
+    /// @notice How long the feed must be silent before positions can be closed without it.
+    uint256 public constant OUTAGE_EXIT_AFTER = 3 days;
 
     IERC20 public immutable collateral;
     LivePriceFeed public immutable feed;
@@ -93,6 +108,8 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
     uint256 public traderCollateral;
     /// @notice Collateral held for pending open orders.
     uint256 public orderEscrow;
+    /// @notice Collateral held for pending deposit requests.
+    uint256 public depositEscrow;
 
     uint256 public longSize;
     uint256 public shortSize;
@@ -107,6 +124,8 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
     mapping(uint256 positionId => Position) internal positions;
     uint256 public nextOrderId = 1;
     uint256 public nextPositionId = 1;
+    mapping(uint256 requestId => PoolRequest) internal poolRequests;
+    uint256 public nextPoolRequestId = 1;
 
     error ZeroAddress();
     error InvalidBand(int64 floorCents, int64 capCents);
@@ -129,6 +148,10 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
     error OrderCannotBeCancelledYet(uint256 orderId);
     error ZeroAmount();
     error FreeLiquidityTooLow(uint256 requested, uint256 free);
+    error PositionsOpenUseRequest();
+    error PoolRequestNotPending(uint256 requestId);
+    error NotYourPoolRequest(uint256 requestId);
+    error FeedNotSilent(uint256 exitAt);
 
     event OrderRequested(
         uint256 indexed orderId,
@@ -163,6 +186,11 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
         uint256 payout,
         uint64 roundId
     );
+    event PoolRequested(
+        uint256 indexed requestId, address indexed account, bool isDeposit, uint256 amount
+    );
+    event PoolRequestCancelled(uint256 indexed requestId, string reason);
+    event EmergencyClosed(uint256 indexed positionId, int64 priceCents, uint64 roundId);
     event Deposited(address indexed provider, uint256 assets, uint256 shares);
     event Withdrawn(address indexed provider, uint256 assets, uint256 shares);
     event GuardianChanged(address indexed previousGuardian, address indexed newGuardian);
@@ -339,10 +367,12 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
 
     // ------------------------------------------------------------------ pool
 
-    /// @notice Adds collateral to the pool for shares priced at the pool's current value.
+    /// @notice Adds collateral to the pool at once. Only while no position is open, when the
+    ///         pool is plain cash; otherwise use requestDeposit.
     function deposit(uint256 assets) external nonReentrant returns (uint256 shares) {
+        if (_positionsOpen()) revert PositionsOpenUseRequest();
         if (assets == 0) revert ZeroAmount();
-        shares = assets * (totalSupply() + VIRTUAL_SHARES) / (poolValue() + VIRTUAL_ASSETS);
+        shares = _sharesFor(assets, poolCash);
         if (shares == 0) revert ZeroAmount();
         poolCash += assets;
         _mint(msg.sender, shares);
@@ -350,11 +380,12 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
         emit Deposited(msg.sender, assets, shares);
     }
 
-    /// @notice Burns shares for collateral at the pool's current value, from the part of
-    ///         the pool that no position or pending order has reserved.
+    /// @notice Burns shares for collateral at once. Only while no position is open;
+    ///         otherwise use requestWithdraw.
     function withdraw(uint256 shares) external nonReentrant returns (uint256 assets) {
+        if (_positionsOpen()) revert PositionsOpenUseRequest();
         if (shares == 0) revert ZeroAmount();
-        assets = shares * (poolValue() + VIRTUAL_ASSETS) / (totalSupply() + VIRTUAL_SHARES);
+        assets = _assetsFor(shares, poolCash);
         uint256 free = poolCash - totalReserved;
         if (assets > free) revert FreeLiquidityTooLow(assets, free);
         _burn(msg.sender, shares);
@@ -363,19 +394,109 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
         emit Withdrawn(msg.sender, assets, shares);
     }
 
+    /// @notice Asks to deposit at the pool value of the first price round published after
+    ///         this call. The collateral is held until then.
+    function requestDeposit(uint256 assets) external nonReentrant returns (uint256 requestId) {
+        if (assets == 0) revert ZeroAmount();
+        requestId = _newPoolRequest(true, assets);
+        depositEscrow += assets;
+        collateral.safeTransferFrom(msg.sender, address(this), assets);
+    }
+
+    /// @notice Asks to withdraw at the pool value of the first price round published after
+    ///         this call. The shares are held by the contract until then.
+    function requestWithdraw(uint256 shares) external nonReentrant returns (uint256 requestId) {
+        if (shares == 0) revert ZeroAmount();
+        _transfer(msg.sender, address(this), shares);
+        requestId = _newPoolRequest(false, shares);
+    }
+
+    /// @notice Fills a pool request at its fill round, like executeOrder. Anyone may call it.
+    /// @dev Across a gap the request is cancelled. A withdrawal larger than the unreserved
+    ///      cash reverts and stays pending, at the same price, until cash frees up: once the
+    ///      fill round exists its result is fixed and the provider cannot back out.
+    function executePoolRequest(uint256 requestId, uint64 roundId) external nonReentrant {
+        PoolRequest storage request = poolRequests[requestId];
+        if (!request.pending) revert PoolRequestNotPending(requestId);
+        if (feed.paused()) revert FeedIsPaused();
+        _checkFillRound(requestId, request.createdAt, roundId);
+
+        int64 priceCents;
+        try feed.indexAt(feedId, roundId) returns (int64 indexCents) {
+            priceCents = _clamp(indexCents);
+        } catch {
+            _cancelPoolRequest(requestId, request, "no index at the fill round");
+            return;
+        }
+        uint256 value = _poolValueAt(priceCents);
+        request.pending = false;
+        if (request.isDeposit) {
+            uint256 shares = _sharesFor(request.amount, value);
+            depositEscrow -= request.amount;
+            poolCash += request.amount;
+            _mint(request.account, shares);
+            emit Deposited(request.account, request.amount, shares);
+        } else {
+            uint256 assets = _assetsFor(request.amount, value);
+            uint256 free = poolCash - totalReserved;
+            if (assets > free) revert FreeLiquidityTooLow(assets, free);
+            _burn(address(this), request.amount);
+            poolCash -= assets;
+            collateral.safeTransfer(request.account, assets);
+            emit Withdrawn(request.account, assets, request.amount);
+        }
+    }
+
+    /// @notice Takes back a pending pool request, on the same terms as cancelOrder.
+    function cancelPoolRequest(uint256 requestId) external nonReentrant {
+        PoolRequest storage request = poolRequests[requestId];
+        if (!request.pending) revert PoolRequestNotPending(requestId);
+        if (request.account != msg.sender) revert NotYourPoolRequest(requestId);
+        if (!feed.paused()) {
+            bool timedOut = block.timestamp >= uint256(request.createdAt) + orderTimeout;
+            if (!timedOut || _roundPublishedAfter(request.createdAt)) {
+                revert OrderCannotBeCancelledYet(requestId);
+            }
+        }
+        _cancelPoolRequest(requestId, request, "cancelled by provider");
+    }
+
     /// @notice The pool's cash minus what traders are up on open positions at the latest
     ///         index. Needs a fresh index while positions are open.
     /// @dev Traders' gains are capped by their reserves, which are part of poolCash, so the
     ///      value never goes below zero. Funding owed to the pool is left out (conservative).
     function poolValue() public view returns (uint256) {
-        if (longSize == 0 && shortSize == 0) return poolCash;
+        if (!_positionsOpen()) return poolCash;
         (int64 indexCents,,) = feed.latestIndex(feedId, maxPriceAge);
-        int256 price = int256(_clamp(indexCents));
-        int256 traderPnlUnits =
-            (int256(longSize) * price - longEntrySum) + (shortEntrySum - int256(shortSize) * price);
-        int256 value = int256(poolCash) - traderPnlUnits * int256(UNITS_PER_CENT_SIZE);
-        // forge-lint: disable-next-line(unsafe-typecast)
-        return value > 0 ? uint256(value) : 0;
+        return _poolValueAt(_clamp(indexCents));
+    }
+
+    // ------------------------------------------------------------------ feed outage
+
+    /// @notice Closes a position without the feed once it has been silent for
+    ///         OUTAGE_EXIT_AFTER: at the last index, or at the entry price (no gain or loss)
+    ///         if the feed is paused, since its last price may be the bad one. Anyone may
+    ///         call it, so traders and providers are never stuck.
+    function emergencyClose(uint256 positionId) external nonReentrant {
+        Position storage position = positions[positionId];
+        if (!position.open) revert PositionNotOpen(positionId);
+        uint64 latest = feed.latestRoundId(feedId);
+        uint256 exitAt = uint256(feed.getRound(feedId, latest).intervalEnd) + OUTAGE_EXIT_AFTER;
+        if (block.timestamp < exitAt) revert FeedNotSilent(exitAt);
+
+        int64 priceCents = position.entryPriceCents;
+        if (!feed.paused()) {
+            try feed.indexAt(feedId, latest) returns (int64 indexCents) {
+                priceCents = _clamp(indexCents);
+            } catch { }
+        }
+        uint256 pendingClose = position.closeOrderId;
+        if (pendingClose != 0) {
+            orders[pendingClose].pending = false;
+            emit OrderCancelled(pendingClose, "emergency close");
+        }
+        emit EmergencyClosed(positionId, priceCents, latest);
+        _closePosition(positionId, 0, priceCents, latest);
     }
 
     // ------------------------------------------------------------------ views
@@ -386,6 +507,10 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
 
     function getPosition(uint256 positionId) external view returns (Position memory) {
         return positions[positionId];
+    }
+
+    function getPoolRequest(uint256 requestId) external view returns (PoolRequest memory) {
+        return poolRequests[requestId];
     }
 
     /// @notice Funding a position owes so far, in collateral units, before any new accrual.
@@ -534,7 +659,14 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
     function _fillClose(uint256 orderId, Order storage order, int64 priceCents, uint64 roundId)
         private
     {
-        uint256 positionId = order.positionId;
+        order.pending = false;
+        _closePosition(order.positionId, orderId, priceCents, roundId);
+    }
+
+    /// @dev Closes a position at priceCents; orderId is 0 for an emergency close.
+    function _closePosition(uint256 positionId, uint256 orderId, int64 priceCents, uint64 roundId)
+        private
+    {
         Position storage position = positions[positionId];
         _accrueFunding();
         (int256 pnl, uint256 funding, uint256 fee, uint256 payout) =
@@ -553,7 +685,6 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
         poolCash = poolCash + position.collateral - payout;
         position.open = false;
         position.closeOrderId = 0;
-        order.pending = false;
 
         if (payout > 0) collateral.safeTransfer(position.account, payout);
         emit PositionClosed(
@@ -609,6 +740,57 @@ contract TexasPowerPerp is ERC20, Ownable2Step, ReentrancyGuard {
     function _roundPublishedAfter(uint64 createdAt) private view returns (bool) {
         uint64 latest = feed.latestRoundId(feedId);
         return latest != 0 && feed.getRound(feedId, latest).publishedAt > createdAt;
+    }
+
+    function _newPoolRequest(bool isDeposit, uint256 amount) private returns (uint256 requestId) {
+        requestId = nextPoolRequestId++;
+        poolRequests[requestId] = PoolRequest({
+            account: msg.sender,
+            createdAt: uint64(block.timestamp),
+            pending: true,
+            isDeposit: isDeposit,
+            amount: amount
+        });
+        emit PoolRequested(requestId, msg.sender, isDeposit, amount);
+    }
+
+    function _cancelPoolRequest(
+        uint256 requestId,
+        PoolRequest storage request,
+        string memory reason
+    ) private {
+        request.pending = false;
+        if (request.isDeposit) {
+            depositEscrow -= request.amount;
+            collateral.safeTransfer(request.account, request.amount);
+        } else {
+            _transfer(address(this), request.account, request.amount);
+        }
+        emit PoolRequestCancelled(requestId, reason);
+    }
+
+    function _positionsOpen() private view returns (bool) {
+        return longSize != 0 || shortSize != 0;
+    }
+
+    /// @dev Pool cash minus what traders are up at priceCents. Traders' gains are capped by
+    ///      their reserves, which are part of poolCash, so this never goes below zero.
+    ///      Funding owed to the pool is left out (conservative).
+    function _poolValueAt(int64 priceCents) private view returns (uint256) {
+        int256 price = int256(priceCents);
+        int256 traderPnlUnits =
+            (int256(longSize) * price - longEntrySum) + (shortEntrySum - int256(shortSize) * price);
+        int256 value = int256(poolCash) - traderPnlUnits * int256(UNITS_PER_CENT_SIZE);
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return value > 0 ? uint256(value) : 0;
+    }
+
+    function _sharesFor(uint256 assets, uint256 value) private view returns (uint256) {
+        return assets * (totalSupply() + VIRTUAL_SHARES) / (value + VIRTUAL_ASSETS);
+    }
+
+    function _assetsFor(uint256 shares, uint256 value) private view returns (uint256) {
+        return shares * (value + VIRTUAL_ASSETS) / (totalSupply() + VIRTUAL_SHARES);
     }
 
     function _accrueFunding() private {

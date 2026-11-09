@@ -1,0 +1,54 @@
+# Required status check for pull requests to main (audit finding S2): the
+# "Protect main" ruleset should require the "tests" job of this workflow.
+# It has no secrets, no environment, read-only contents, and its network-free
+# test run points the chain RPC at a closed local port.
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Python packages (hash-pinned wheels only)
+        run: pip install --require-hashes --only-binary=:all: --no-deps -r requirements.lock
+
+      - name: Python tests (network refused by tests/net_guard.py; RPC on a closed port)
+        env:
+          XLAYER_RPC_URL: http://127.0.0.1:9
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.invalid
+          python -m unittest discover -s tests
+
+      - name: Validate the committed metric files
+        run: python scripts/validate_metrics.py
+
+      - name: shellcheck
+        run: shellcheck daily_settle.sh refresh_data.sh ops/*.sh
+
+      - name: actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          "$(go env GOPATH)/bin/actionlint"
+
+      - name: The pnpm pin matches the lockfile
+        run: python scripts/check_pnpm_pin.py

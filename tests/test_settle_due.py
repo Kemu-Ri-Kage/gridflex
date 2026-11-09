@@ -153,5 +153,96 @@ class TestOutput(unittest.TestCase):
         self.assertFalse(sd.is_dst_changeover(date(2026, 10, 15)))
 
 
+class TestVerifiedMarketsOnly(unittest.TestCase):
+    """S6: a ledger row is planned only when shared/addresses.json lists it
+    with the same terms, a pinned factory lists it, and the contract agrees."""
+
+    from web3 import Web3 as _W3
+    ADDR = _W3.to_checksum_address("0x" + "a1" * 20)
+    ORACLE = "0x970cefFC0e75bCa245F3337715992ad520A4D561"
+    HASHES = {_W3.keccak(text=HB).hex().removeprefix("0x"): HB}
+    ROW = {"market": ADDR, "metricId": HB, "dayKey": 20261015, "threshold": 4000,
+           "resolveAfter": CLOSE_15, "disputeWindow": WEEK}
+
+    def chain(self, **overrides):
+        values = {"oracle": self.ORACLE, "metricId": next(iter(self.HASHES)), "dayKey": 20261015,
+                  "threshold": 4000, "resolveAfter": CLOSE_15, "disputeWindow": WEEK}
+        values.update(overrides)
+        return values
+
+    def check(self, row=None, listed=None, factory=None, chain="default"):
+        row = row or self.ROW
+        listed = {self.ADDR: dict(self.ROW)} if listed is None else listed
+        factory = {self.ADDR} if factory is None else factory
+        chain = self.chain() if chain == "default" else chain
+        return sd.verify_market(row, listed, factory, chain, self.ORACLE, self.HASHES)
+
+    def test_a_listed_verified_market_passes(self):
+        self.assertIsNone(self.check())
+        self.assertIsNone(self.check(chain=None))   # settled: not read further
+
+    def test_a_ledger_injected_address_is_not_planned(self):
+        evil = dict(self.ROW, market="0x" + "66" * 20)
+        self.assertEqual(self.check(row=evil), "not in shared/addresses.json")
+
+    def test_terms_that_differ_from_addresses_are_not_planned(self):
+        self.assertIn("threshold differs", self.check(row=dict(self.ROW, threshold=1)))
+
+    def test_a_market_not_from_a_pinned_factory_is_not_planned(self):
+        self.assertIn("pinned MarketFactory", self.check(factory=set()))
+
+    def test_a_market_on_another_oracle_is_not_planned(self):
+        self.assertIn("oracle()", self.check(chain=self.chain(oracle="0x" + "66" * 20)))
+
+    def test_chain_terms_that_differ_are_not_planned(self):
+        for field, value in (("dayKey", 1), ("threshold", 1), ("resolveAfter", 1), ("disputeWindow", 1),
+                             ("metricId", "00" * 32)):
+            with self.subTest(field=field):
+                self.assertIsNotNone(self.check(chain=self.chain(**{field: value})))
+
+    def test_unverified_markets_are_an_alert(self):
+        result = sd.plan([], {}, {}, NOW, WINDOW, 20261020, None,
+                         [{"market": "0x" + "66" * 20, "dayKey": 20261015, "reason": "x"}])
+        self.assertIn("unverifiedMarkets", result["alerts"])
+
+
+class TestCommittedInputsOnly(unittest.TestCase):
+    """S7: the plan reads git show HEAD:..., and refuses a dirty input."""
+
+    def setUp(self):
+        import shutil
+        import subprocess
+        import tempfile
+        self.repo = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.repo, True)
+        (self.repo / "data" / "metrics").mkdir(parents=True)
+        self.path = self.repo / "data" / "metrics" / f"{HB}__2026-10-15.json"
+        self.path.write_text('{"value": 3120, "sourceHash": "aa"}')
+        for cmd in (["git", "init", "-q"], ["git", "add", "-A"],
+                    ["git", "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-qm", "x"]):
+            subprocess.run(cmd, cwd=self.repo, check=True, capture_output=True)
+        from unittest.mock import patch
+        patcher = patch.object(sd, "ROOT", self.repo)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_files_come_from_head_not_the_working_tree(self):
+        self.path.write_text('{"value": 999999, "sourceHash": "bb"}')
+        self.assertEqual(sd.load_files({(HB, 20261015)})[(HB, 20261015)]["value"], 3120)
+
+    def test_a_dirty_input_refuses_to_plan(self):
+        self.path.write_text('{"value": 999999}')
+        with self.assertRaisesRegex(sd.PublisherError, "uncommitted changes"):
+            sd.refuse_dirty_inputs()
+
+    def test_an_untracked_metric_file_refuses_to_plan(self):
+        (self.repo / "data" / "metrics" / f"{HB}__2026-10-16.json").write_text("{}")
+        with self.assertRaisesRegex(sd.PublisherError, "uncommitted changes"):
+            sd.refuse_dirty_inputs()
+
+    def test_a_clean_tree_plans(self):
+        sd.refuse_dirty_inputs()
+
+
 if __name__ == "__main__":
     unittest.main()

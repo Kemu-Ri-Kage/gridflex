@@ -7,15 +7,18 @@ and HEAD looked like at build and deploy time. No network, no GridStatus.
 """
 
 import net_guard  # noqa: F401  (tests never reach the network)
+import json
 import os
 import shutil
 import stat
+import sys
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "refresh_data.sh"
+VALIDATOR = Path(__file__).resolve().parent.parent / "scripts" / "validate_metrics.py"
 BRANCH = "feat/data"
 
 FAKE_PYTHON = """\
@@ -34,8 +37,16 @@ case "$1" in
     if [[ -z "${STUB_NO_CHANGE:-}" ]]; then
       echo "{\\"run\\": \\"$RANDOM$RANDOM\\"}" > web/public/data/price.json
       echo "{\\"run\\": \\"$RANDOM$RANDOM\\"}" > web/lib/generated/price-summary.json
-      echo "{}" > data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-22.json
+      echo "${STUB_METRIC_JSON:-{\}}" > data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-22.json
     fi
+    ;;
+  scripts/validate_metrics.py)
+    # The real validator for the per-file check, when a test asks for it.
+    if [[ -n "${REAL_VALIDATE:-}" && $# -gt 1 ]]; then
+      shift
+      exec "$REAL_PYTHON" "$REAL_VALIDATE" "$@"
+    fi
+    exit "${STUB_VALIDATE_EXIT:-0}"
     ;;
 esac
 """
@@ -51,7 +62,7 @@ def run(cmd, cwd, env=None, check=True):
     return subprocess.run(cmd, cwd=cwd, env=env, check=check, text=True, capture_output=True)
 
 
-class RefreshScriptTest(unittest.TestCase):
+class RefreshHarness(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.remote = self.tmp / "remote.git"
@@ -114,6 +125,8 @@ class RefreshScriptTest(unittest.TestCase):
     def remote_head(self):
         return run(["git", "rev-parse", BRANCH], cwd=self.remote).stdout.strip()
 
+
+class RefreshScriptTest(RefreshHarness):
     def test_refuses_to_run_on_main(self):
         self.git("checkout", "--quiet", "main")
         result = self.refresh()
@@ -171,6 +184,9 @@ class RefreshScriptTest(unittest.TestCase):
             "python fetch_ercot.py --days 3 --fill-gaps",
             "python build_candles.py",
             "python build_feed_data.py",
+            "python scripts/validate_metrics.py",
+            "python scripts/validate_metrics.py --files data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-22.json"
+            " --range-min -5000 --range-max 100000 --provenance",
         ])
 
     def test_no_room_in_the_allowance_stops_it_before_fetching(self):
@@ -280,7 +296,10 @@ class RefreshScriptTest(unittest.TestCase):
         })
         self.assertEqual(result.returncode, 0, result.stderr)
         steps = [c for c in self.calls() if c.startswith("python ")]
-        self.assertEqual(steps, ["python build_feed_data.py"])
+        self.assertEqual(steps, ["python build_feed_data.py", "python scripts/validate_metrics.py",
+                                 "python scripts/validate_metrics.py --files "
+                                 "data/metrics/ERCOT_HBNORTH_DA_AVG__2026-09-22.json"
+                                 " --range-min -5000 --range-max 100000"])
         head = self.git("rev-parse", "HEAD")
         self.assertNotEqual(head, before)
         self.assertEqual(self.remote_head(), head)
@@ -301,6 +320,83 @@ class RefreshScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.remote_head(), self.git("rev-parse", "HEAD"))
         self.assertFalse(any("wrangler" in c for c in self.calls()))
+
+
+def metric_record(value=4123, **overrides):
+    """A valid HBNORTH metric file for 22 Sep 2026 (CDT, 24 hours)."""
+    record = {"metricId": "ERCOT_HBNORTH_DA_AVG", "dayKey": 20260922, "marketDay": "2026-09-22",
+              "marketDayStartUtc": 1790053200, "marketDayEndUtc": 1790139600, "value": value,
+              "sourceHash": "ab" * 32, "sourceFiles": ["ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-22__2026-09-23.json"],
+              "hashAlgorithm": "sha256"}
+    record.update(overrides)
+    return json.dumps(record)
+
+
+class RefreshValidatesBeforeCommitTest(RefreshHarness):
+    """S7: nothing unvalidated is staged, committed, pushed or deployed."""
+
+    def real(self, *args, **env):
+        return self.refresh(*args, REAL_VALIDATE=str(VALIDATOR), REAL_PYTHON=sys.executable, **env)
+
+    def assert_nothing_committed(self, result, before):
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("nothing committed", result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertEqual(self.remote_head(), before)
+        self.assertFalse(any(c.startswith("pnpm") for c in self.calls()))
+
+    def test_an_out_of_range_price_exits_before_commit(self):
+        before = self.git("rev-parse", "HEAD")
+        result = self.real("--no-fetch", STUB_METRIC_JSON=metric_record(150000))
+        self.assert_nothing_committed(result, before)
+        self.assertIn("outside -5000..100000", result.stderr)
+
+    def test_a_negative_out_of_range_price_exits_before_commit(self):
+        before = self.git("rev-parse", "HEAD")
+        result = self.real("--no-fetch", STUB_METRIC_JSON=metric_record(-5001))
+        self.assert_nothing_committed(result, before)
+
+    def test_an_incomplete_file_exits_before_commit(self):
+        before = self.git("rev-parse", "HEAD")
+        record = json.loads(metric_record())
+        del record["sourceHash"]
+        result = self.real("--no-fetch", STUB_METRIC_JSON=json.dumps(record))
+        self.assert_nothing_committed(result, before)
+        self.assertIn("missing keys: sourceHash", result.stderr)
+
+    def test_a_valid_in_range_file_is_committed(self):
+        result = self.real("--no-fetch", "--no-deploy", STUB_METRIC_JSON=metric_record(4123))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.remote_head(), self.git("rev-parse", "HEAD"))
+
+    def test_a_failed_provenance_check_after_a_fetch_commits_nothing(self):
+        before = self.git("rev-parse", "HEAD")
+        # The real validator, with --provenance and no raw files: refused.
+        result = self.real(STUB_METRIC_JSON=metric_record(4123))
+        self.assert_nothing_committed(result, before)
+        self.assertIn("PROVENANCE", result.stderr)
+
+    def test_no_push_commits_but_does_not_push(self):
+        before = self.remote_head()
+        result = self.refresh("--no-fetch", "--no-build", "--no-push")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertEqual(self.remote_head(), before)
+
+    def test_no_commit_deploys_only_what_is_committed(self):
+        before = self.git("rev-parse", "HEAD")
+        result = self.refresh("--no-fetch", "--no-commit")
+        # The stub rebuild changes the data, so the build refuses: the site
+        # never ships data that is not the pushed commit.
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Not deploying", result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.git("checkout", "--quiet", "--", ".")
+        self.git("clean", "-fdq")
+        result = self.refresh("--no-fetch", "--no-commit", STUB_NO_CHANGE="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertTrue(any("wrangler deploy" in c for c in self.calls()))
 
 
 if __name__ == "__main__":

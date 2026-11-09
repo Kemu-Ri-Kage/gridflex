@@ -24,6 +24,8 @@ import { IGridOracle } from "./interfaces/IGridOracle.sol";
 ///           versions, and every pending order of that expiry fills or cancels inside the
 ///           same transaction. So an order fills at the first version posted after it,
 ///           never at a quote the trader could see, and nobody chooses when it executes.
+///         - If the oracle has no final reading SETTLEMENT_GRACE after the close, anyone
+///           can void the series and every holder gets back the premium they paid.
 ///         - In this first version only the owner funds the pool; public pool shares need
 ///           a mark-to-model value of open options and come later.
 ///         Sizes are thousandths of a MWh (1,000 = 1 MWh); prices are cents per MWh; the
@@ -55,13 +57,17 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
         int64 strikeCents;
         uint64 limitCents;
         uint256 size;
+        /// @dev A buy's escrowed premium; for a sell, the premium basis the order carries.
         uint256 escrow;
     }
 
     struct Series {
         bool settled;
+        bool voided;
         uint64 payoffCents;
         uint256 openSize;
+        /// @notice Premium paid for the series' open options: what a void refunds.
+        uint256 premiumOpen;
     }
 
     uint256 public constant SIZE_PER_MWH = 1000;
@@ -69,6 +75,8 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
     uint256 internal constant UNITS_PER_CENT_SIZE = 10;
     /// @notice Pending orders one expiry can hold, which bounds the quoter's gas.
     uint256 public constant MAX_PENDING = 100;
+    /// @notice How long after the close a missing final reading lets anyone void a series.
+    uint256 public constant SETTLEMENT_GRACE = 14 days;
 
     IERC20 public immutable collateral;
     IGridOracle public immutable oracle;
@@ -97,6 +105,8 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
         _quotes;
     mapping(bytes32 seriesId => Series) public series;
     mapping(bytes32 seriesId => mapping(address account => uint256)) public balanceOf;
+    /// @notice Premium each holder paid for the options they still hold.
+    mapping(bytes32 seriesId => mapping(address account => uint256)) public premiumPaid;
     mapping(uint256 orderId => Order) internal _orders;
     mapping(uint32 dayKey => uint256[]) internal _pending;
     uint256 public nextOrderId = 1;
@@ -127,6 +137,8 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
     error TooManyPendingOrders(uint32 dayKey);
     error OrderCannotBeCancelledYet(uint256 orderId);
     error NotFinal(uint32 dayKey);
+    error SettlementStillPossible(uint32 dayKey);
+    error GraceNotOver(uint256 voidableAt);
     error FreeCashTooLow(uint256 requested, uint256 free);
 
     event ExpiryOpened(uint32 indexed dayKey, uint64 tradingCloseUtc);
@@ -146,6 +158,7 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
     event SeriesSettled(
         bytes32 indexed seriesId, uint32 indexed dayKey, uint64 payoffCents, uint256 owed
     );
+    event SeriesVoided(bytes32 indexed seriesId, uint32 indexed dayKey, uint256 refunded);
     event Claimed(bytes32 indexed seriesId, address indexed account, uint256 amount);
     event PoolFunded(uint256 amount);
     event PoolDefunded(uint256 amount);
@@ -287,7 +300,10 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
         uint256 held = balanceOf[id][msg.sender];
         if (held < size) revert NotEnoughOptions(held, size);
         balanceOf[id][msg.sender] = held - size;
-        orderId = _newOrder(dayKey, false, isCall, strikeCents, minPremiumCents, size, 0);
+        // the sold options take their share of what was paid for them
+        uint256 basis = premiumPaid[id][msg.sender] * size / held;
+        premiumPaid[id][msg.sender] -= basis;
+        orderId = _newOrder(dayKey, false, isCall, strikeCents, minPremiumCents, size, basis);
     }
 
     /// @notice Lets a trader take back a pending order while the market is paused, after
@@ -310,7 +326,7 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
     function settleSeries(uint32 dayKey, int64 strikeCents, bool isCall) public {
         bytes32 id = seriesId(dayKey, strikeCents, isCall);
         Series storage s = series[id];
-        if (s.settled) return;
+        if (s.settled || s.voided) return;
         if (!expiries[dayKey].exists) revert UnknownExpiry(dayKey);
         if (!oracle.isFinal(metricId, dayKey)) revert NotFinal(dayKey);
 
@@ -332,17 +348,46 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
         emit SeriesSettled(id, dayKey, payoffCents, owed);
     }
 
-    /// @notice Pays the caller's options in a settled series.
+    /// @notice Voids a series whose day has no final reading SETTLEMENT_GRACE after its
+    ///         close: its reserve is freed and its holders get back the premium they paid.
+    ///         Anyone may call it; claim calls it too. A final reading always settles
+    ///         instead, even after the grace period.
+    function voidSeries(uint32 dayKey, int64 strikeCents, bool isCall) public {
+        bytes32 id = seriesId(dayKey, strikeCents, isCall);
+        Series storage s = series[id];
+        if (s.settled || s.voided) return;
+        Expiry storage expiry = expiries[dayKey];
+        if (!expiry.exists) revert UnknownExpiry(dayKey);
+        if (oracle.isFinal(metricId, dayKey)) revert SettlementStillPossible(dayKey);
+        uint256 voidableAt = uint256(expiry.tradingCloseUtc) + SETTLEMENT_GRACE;
+        if (block.timestamp < voidableAt) revert GraceNotOver(voidableAt);
+
+        // premiums never exceed the largest payout, so the freed reserve covers the refunds
+        totalReserved -= _value(s.openSize, _maxPayoutCents(strikeCents, isCall));
+        poolCash -= s.premiumOpen;
+        settledOwed += s.premiumOpen;
+        s.voided = true;
+        emit SeriesVoided(id, dayKey, s.premiumOpen);
+    }
+
+    /// @notice Pays the caller's options: the payout of a settled series, or the premium
+    ///         paid in a voided one. Settles or voids the series first if needed.
     function claim(uint32 dayKey, int64 strikeCents, bool isCall)
         external
         nonReentrant
         returns (uint256 amount)
     {
-        settleSeries(dayKey, strikeCents, isCall);
         bytes32 id = seriesId(dayKey, strikeCents, isCall);
+        Series storage s = series[id];
+        if (!s.settled && !s.voided) {
+            if (oracle.isFinal(metricId, dayKey)) settleSeries(dayKey, strikeCents, isCall);
+            else voidSeries(dayKey, strikeCents, isCall);
+        }
         uint256 held = balanceOf[id][msg.sender];
+        uint256 basis = premiumPaid[id][msg.sender];
         balanceOf[id][msg.sender] = 0;
-        amount = _value(held, series[id].payoffCents);
+        premiumPaid[id][msg.sender] = 0;
+        amount = s.voided ? basis : _value(held, s.payoffCents);
         settledOwed -= amount;
         if (amount > 0) collateral.safeTransfer(msg.sender, amount);
         emit Claimed(id, msg.sender, amount);
@@ -507,6 +552,8 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
         bytes32 id = seriesId(order.dayKey, order.strikeCents, order.isCall);
         balanceOf[id][order.account] += order.size;
         series[id].openSize += order.size;
+        premiumPaid[id][order.account] += cost;
+        series[id].premiumOpen += cost;
         // the reserve locked at request stays locked for the open options
         if (refund > 0) collateral.safeTransfer(order.account, refund);
         emit OrderFilled(orderId, version, premium, cost);
@@ -519,6 +566,7 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
         order.pending = false;
         bytes32 id = seriesId(order.dayKey, order.strikeCents, order.isCall);
         series[id].openSize -= order.size;
+        series[id].premiumOpen -= order.escrow;
         // a bid never exceeds the largest payout, so the freed reserve covers the proceeds
         totalReserved -= _value(order.size, _maxPayoutCents(order.strikeCents, order.isCall));
         poolCash -= proceeds;
@@ -535,6 +583,7 @@ contract TexasPowerOptions is Ownable2Step, ReentrancyGuard {
         } else {
             bytes32 id = seriesId(order.dayKey, order.strikeCents, order.isCall);
             balanceOf[id][order.account] += order.size;
+            premiumPaid[id][order.account] += order.escrow;
         }
         emit OrderCancelled(orderId, reason);
     }

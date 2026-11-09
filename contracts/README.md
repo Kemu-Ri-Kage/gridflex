@@ -35,12 +35,11 @@ can sell back at the pool's bid before the close. A quote bot posts ask and bid 
 strike as numbered versions, and every pending order of that expiry fills or cancels inside
 the same transaction: an order fills at the first quotes posted after it, never at quotes it
 could see, and nobody can pick when it executes (orders from the quotes' own block wait for
-the next version). Pending orders per expiry are capped at 100 to bound the bot's gas. Not
-deployed.
+the next version). Pending orders per expiry are capped at 100 to bound the bot's gas. If the
+oracle has no final reading 14 days after the close, anyone can void a series and every
+holder gets back the premium they paid (selling back moves a share of it). Not deployed.
 
 Known gaps to settle in review:
 - Only the owner funds the pool. Public pool shares need a fair value for open options.
 - The quote bot is trusted: it sees pending orders and could quote up to their limits, and a
   wrong quote costs the pool. Guardian pause stops it; the bot's key is replaceable.
-- If the oracle never finalizes a day, that day's options cannot settle. Fix: after a long
-  wait, refund premiums or settle on a fallback.

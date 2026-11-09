@@ -14,6 +14,9 @@
   "vars": {
     // "yes" sends transactions; anything else is a dry run that only logs
     "LIVE": "no",
+    // options close 12:30 Texas time the day before (needed while they settle on the
+    // day-ahead average); "dayStart" only once they settle on a real-time average
+    "OPTIONS_CLOSE": "dayAheadAuction",
     // filled in after David deploys LivePriceFeed and TexasPowerOptions
     "FEED_ADDRESS": "",
     "OPTIONS_ADDRESS": ""

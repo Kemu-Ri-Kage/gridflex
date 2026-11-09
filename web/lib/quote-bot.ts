@@ -68,8 +68,35 @@ function addDays(dayKey: number, days: number): number {
 
 export interface ExpiryPlan {
   dayKey: number;
-  /** Unix seconds: trading stops when the Texas day starts. */
+  /** Unix seconds: when trading stops (see CloseRule). */
   tradingCloseUtc: number;
+}
+
+/**
+ * When an expiry stops trading. It must close before anyone can know the
+ * price it settles on:
+ * - 'dayAheadAuction': 12:30 Texas time the day before, just before ERCOT's
+ *   day-ahead auction reveals the day-ahead average (as the yes/no markets
+ *   do). Required while the options settle on ERCOT_HBNORTH_DA_AVG.
+ * - 'dayStart': midnight Texas time when the day starts. Only for options
+ *   that settle on the real-time daily average, unknown until the day ends.
+ */
+export type CloseRule = 'dayAheadAuction' | 'dayStart';
+
+/** Never list an expiry that closes within this margin. */
+const MIN_LEAD_MS = 10 * 60_000;
+
+/** A Texas local time (hour, minute) on a day, in unix ms, across DST changes. */
+export function texasLocalMs(
+  dayKey: number,
+  hour: number,
+  minute: number,
+): number {
+  let guess = texasDayStartMs(dayKey) + (hour * 60 + minute) * 60_000;
+  // a DST change at 2am moves the clock an hour within the day
+  const shown = chicagoParts(guess).hour;
+  if (shown !== hour) guess -= (shown - hour) * 3_600_000;
+  return guess;
 }
 
 /**
@@ -77,14 +104,21 @@ export interface ExpiryPlan {
  * changeover days (23 or 25 hours) are skipped: they get no daily price
  * (shared/metrics.md), so they could never settle.
  */
-export function upcomingExpiries(nowMs: number, daysAhead = 7): ExpiryPlan[] {
+export function upcomingExpiries(
+  nowMs: number,
+  daysAhead = 7,
+  rule: CloseRule = 'dayAheadAuction',
+): ExpiryPlan[] {
   const today = texasDayKey(nowMs);
   const plans: ExpiryPlan[] = [];
   for (let k = 1; k <= daysAhead; k++) {
     const dayKey = addDays(today, k);
     const start = texasDayStartMs(dayKey);
     if (texasDayStartMs(addDays(dayKey, 1)) - start !== DAY_MS) continue;
-    plans.push({ dayKey, tradingCloseUtc: start / 1000 });
+    const close =
+      rule === 'dayStart' ? start : texasLocalMs(addDays(dayKey, -1), 12, 30);
+    if (close - nowMs < MIN_LEAD_MS) continue;
+    plans.push({ dayKey, tradingCloseUtc: close / 1000 });
   }
   return plans;
 }
@@ -122,6 +156,8 @@ export function buildQuotes(
 
 export interface QuoteBotDeps {
   band: Band;
+  /** Defaults to 'dayAheadAuction', the safe rule while options settle on the day-ahead average. */
+  closeRule?: CloseRule;
   /** Whether the contract already lists the expiry. */
   isListed(dayKey: number): Promise<boolean>;
   openExpiry(plan: ExpiryPlan): Promise<string>;
@@ -141,7 +177,7 @@ export async function runQuoteBot(
 ): Promise<number> {
   const history = await deps.history();
   let posted = 0;
-  for (const plan of upcomingExpiries(nowMs)) {
+  for (const plan of upcomingExpiries(nowMs, 7, deps.closeRule)) {
     if (!(await deps.isListed(plan.dayKey))) {
       if (deps.dryRun) deps.log(`dry run: would list ${plan.dayKey}`);
       else deps.log(`listed ${plan.dayKey} in ${await deps.openExpiry(plan)}`);

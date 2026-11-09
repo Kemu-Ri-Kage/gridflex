@@ -45,6 +45,8 @@ interface Env {
   OPTIONS_ADDRESS?: string;
   REPORTER_PRIVATE_KEY?: string;
   QUOTER_PRIVATE_KEY?: string;
+  /** 'dayStart' only for options settled on a real-time average; anything else closes before the day-ahead auction. */
+  OPTIONS_CLOSE?: string;
 }
 
 export const FEED_ID = keccak256(toBytes('ERCOT_HBNORTH_RT_5MIN'));
@@ -174,6 +176,8 @@ async function quoteRun(env: Env, now: number): Promise<void> {
     {
       dryRun: !live,
       log,
+      closeRule:
+        env.OPTIONS_CLOSE === 'dayStart' ? 'dayStart' : 'dayAheadAuction',
       band: { floor: Number(floorCents) / 100, cap: Number(capCents) / 100 },
       isListed: async (dayKey) => {
         const [exists] = await chain.readContract({

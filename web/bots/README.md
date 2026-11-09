@@ -21,6 +21,14 @@ daily settle job stays on GitHub.
   and after an outage only the newest three, so the index returns without trading on a gap.
 - The price bot asks GridStatus only when a new interval is due (about 288 reads a day).
 
+## When options stop trading
+
+An expiry must stop trading before anyone can know its settlement price. While
+`TexasPowerOptions` settles on `ERCOT_HBNORTH_DA_AVG`, that is 12:30 Texas time the day
+before (`OPTIONS_CLOSE` = `dayAheadAuction`, the default), because ERCOT's day-ahead
+auction publishes that average at about 13:30. Use `dayStart` only for a deployment that
+settles on a real-time daily average.
+
 ## Going live, in order (David deploys the contracts)
 
 1. Deploy `LivePriceFeed` and `TexasPowerOptions` (branches `feat/live-price-feed`,

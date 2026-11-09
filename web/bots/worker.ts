@@ -3,13 +3,16 @@
  * (GRIDFLEX Trading Platform Plan, "How it fits together").
  *
  *   every minute     price bot: LivePriceFeed.submitPrice for each new
- *                    5-minute ERCOT North Hub price (lib/price-bot.ts)
+ *                    5-minute ERCOT North Hub price (lib/price-bot.ts),
+ *                    then the keeper: TexasPowerPerp.executeOrder /
+ *                    executePoolRequest at each pending item's fill round
+ *                    (lib/keeper.ts)
  *   every 5 minutes  quote bot: TexasPowerOptions.openExpiry / postQuotes
  *                    for the next seven Texas days (lib/quote-bot.ts)
  *
  * Nothing is sent unless LIVE is "yes" and the bot's own key is set; until
  * then every run is a dry run that only logs. Each bot has its own key
- * (REPORTER_PRIVATE_KEY, QUOTER_PRIVATE_KEY), set as Worker secrets by the
+ * (REPORTER_PRIVATE_KEY, QUOTER_PRIVATE_KEY, KEEPER_PRIVATE_KEY), set as Worker secrets by the
  * person who deploys, never in code; they are the contracts' replaceable
  * online keys, never an owner key and never the old GridOracle v1 key.
  * See bots/README.md.
@@ -28,6 +31,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 import { xLayerTestnet, xLayerTransport } from '../lib/contracts.ts';
 import type { CommittedRecord } from '../lib/feed-data.ts';
+import { runKeeper, type PendingItem } from '../lib/keeper.ts';
 import { liveQueryUrl } from '../lib/live-price.ts';
 import { runPriceBot, type Round } from '../lib/price-bot.ts';
 import {
@@ -36,7 +40,11 @@ import {
   type QuoteVersion,
 } from '../lib/quote-bot.ts';
 import recordsJson from '../public/data/ERCOT_HBNORTH_DA_AVG.json';
-import { livePriceFeedAbi, texasPowerOptionsAbi } from './abi.ts';
+import {
+  livePriceFeedAbi,
+  texasPowerOptionsAbi,
+  texasPowerPerpAbi,
+} from './abi.ts';
 
 interface Env {
   LIVE?: string;
@@ -45,6 +53,8 @@ interface Env {
   OPTIONS_ADDRESS?: string;
   REPORTER_PRIVATE_KEY?: string;
   QUOTER_PRIVATE_KEY?: string;
+  PERP_ADDRESS?: string;
+  KEEPER_PRIVATE_KEY?: string;
   /** 'dayStart' only for options settled on a real-time average; anything else closes before the day-ahead auction. */
   OPTIONS_CLOSE?: string;
 }
@@ -72,6 +82,103 @@ function wallet(privateKey: string) {
 
 function logger(bot: string) {
   return (line: string) => console.log(`[${bot}] ${line}`);
+}
+
+/** How many recent orders and pool requests the keeper looks at each run. */
+const KEEPER_LOOKBACK = 300;
+
+async function keeperRun(env: Env, feed: Address): Promise<void> {
+  const log = logger('keeper');
+  const perp = address(env.PERP_ADDRESS);
+  if (!perp) return;
+  const live = env.LIVE === 'yes' && Boolean(env.KEEPER_PRIVATE_KEY);
+  const signer = live ? wallet(env.KEEPER_PRIVATE_KEY!) : null;
+
+  const recent = async (
+    next: bigint,
+    kind: PendingItem['kind'],
+  ): Promise<PendingItem[]> => {
+    const first =
+      next > BigInt(KEEPER_LOOKBACK) ? next - BigInt(KEEPER_LOOKBACK) : 1n;
+    const ids = Array.from(
+      { length: Number(next - first) },
+      (_, i) => first + BigInt(i),
+    );
+    if (ids.length === 0) return [];
+    const results = await chain.multicall({
+      allowFailure: false,
+      contracts: ids.map((id) => ({
+        address: perp,
+        abi: texasPowerPerpAbi,
+        functionName:
+          kind === 'order'
+            ? ('getOrder' as const)
+            : ('getPoolRequest' as const),
+        args: [id] as const,
+      })),
+    });
+    return results.flatMap((r, i) =>
+      r.pending
+        ? [{ kind, id: Number(ids[i]), createdAt: Number(r.createdAt) }]
+        : [],
+    );
+  };
+
+  await runKeeper({
+    dryRun: !live,
+    log,
+    pending: async () => {
+      const [nextOrder, nextPool] = await Promise.all([
+        chain.readContract({
+          address: perp,
+          abi: texasPowerPerpAbi,
+          functionName: 'nextOrderId',
+        }),
+        chain.readContract({
+          address: perp,
+          abi: texasPowerPerpAbi,
+          functionName: 'nextPoolRequestId',
+        }),
+      ]);
+      const items = [
+        ...(await recent(nextOrder, 'order')),
+        ...(await recent(nextPool, 'pool')),
+      ];
+      return items.toSorted((a, b) => a.createdAt - b.createdAt);
+    },
+    latestRoundId: async () =>
+      Number(
+        await chain.readContract({
+          address: feed,
+          abi: livePriceFeedAbi,
+          functionName: 'latestRoundId',
+          args: [FEED_ID],
+        }),
+      ),
+    publishedAt: async (roundId) =>
+      Number(
+        (
+          await chain.readContract({
+            address: feed,
+            abi: livePriceFeedAbi,
+            functionName: 'getRound',
+            args: [FEED_ID, BigInt(roundId)],
+          })
+        ).publishedAt,
+      ),
+    execute: async (item, roundId) => {
+      const hash = await signer!.writeContract({
+        address: perp,
+        abi: texasPowerPerpAbi,
+        functionName:
+          item.kind === 'order' ? 'executeOrder' : 'executePoolRequest',
+        args: [BigInt(item.id), BigInt(roundId)],
+      });
+      const receipt = await chain.waitForTransactionReceipt({ hash });
+      if (receipt.status !== 'success') throw new Error(`reverted in ${hash}`);
+      return hash;
+    },
+  });
 }
 
 async function priceRun(env: Env, now: number): Promise<void> {
@@ -134,6 +241,8 @@ async function priceRun(env: Env, now: number): Promise<void> {
     },
     now,
   );
+  // the keeper runs right after, so orders fill on the round just published
+  await keeperRun(env, feed);
 }
 
 /** Daily averages in $/MWh, oldest first, from the price data the bot was built with. */

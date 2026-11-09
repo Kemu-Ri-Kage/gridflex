@@ -1,6 +1,7 @@
 /**
  * End-to-end check of both bots against the real contracts on a local
- * anvil chain (http://127.0.0.1:8546), with anvil's public test accounts.
+ * anvil chain (http://127.0.0.1:8546), with anvil's public test accounts:
+ * price bot, keeper (a futures order filled at its fill round) and quote bot.
  * Run from web/: node bots/e2e-local.ts <contracts/out with LivePriceFeed and TexasPowerOptions built>
  * Not part of the deployed Worker.
  */
@@ -20,13 +21,18 @@ import {
 } from 'viem';
 import { mnemonicToAccount } from 'viem/accounts';
 
+import { runKeeper, type PendingItem } from '../lib/keeper.ts';
 import { runPriceBot, type Round } from '../lib/price-bot.ts';
 import {
   runQuoteBot,
   upcomingExpiries,
   type QuoteVersion,
 } from '../lib/quote-bot.ts';
-import { livePriceFeedAbi, texasPowerOptionsAbi } from './abi.ts';
+import {
+  livePriceFeedAbi,
+  texasPowerOptionsAbi,
+  texasPowerPerpAbi,
+} from './abi.ts';
 
 const [artifacts] = process.argv.slice(2);
 const local = defineChain({
@@ -363,4 +369,195 @@ console.log(
 );
 if (held !== 10_000n || paid !== 10_000n * fillQuote.callAsk * 10n)
   throw new Error('quote bot fill check failed');
+
+// ---- futures: seed the pool, place a long, publish the next price, the keeper fills it
+const perpArt = artifact('TexasPowerPerp');
+const perp = (
+  await chain.waitForTransactionReceipt({
+    hash: await owner.deployContract({
+      abi: perpArt.abi,
+      bytecode: perpArt.bytecode.object,
+      args: [
+        owner.account.address,
+        '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+        usdt,
+        feed,
+        FEED_ID,
+        -5000n,
+        30000n,
+      ],
+    }),
+  })
+).contractAddress!;
+const perpWrite = parseAbi([
+  'function deposit(uint256) returns (uint256)',
+  'function requestOpen(bool,uint256,int64) returns (uint256)',
+  'function getPosition(uint256) view returns ((address account,bool open,bool isLong,int64 entryPriceCents,uint256 size,uint256 collateral,uint256 reserve,uint256 fundingEntry,uint256 closeOrderId))',
+]);
+await wait(
+  await owner.writeContract({
+    address: usdt,
+    abi: erc20,
+    functionName: 'mint',
+    args: [owner.account.address, 1_000_000_000_000n],
+  }),
+);
+await wait(
+  await owner.writeContract({
+    address: usdt,
+    abi: erc20,
+    functionName: 'approve',
+    args: [perp, 2n ** 255n],
+  }),
+);
+await wait(
+  await owner.writeContract({
+    address: perp,
+    abi: perpWrite,
+    functionName: 'deposit',
+    args: [1_000_000_000_000n],
+  }),
+);
+await wait(
+  await trader.writeContract({
+    address: usdt,
+    abi: erc20,
+    functionName: 'approve',
+    args: [perp, 2n ** 255n],
+  }),
+);
+await wait(
+  await trader.writeContract({
+    address: perp,
+    abi: perpWrite,
+    functionName: 'requestOpen',
+    args: [true, 10_000n, 29_999n],
+  }),
+);
+console.log('futures: order 1 placed, long 10 MWh');
+
+// seven minutes later the next interval is out
+await testClient.increaseTime({ seconds: 420 });
+await testClient.mine({ blocks: 1 });
+const later = now + 420_000;
+const nextRow = {
+  interval_start_utc: new Date(lastEnd).toISOString(),
+  interval_end_utc: new Date(lastEnd + 300_000).toISOString(),
+  lmp: 47,
+};
+console.log('price bot, next interval:');
+await runPriceBot(
+  {
+    dryRun: false,
+    log,
+    latestEnd: async () => {
+      const id = await chain.readContract({
+        address: feed,
+        abi: livePriceFeedAbi,
+        functionName: 'latestRoundId',
+        args: [FEED_ID],
+      });
+      return Number(
+        (
+          await chain.readContract({
+            address: feed,
+            abi: livePriceFeedAbi,
+            functionName: 'getRound',
+            args: [FEED_ID, id],
+          })
+        ).intervalEnd,
+      );
+    },
+    fetchRows: async () => [...rows, nextRow],
+    submit: async (round: Round) =>
+      wait(
+        await reporter.writeContract({
+          address: feed,
+          abi: livePriceFeedAbi,
+          functionName: 'submitPrice',
+          args: [
+            FEED_ID,
+            BigInt(round.intervalEnd),
+            BigInt(round.priceCents),
+            round.sourceHash,
+          ],
+        }),
+      ),
+  },
+  later,
+);
+console.log('keeper:');
+const keeperKey = key(5);
+const filled = await runKeeper({
+  dryRun: false,
+  log,
+  pending: async () => {
+    const next = await chain.readContract({
+      address: perp,
+      abi: texasPowerPerpAbi,
+      functionName: 'nextOrderId',
+    });
+    const items: PendingItem[] = [];
+    for (let id = 1n; id < next; id++) {
+      const order = await chain.readContract({
+        address: perp,
+        abi: texasPowerPerpAbi,
+        functionName: 'getOrder',
+        args: [id],
+      });
+      if (order.pending)
+        items.push({
+          kind: 'order',
+          id: Number(id),
+          createdAt: Number(order.createdAt),
+        });
+    }
+    return items;
+  },
+  latestRoundId: async () =>
+    Number(
+      await chain.readContract({
+        address: feed,
+        abi: livePriceFeedAbi,
+        functionName: 'latestRoundId',
+        args: [FEED_ID],
+      }),
+    ),
+  publishedAt: async (roundId) =>
+    Number(
+      (
+        await chain.readContract({
+          address: feed,
+          abi: livePriceFeedAbi,
+          functionName: 'getRound',
+          args: [FEED_ID, BigInt(roundId)],
+        })
+      ).publishedAt,
+    ),
+  execute: async (item, roundId) =>
+    wait(
+      await keeperKey.writeContract({
+        address: perp,
+        abi: texasPowerPerpAbi,
+        functionName: 'executeOrder',
+        args: [BigInt(item.id), BigInt(roundId)],
+      }),
+    ),
+});
+const position = await chain.readContract({
+  address: perp,
+  abi: perpWrite,
+  functionName: 'getPosition',
+  args: [1n],
+});
+const expectedEntry = BigInt(Math.trunc((4490 + 4605 + 4700) / 3));
+console.log(
+  `  position 1: open ${position.open}, long ${position.isLong}, entry ${position.entryPriceCents} cents (expect ${expectedEntry})`,
+);
+if (
+  filled !== 1 ||
+  !position.open ||
+  position.entryPriceCents !== expectedEntry
+)
+  throw new Error('keeper check failed');
 console.log('END-TO-END OK');

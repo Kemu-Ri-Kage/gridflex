@@ -19,6 +19,7 @@
     "OPTIONS_CLOSE": "dayAheadAuction",
     // filled in after David deploys LivePriceFeed and TexasPowerOptions
     "FEED_ADDRESS": "",
+    "PERP_ADDRESS": "",
     "OPTIONS_ADDRESS": ""
   },
   "observability": { "enabled": true }

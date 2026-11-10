@@ -98,8 +98,8 @@ function LiveFutures({
   }, [refresh]);
 
   return (
-    <div className="grid flex-1 gap-px bg-border lg:grid-cols-[minmax(0,1fr)_384px]">
-      <div className="flex flex-col gap-6 bg-background p-4 sm:p-6">
+    <div className="grid flex-1 grid-cols-1 gap-px bg-border lg:grid-cols-[minmax(0,1fr)_384px]">
+      <div className="flex min-w-0 flex-col gap-6 bg-background p-4 sm:p-6">
         <MarketStrip market={market} />
         {readError && <p className="text-xs text-warning">{readError}</p>}
         <Positions

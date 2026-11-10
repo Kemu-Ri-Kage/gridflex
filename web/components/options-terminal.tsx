@@ -20,13 +20,13 @@ import {
 } from '@/lib/derivatives';
 import {
   buyPreview,
+  closeLabel,
   dayLabel,
   defaultLimitCents,
   maxPayoutCents,
   strikeGrid,
 } from '@/lib/options-view';
 import { dollars, mwhLabel, priceCents, sizeUnits } from '@/lib/perp-view';
-import { texasClock } from '@/lib/live-price';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 30_000;
@@ -243,10 +243,7 @@ function Chain({
     <section>
       <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
         <span>Bid / ask per MWh</span>
-        <span>
-          Trading stops {texasClock(new Date(closeUtc * 1000).toISOString())}{' '}
-          Texas time
-        </span>
+        <span>Trading stops {closeLabel(closeUtc)} Texas time</span>
       </div>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[520px] text-left text-sm tabular-nums">

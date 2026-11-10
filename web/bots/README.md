@@ -54,3 +54,25 @@ bot publishes three rounds and the index is checked on chain, the quote bot list
 days and posts quotes, and a buy order fills at the next post. Build both contracts with
 `forge build`, start `anvil --port 8546`, then from `web/`:
 `node bots/e2e-local.ts <contracts/out>`.
+
+## Rehearsing the real launch on a fork
+
+`bots/rehearse-fork.ts` rehearses the launch end to end on a local fork of X Layer
+testnet, with the real GridOracle and MockUSDT. Run 10 Nov 2026: the deploy, the three
+bots and the three screens all worked together (index $45.98, a 10 MWh long filled at
+$45.98, a $45 call filled at 65 cents).
+
+1. `anvil --fork-url https://testrpc.xlayer.tech/terigon --port 8547 --chain-id 1952`
+2. Deploy with `contracts/script/DeployDerivatives.s.sol` (branch
+   `feat/derivatives-deploy`) to `http://127.0.0.1:8547` with `--unlocked --sender` anvil
+   account 9, owner account 0, guardian 2, reporter 1, quoter 3, and the GridOracle and
+   MockUSDT addresses from `shared/addresses.json`.
+3. Add the three printed addresses to `shared/addresses.json`, run
+   `python3 build_feed_data.py`.
+4. From `web/`: `node bots/rehearse-fork.ts`. It runs the price bot, seeds both pools,
+   runs the quote bot, places a futures long and an option buy for anvil account 4,
+   publishes the next price, runs the keeper and the quote bot again, and checks that both
+   orders filled.
+5. To see the screens, point `XLAYER_TESTNET_RPC_URLS` in `lib/contracts.ts` at the fork
+   in a scratch copy only (never commit that), then `pnpm dev` and open /futures,
+   /options and /hedge.

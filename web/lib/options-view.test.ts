@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
   buyPreview,
+  closeLabel,
   dayLabel,
   defaultLimitCents,
   maxPayoutCents,
@@ -67,4 +68,17 @@ void test('the default limit leaves room for a small move between quotes', () =>
 
 void test('days read as weekday, day and month', () => {
   assert.equal(dayLabel(20261111), 'Wed 11 Nov');
+});
+
+void test('closeLabel shows the date as well as the Texas time of the close', () => {
+  // 12:30 Texas (CST, UTC-6) on Tue 10 Nov closes the Wed 11 Nov expiry
+  assert.equal(
+    closeLabel(Date.UTC(2026, 10, 10, 18, 30) / 1000),
+    'Tue 10 Nov, 12:30',
+  );
+  // daylight time (UTC-5) in summer
+  assert.equal(
+    closeLabel(Date.UTC(2026, 6, 14, 17, 30) / 1000),
+    'Tue 14 Jul, 12:30',
+  );
 });

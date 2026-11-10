@@ -84,6 +84,25 @@ export function defaultLimitCents(askCents: number, maxCents: number): number {
   return Math.min(maxCents, askCents + Math.max(1, Math.ceil(askCents * 0.05)));
 }
 
+/**
+ * "Tue 10 Nov, 12:30" in Texas time, for an expiry's trading close. The close
+ * is usually the day before the expiry day (the day-ahead auction), so the
+ * date is always shown, never the time alone.
+ */
+export function closeLabel(closeUtc: number): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Chicago',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(closeUtc * 1000));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('weekday')} ${get('day')} ${get('month')}, ${get('hour')}:${get('minute')}`;
+}
+
 /** "Wed 11 Nov" for a dayKey. */
 export function dayLabel(dayKey: number): string {
   const date = new Date(

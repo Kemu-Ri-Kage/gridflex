@@ -41,3 +41,6 @@ next-env.d.ts
 /outputs/
 /work/
 *.tsbuildinfo
+
+# market simulation output (sim/market-sim.ts)
+/sim/out/

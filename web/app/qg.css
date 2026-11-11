@@ -299,7 +299,7 @@ dl.sum dt{color:var(--mist)}dl.sum dd{margin:0}
 .exp button small{display:block;font-size:11px;color:var(--mist);line-height:1}
 .phd{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 16px 0;font-size:14px;color:var(--mist)}
 .paywrap{position:relative;height:280px}
-#o-pay{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+.o-pay{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
 .chain table{min-width:680px}
 .chain th,.chain td{padding-inline:14px}
 .chain tr.grp th{padding-top:14px;padding-bottom:0;font-size:12px}

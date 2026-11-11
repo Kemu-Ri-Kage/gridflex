@@ -323,7 +323,7 @@ function FourWays({ grid }: { grid: PriceGrid | null }) {
         <div className="wgrid">
           <Way
             delay={0}
-            foot={live ? `${usd(live.price)} now` : 'Texas power, live'}
+            foot={live ? `${usd(live.price)} now` : 'Long or short'}
             href="/futures"
             text="Long or short on the live price, every 5 minutes. Fully backed, so nothing gets liquidated."
             title="Futures"

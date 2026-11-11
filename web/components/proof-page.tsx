@@ -23,9 +23,11 @@ function dayLong(dayKey: number): string {
 
 const client = createPublicClient({ chain: xLayerTestnet, transport: xLayerTransport() });
 
-/** For days committed but not yet in the publish ledger: has the oracle got a reading for them? */
-function usePendingOnChain(oracle: Address | undefined, dayKeys: number[]): Record<number, boolean> {
-  const [state, setState] = useState<Record<number, boolean>>({});
+type ChainState = 'none' | 'published' | 'final';
+
+/** For days committed but not yet in the publish ledger: is the reading on the oracle, and is it final? */
+function usePendingOnChain(oracle: Address | undefined, dayKeys: number[]): Record<number, ChainState> {
+  const [state, setState] = useState<Record<number, ChainState>>({});
   const key = dayKeys.join(',');
   useEffect(() => {
     const days = key ? key.split(',').map(Number) : [];
@@ -36,12 +38,15 @@ function usePendingOnChain(oracle: Address | undefined, dayKeys: number[]): Reco
       days.map(async (dayKey) => {
         try {
           const raw = (await client.readContract({ address: oracle, abi: gridOracleAbi, functionName: 'getReading', args: [metricId, dayKey] })) as
-            | { publishedAt: bigint }
+            | { publishedAt: bigint; finalized: boolean }
             | readonly unknown[];
-          const publishedAt = Array.isArray(raw) ? (raw[6] as bigint) : (raw as { publishedAt: bigint }).publishedAt;
-          return [dayKey, publishedAt > 0n] as const;
+          const reading = Array.isArray(raw)
+            ? { publishedAt: raw[6] as bigint, finalized: raw[7] as boolean }
+            : (raw as { publishedAt: bigint; finalized: boolean });
+          const s: ChainState = reading.finalized ? 'final' : reading.publishedAt > 0n ? 'published' : 'none';
+          return [dayKey, s] as const;
         } catch {
-          return [dayKey, false] as const;
+          return [dayKey, 'none' as ChainState] as const;
         }
       }),
     ).then((pairs) => {
@@ -189,9 +194,13 @@ export function ProofPage() {
                   <span>{dayLong(p.dayKey)}</span>
                   <span className="v">{usd(p.value / 100)}</span>
                   <span className="s">
-                    <span className="badge wait">
+                    <span className={onChain[p.dayKey] === 'final' ? 'badge' : 'badge wait'}>
                       <i />
-                      {onChain[p.dayKey] ? 'On chain, final soon' : 'Waiting to publish'}
+                      {onChain[p.dayKey] === 'final'
+                        ? 'Final on chain'
+                        : onChain[p.dayKey] === 'published'
+                          ? 'On chain, final soon'
+                          : 'Waiting to publish'}
                     </span>
                   </span>
                   <span />

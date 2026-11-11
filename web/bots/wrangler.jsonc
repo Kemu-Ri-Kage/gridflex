@@ -1,0 +1,26 @@
+// gridflex-bots: the price bot and the quote bot (see README.md here).
+// Not deployed. Deploy from web/: pnpm exec wrangler deploy --config bots/wrangler.jsonc
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "gridflex-bots",
+  "main": "worker.ts",
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "triggers": {
+    // price bot every minute, quote bot every 5 minutes
+    "crons": ["* * * * *", "*/5 * * * *"]
+  },
+  "vars": {
+    // "yes" sends transactions; anything else is a dry run that only logs
+    "LIVE": "no",
+    // options close 12:30 Texas time the day before (needed while they settle on the
+    // day-ahead average); "dayStart" only once they settle on a real-time average
+    "OPTIONS_CLOSE": "dayAheadAuction",
+    // filled in after David deploys LivePriceFeed and TexasPowerOptions
+    "FEED_ADDRESS": "",
+    "PERP_ADDRESS": "",
+    "OPTIONS_ADDRESS": ""
+  },
+  "observability": { "enabled": true }
+}

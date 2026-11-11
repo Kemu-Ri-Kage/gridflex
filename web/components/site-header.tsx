@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { LivePriceChip } from '@/components/live-price';
 import { Badge } from '@/components/ui/badge';
 import { WalletButton } from '@/components/wallet-button';
 
@@ -59,7 +60,16 @@ export function LandingHeader() {
  * landing route's client code (GSAP, Lenis, the hero) into /trade, which
  * carries no motion libraries at all (design-brief.md §14).
  */
-export function TerminalHeader() {
+const TERMINAL_PAGES = [
+  { id: 'trade', label: 'Yes/No', href: '/trade' },
+  { id: 'futures', label: 'Futures', href: '/futures' },
+  { id: 'options', label: 'Options', href: '/options' },
+  { id: 'hedge', label: 'Hedge', href: '/hedge' },
+] as const;
+
+export type TerminalPage = (typeof TERMINAL_PAGES)[number]['id'];
+
+export function TerminalHeader({ current = 'trade' }: { current?: TerminalPage }) {
   return (
     <header className="border-b border-border bg-background">
       <div className="mx-auto flex h-14 max-w-[1920px] items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -80,8 +90,24 @@ export function TerminalHeader() {
             >
               Proof
             </Link>
-            <span className="px-3 py-2 text-sm text-foreground">Trade</span>
+            {TERMINAL_PAGES.map((page) =>
+              page.id === current ? (
+                <span aria-current="page" className="px-3 py-2 text-sm text-foreground" key={page.id}>
+                  {page.label}
+                </span>
+              ) : (
+                <Link
+                  className="px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                  href={page.href}
+                  key={page.id}
+                  prefetch={false}
+                >
+                  {page.label}
+                </Link>
+              ),
+            )}
           </nav>
+          <LivePriceChip className="hidden xl:flex" />
         </div>
         {/* The page's one disclaimer line (design-brief.md §5) wraps rather
             than shortens on narrow screens - both names must stay, and a

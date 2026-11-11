@@ -8,20 +8,20 @@ import { MarketPanel } from '@/components/market-panel';
 import { MobileTradeBar } from '@/components/mobile-trade-bar';
 import { OrderColumn } from '@/components/order-column';
 import { PortfolioProvider, WinningsBanner } from '@/components/portfolio';
-import { TerminalHeader } from '@/components/site-header';
+import { SiteHeader } from '@/components/site-header';
 import { Rise } from '@/components/terminal-ui';
 import { MarketsProvider } from '@/lib/markets';
 
 export const metadata: Metadata = {
-  title: 'Terminal — GRIDFLEX',
+  title: 'Yes / No — GRIDFLEX',
 };
 
 export default function TradePage() {
   return (
     <MarketsProvider>
       <PortfolioProvider>
-        <main className="flex min-h-screen flex-col bg-background text-foreground">
-          <TerminalHeader />
+        <SiteHeader />
+        <main className="trade-frame min-h-screen bg-background text-foreground">
           {/* The terminal's regions rise into place once, on load, in
               reading order (design-brief.md §13). The header stays put;
               the winnings banner and the phone's trade bar appear on their

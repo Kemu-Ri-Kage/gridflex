@@ -158,12 +158,12 @@ export function FuturesTerminal() {
           )}
         </section>
         <Ticket
-          collateral={collateral}
+          collateral={collateral ?? undefined}
           indexCents={indexCents}
           initialSide={initialSide}
           market={market}
           onPlaced={() => void refresh()}
-          perp={perp}
+          perp={perp ?? undefined}
           setSize={setSize}
           size={size}
           writer={writer}
@@ -410,7 +410,7 @@ function Ticket({
 
   return (
     <aside aria-label="New order" className="ticket">
-      <div className="sides" data-side={side} role="group" aria-label="Side">
+      <fieldset className="sides" data-side={side} aria-label="Side">
         <span aria-hidden className="thumb" />
         <button aria-pressed={side === 'long'} data-v="long" onClick={() => setSide('long')} type="button">
           Long
@@ -418,7 +418,7 @@ function Ticket({
         <button aria-pressed={side === 'short'} data-v="short" onClick={() => setSide('short')} type="button">
           Short
         </button>
-      </div>
+      </fieldset>
       <p className="say">
         {side === 'long'
           ? 'You gain when the Texas price goes up, and lose when it falls.'

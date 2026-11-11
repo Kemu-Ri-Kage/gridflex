@@ -36,17 +36,21 @@ export function PayoffChart(props: PayoffInput & { title: string }) {
   const hover = useRef<number | null>(null);
   const [read, setRead] = useState<{ text: string; tone?: 'g' | 'l' }>({ text: '' });
   const input = useRef(props);
-  input.current = props;
+  useEffect(() => {
+    input.current = props;
+  });
   const shownRead = useRef('');
 
-  const { forward, sigma, strike, isCall, premium, sizeMwh, band } = props;
-  const lo = Math.max(band.floor, Math.min(forward - 3.6 * sigma, strike - 15));
-  const hi = Math.min(band.cap, Math.max(forward + 3.6 * sigma, strike + 15));
+  const { forward, sigma, strike, isCall, premium, sizeMwh } = props;
+  const floor = props.band.floor;
+  const cap = props.band.cap;
+  const lo = Math.max(floor, Math.min(forward - 3.6 * sigma, strike - 15));
+  const hi = Math.min(cap, Math.max(forward + 3.6 * sigma, strike + 15));
 
   useEffect(() => {
     const target = new Float64Array(NP);
     const pay = (S: number) => {
-      const s = Math.min(Math.max(S, band.floor), band.cap);
+      const s = Math.min(Math.max(S, floor), cap);
       return sizeMwh * ((isCall ? Math.max(s - strike, 0) : Math.max(strike - s, 0)) - premium);
     };
     for (let i = 0; i < NP; i++) target[i] = pay(lo + ((hi - lo) * i) / (NP - 1));
@@ -265,9 +269,7 @@ export function PayoffChart(props: PayoffInput & { title: string }) {
       cv?.removeEventListener('pointerleave', onLeave);
       window.removeEventListener('resize', draw);
     };
-    // band is read through its two numbers, so a new object with the same values does not restart the chart
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [forward, sigma, strike, isCall, premium, sizeMwh, band.floor, band.cap, lo, hi]);
+  }, [forward, sigma, strike, isCall, premium, sizeMwh, floor, cap, lo, hi]);
 
   return (
     <section aria-label="What your option pays" className="cbox pay">
@@ -284,7 +286,8 @@ export function PayoffChart(props: PayoffInput & { title: string }) {
         </span>
       </div>
       <div className="paywrap">
-        <canvas aria-label="Profit or loss of the selected option at each settlement price" className="o-pay" ref={canvas} role="img" />
+        <canvas aria-hidden className="o-pay" ref={canvas} />
+        <p className="sr-only">{read.text}</p>
       </div>
       <div className="pkey">
         <span>

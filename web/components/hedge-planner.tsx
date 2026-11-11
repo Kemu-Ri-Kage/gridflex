@@ -259,14 +259,14 @@ export function HedgePlanner() {
 
 function Seg({ label, options, on, set }: { label: string; options: string[]; on: number; set: (i: number) => void }) {
   return (
-    <div aria-label={label} className="seg" data-on={on} role="group">
+    <fieldset aria-label={label} className="seg" data-on={on}>
       <span aria-hidden className="thumb" />
       {options.map((o, i) => (
         <button aria-pressed={on === i} key={o} onClick={() => set(i)} type="button">
           {o}
         </button>
       ))}
-    </div>
+    </fieldset>
   );
 }
 
@@ -318,9 +318,11 @@ function Field({
   const readEl = useRef<HTMLSpanElement>(null);
   const field = useRef<FieldControls | null>(null);
   const planRef = useRef(plan);
-  planRef.current = plan;
   const latest = useRef({ heights, planRow });
-  latest.current = { heights, planRow };
+  useEffect(() => {
+    planRef.current = plan;
+    latest.current = { heights, planRow };
+  });
 
   useEffect(() => {
     const root = box.current;
@@ -359,7 +361,8 @@ function Field({
         <span aria-live="polite" className="read" ref={readEl} />
       </div>
       <div className="surfwrap" ref={box}>
-        <canvas aria-label="3D field of daily cost by settlement price and hedge level. Drag to turn." className="h-3d" role="img" />
+        <canvas aria-hidden className="h-3d" />
+        <p className="sr-only">A 3D field of your daily {buyer ? 'cost' : 'revenue'} at prices from $0 to $150 for every hedge level; the table below has the same numbers.</p>
         <div aria-hidden className="tags" data-f="tags" />
         <span className="chint">Drag to turn. Point at a bar to read it.</span>
       </div>

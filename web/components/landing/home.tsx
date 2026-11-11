@@ -168,7 +168,7 @@ function Story({ grid }: { grid: PriceGrid }) {
         </div>
         <div className="chapnav">
           <div className="wrap">
-            <div aria-label="Story" className="chips" role="group">
+            <fieldset aria-label="Story" className="chips">
               <button aria-current="step" data-go="0" type="button">
                 Market
               </button>
@@ -181,7 +181,7 @@ function Story({ grid }: { grid: PriceGrid }) {
               <button data-go="3" type="button">
                 Hedge
               </button>
-            </div>
+            </fieldset>
             <div className="right">
               <button className="calm" data-f="reset-look" hidden type="button">
                 Reset view

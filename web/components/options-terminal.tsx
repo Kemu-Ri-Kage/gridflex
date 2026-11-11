@@ -49,6 +49,16 @@ export function OptionsTerminal() {
   const { options, collateral } = deployed;
   const writer = useContractWriter();
   const records = useCommittedRecords('ERCOT_HBNORTH_DA_AVG');
+  const [nowSec, setNowSec] = useState(0);
+  useEffect(() => {
+    const tick = () => setNowSec(Date.now() / 1000);
+    const first = setTimeout(tick, 0);
+    const timer = setInterval(tick, 60_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, []);
   const grid = useMemo(() => strikeGrid(BAND_CENTS), []);
   const [liveBoard, setLiveBoard] = useState<OptionsBoard | null>(null);
   const [readError, setReadError] = useState<string>();
@@ -91,13 +101,12 @@ export function OptionsTerminal() {
       return { strikeCents: k * 100, ...q, myCall: 0n, myPut: 0n };
     });
     // the seven days after the latest known one whose trading has not closed yet
-    const nowSec = Date.now() / 1000;
     const expiries: OptionExpiry[] = nextDays(model.lastDay, 8)
       .map((dayKey) => ({ dayKey, closeUtc: closeBefore(dayKey), version: 0n, rows }))
       .filter((e) => e.closeUtc > nowSec)
       .slice(0, 7);
     return { band: BAND_CENTS, paused: false, freePool: 0n, expiries, toClaim: [] };
-  }, [model]);
+  }, [model, nowSec]);
 
   const live = Boolean(options && collateral);
   const board = live ? liveBoard : modelBoard;
@@ -151,7 +160,7 @@ export function OptionsTerminal() {
               </div>
             </div>
             {board && board.expiries.length > 0 && (
-              <div aria-label="Settlement day" className="exp" role="group">
+              <fieldset aria-label="Settlement day" className="exp">
                 {board.expiries.map((e) => {
                   const [wd, dd, mo] = dayLabel(e.dayKey).split(' ');
                   return (
@@ -169,7 +178,7 @@ export function OptionsTerminal() {
                     </button>
                   );
                 })}
-              </div>
+              </fieldset>
             )}
           </div>
           {readError && <p className="fine no">{readError}</p>}
@@ -242,12 +251,12 @@ export function OptionsTerminal() {
         {sel && row && expiry && board ? (
           <Ticket
             band={board.band}
-            collateral={collateral}
+            collateral={collateral ?? undefined}
             dayKey={expiry.dayKey}
             forward={forward}
             live={live}
             onDone={() => void refresh()}
-            options={options}
+            options={options ?? undefined}
             row={row}
             sel={sel}
             setPick={setPick}
@@ -284,7 +293,7 @@ function Chain({
   sigma: number;
   live: boolean;
 }) {
-  let fwdShown = false;
+  const fwdAt = rows.findIndex((r) => r.strikeCents / 100 > forward);
   return (
     <section aria-label="Option chain">
       <div className="pos-head">
@@ -300,7 +309,9 @@ function Chain({
               <th className="cg" colSpan={3} scope="colgroup">
                 Calls pay above
               </th>
-              <th className="kc" scope="col" />
+              <th className="kc" scope="col">
+                <span className="sr-only">Strike</span>
+              </th>
               <th className="pg" colSpan={3} scope="colgroup">
                 Puts pay below
               </th>
@@ -318,14 +329,13 @@ function Chain({
             </tr>
           </thead>
           <tbody>
-            {rows.flatMap((r) => {
+            {rows.flatMap((r, idx) => {
               const k = r.strikeCents / 100;
               const pc = 1 - normalCdf((k - forward) / sigma);
               const ic = k < forward ? 'itm-c' : '';
               const ip = k > forward ? 'itm-p' : '';
               const out = [];
-              if (!fwdShown && k > forward) {
-                fwdShown = true;
+              if (idx === fwdAt) {
                 out.push(
                   <tr aria-hidden className="fwd" key="fwd">
                     <td colSpan={7}>
@@ -461,7 +471,7 @@ function Ticket({
 
   return (
     <aside aria-label="Buy an option" className="ticket">
-      <div aria-label="Option type" className="seg tone" data-on={isCall ? 0 : 1} role="group">
+      <fieldset aria-label="Option type" className="seg tone" data-on={isCall ? 0 : 1}>
         <span aria-hidden className="thumb" />
         <button aria-pressed={isCall} onClick={() => setPick({ strikeCents, isCall: true })} type="button">
           Calls
@@ -469,7 +479,7 @@ function Ticket({
         <button aria-pressed={!isCall} onClick={() => setPick({ strikeCents, isCall: false })} type="button">
           Puts
         </button>
-      </div>
+      </fieldset>
       <div className="stepper">
         <span className="lab">Strike</span>
         <div className="row">
@@ -486,7 +496,7 @@ function Ticket({
         Pays if {dayLabel(dayKey)} averages {isCall ? 'above' : 'below'} ${k}: the gap, on every MWh, at most {cents(max)}.
       </p>
       {live && held > 0n && (
-        <div aria-label="Buy or sell" className="seg" data-on={mode === 'buy' ? 0 : 1} role="group">
+        <fieldset aria-label="Buy or sell" className="seg" data-on={mode === 'buy' ? 0 : 1}>
           <span aria-hidden className="thumb" />
           <button aria-pressed={mode === 'buy'} onClick={() => setMode('buy')} type="button">
             Buy
@@ -494,7 +504,7 @@ function Ticket({
           <button aria-pressed={mode === 'sell'} onClick={() => setMode('sell')} type="button">
             Sell back
           </button>
-        </div>
+        </fieldset>
       )}
       <div className="qty">
         <label className="lab" htmlFor="o-size">

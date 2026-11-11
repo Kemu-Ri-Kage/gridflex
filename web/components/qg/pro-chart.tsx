@@ -79,7 +79,9 @@ export function ProChart({ positions, size }: { positions?: ChartPosition[]; siz
   const { live } = useLivePrice();
   const [failed, setFailed] = useState(false);
   const latest = useRef({ positions, size, live });
-  latest.current = { positions, size, live };
+  useEffect(() => {
+    latest.current = { positions, size, live };
+  });
 
   useEffect(() => {
     const root = ref.current;
@@ -118,15 +120,15 @@ export function ProChart({ positions, size }: { positions?: ChartPosition[]; siz
   return (
     <section aria-label="Price chart" className="cbox" data-lenis-prevent id="cbox" ref={ref}>
       <div className="ctop">
-        <div aria-label="Timeframe" className="grp" id="tfs" role="group">
+        <fieldset aria-label="Timeframe" className="grp" id="tfs">
           {TF_BUTTONS.map((b) => (
             <button aria-pressed={b.tf === 3600} className="tb" data-tf={b.tf} key={b.tf} type="button">
               {b.label}
             </button>
           ))}
-        </div>
+        </fieldset>
         <span aria-hidden className="sep" />
-        <div aria-label="Chart type" className="grp" id="types" role="group">
+        <fieldset aria-label="Chart type" className="grp" id="types">
           <button aria-pressed="true" className="tb" data-ty="candles" title="Candles" type="button">
             <svg aria-hidden fill="none" height="18" stroke="currentColor" strokeWidth="1.4" viewBox="0 0 18 18" width="18">
               <line x1="5" x2="5" y1="2" y2="16" />
@@ -163,9 +165,9 @@ export function ProChart({ positions, size }: { positions?: ChartPosition[]; siz
           <button aria-pressed="false" className="tb" data-ty="3d" title="3D" type="button">
             <span>3D</span>
           </button>
-        </div>
+        </fieldset>
         <span aria-hidden className="sep" />
-        <div aria-label="Indicators" className="grp" role="group">
+        <fieldset aria-label="Indicators" className="grp">
           <button className="tb ind" data-ind="ma20" type="button">
             <span className="sw" style={{ background: 'var(--volt)' }} />
             MA 20
@@ -186,7 +188,7 @@ export function ProChart({ positions, size }: { positions?: ChartPosition[]; siz
             <span className="sw" style={{ background: 'var(--paper)' }} />
             Day-ahead
           </button>
-        </div>
+        </fieldset>
         <span className="grow" />
         <button className="tb" id="fit" title="Reset the view" type="button">
           <svg aria-hidden fill="none" height="18" stroke="currentColor" strokeWidth="1.4" viewBox="0 0 18 18" width="18">
@@ -212,7 +214,7 @@ export function ProChart({ positions, size }: { positions?: ChartPosition[]; siz
             {failed ? 'The chart could not load. Check your connection and reload.' : ''}
           </div>
           <div aria-label="Selected drawing" className="otb" hidden id="otb" role="toolbar" />
-          <div aria-label="Price scale" className="scl" id="scl" role="group">
+          <fieldset aria-label="Price scale" className="scl" id="scl">
             <button aria-pressed="true" data-scale="auto" title="Fit prices to the view" type="button">
               Auto
             </button>
@@ -222,20 +224,20 @@ export function ProChart({ positions, size }: { positions?: ChartPosition[]; siz
             <button aria-pressed="false" data-scale="pct" title="Percent scale" type="button">
               %
             </button>
-          </div>
+          </fieldset>
           <button aria-label="Go to the latest price" className="rtb" hidden id="rtb" title="Go to the latest price" type="button">
             <svg aria-hidden fill="none" height="14" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 14 14" width="14">
               <path d="M3 3l4 4-4 4M8 3l4 4-4 4" />
             </svg>
           </button>
-          <canvas aria-label="Last seven days of hourly day-ahead prices in 3D. Drag to turn." hidden id="t3d" role="img" />
+          <canvas aria-hidden hidden id="t3d" />
           <span className="chint" id="chint">
             Scroll to zoom, drag to pan. Shift + click to measure.
           </span>
         </div>
       </div>
       <div className="fly" hidden id="fly" role="menu" />
-      <div aria-live="polite" className="toast" id="ctoast" role="status" />
+      <output aria-live="polite" className="toast" id="ctoast" />
     </section>
   );
 }

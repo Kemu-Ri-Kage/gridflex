@@ -3335,6 +3335,14 @@
       "high": 7159,
       "low": 2418,
       "open": 2860
+    },
+    {
+      "average": 4034,
+      "close": 5344,
+      "dayKey": 20261111,
+      "high": 8262,
+      "low": 1313,
+      "open": 3528
     }
   ],
   "metricId": "ERCOT_HBNORTH_DA_AVG",

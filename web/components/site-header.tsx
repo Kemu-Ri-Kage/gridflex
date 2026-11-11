@@ -1,127 +1,119 @@
-import Link from 'next/link';
+'use client';
 
-import { LivePriceChip } from '@/components/live-price';
-import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
 import { WalletButton } from '@/components/wallet-button';
 
-/**
- * Text-only wordmark, no icon (design-brief.md §2): GRID in the foreground
- * colour and bold, FLEX regular in the muted colour, one word read aloud.
- * FLEX brightens on hover - a colour change, the only kind the header's
- * links make.
- */
-function Wordmark({ prefetch }: { prefetch?: boolean }) {
-  return (
-    <Link className="group font-mono text-[15px] tracking-[0.02em]" href="/" prefetch={prefetch}>
-      <span className="font-bold text-foreground">GRID</span>
-      <span className="text-muted-foreground transition-colors duration-200 group-hover:text-foreground">FLEX</span>
-    </Link>
-  );
-}
-
-export function LandingHeader() {
-  return (
-    <header className="border-b border-border">
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Wordmark />
-        <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">
-          <a
-            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
-            href="#prices"
-          >
-            Prices
-          </a>
-          <a
-            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
-            href="#how-we-verify"
-          >
-            How we verify
-          </a>
-          <a
-            className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
-            href="#proof"
-          >
-            Proof
-          </a>
-        </nav>
-        <Link
-          className="border border-foreground/40 px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-foreground transition-[border-color,opacity] duration-200 hover:border-foreground active:opacity-70"
-          href="/trade"
-        >
-          Open terminal
-        </Link>
-      </div>
-    </header>
-  );
-}
-
-/**
- * Links back to the landing page never prefetch it: a prefetch loads the
- * landing route's client code (GSAP, Lenis, the hero) into /trade, which
- * carries no motion libraries at all (design-brief.md §14).
- */
-const TERMINAL_PAGES = [
-  { id: 'trade', label: 'Yes/No', href: '/trade' },
-  { id: 'futures', label: 'Futures', href: '/futures' },
-  { id: 'options', label: 'Options', href: '/options' },
-  { id: 'hedge', label: 'Hedge', href: '/hedge' },
+/** Every page the header links to, in reading order. */
+const PAGES = [
+  { href: '/futures', label: 'Futures', note: 'Long or short' },
+  { href: '/options', label: 'Options', note: 'Calls and puts' },
+  { href: '/hedge', label: 'Hedge', note: 'Lock your price' },
+  { href: '/trade', label: 'Yes / No', note: 'Questions by day' },
+  { href: '/proof', label: 'Proof', note: 'Every price' },
 ] as const;
 
-export type TerminalPage = (typeof TERMINAL_PAGES)[number]['id'];
+/**
+ * One header for the whole site: the wordmark, the five pages, and the wallet
+ * (or, on the home page, the way into the terminal). Fixed to the top; it
+ * gains a hairline once the page scrolls under it. On a phone the pages move
+ * into a full-screen menu.
+ */
+export function SiteHeader() {
+  const path = usePathname() ?? '/';
+  const home = path === '/';
+  const [edge, setEdge] = useState(false);
+  const [open, setOpen] = useState(false);
 
-export function TerminalHeader({ current = 'trade' }: { current?: TerminalPage }) {
+  useEffect(() => {
+    const onScroll = () => {
+      // on the home page the 3D story sits under the header, so the line
+      // appears only once the story has scrolled past
+      const story = home ? document.getElementById('story') : null;
+      const limit = story ? story.offsetHeight - window.innerHeight : 4;
+      setEdge(window.scrollY > limit);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [home]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  const current = (href: string) =>
+    path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
+
   return (
-    <header className="border-b border-border bg-background">
-      <div className="mx-auto flex h-14 max-w-[1920px] items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-8">
-          <Wordmark prefetch={false} />
-          <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
-            <Link
-              className="px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-              href="/"
-              prefetch={false}
-            >
-              Home
+    <header className={`top${edge ? ' edge' : ''}`} id="top">
+      <div className="wrap">
+        <Link aria-label="Gridflex home" className="mark" href="/" onClick={() => setOpen(false)}>
+          GRIDFLEX
+        </Link>
+        <nav aria-label="Main" className="nav">
+          {PAGES.map((p) => (
+            <Link aria-current={current(p.href)} href={p.href} key={p.href} prefetch={false}>
+              {p.label}
             </Link>
-            <Link
-              className="px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-              href="/#proof"
-              prefetch={false}
-            >
-              Proof
-            </Link>
-            {TERMINAL_PAGES.map((page) =>
-              page.id === current ? (
-                <span aria-current="page" className="px-3 py-2 text-sm text-foreground" key={page.id}>
-                  {page.label}
-                </span>
-              ) : (
-                <Link
-                  className="px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-                  href={page.href}
-                  key={page.id}
-                  prefetch={false}
-                >
-                  {page.label}
-                </Link>
-              ),
-            )}
-          </nav>
-          <LivePriceChip className="hidden xl:flex" />
-        </div>
-        {/* The page's one disclaimer line (design-brief.md §5) wraps rather
-            than shortens on narrow screens - both names must stay, and a
-            nowrap badge beside the wallet button overflows at 390px. */}
-        <div className="flex min-w-0 items-center gap-3">
-          <Badge
-            className="h-auto min-w-0 shrink rounded-[2px] whitespace-normal leading-tight sm:h-5 sm:whitespace-nowrap"
-            variant="outline"
-          >
-            X Layer testnet · MockUSDT
-          </Badge>
-          <WalletButton />
-        </div>
+          ))}
+        </nav>
+        {home ? (
+          <Link className="pill solid cta-top" href="/futures">
+            Open terminal
+          </Link>
+        ) : (
+          <div className="cta-top">
+            <WalletButton />
+          </div>
+        )}
+        <button
+          aria-controls="sheet"
+          aria-expanded={open}
+          aria-label="Menu"
+          className="menu-btn"
+          onClick={() => setOpen((o) => !o)}
+          type="button"
+        >
+          <span />
+          <span />
+        </button>
       </div>
+      <nav aria-label="Main menu" className="sheet" hidden={!open} id="sheet">
+        <Link aria-current={home ? 'page' : undefined} href="/" onClick={() => setOpen(false)}>
+          Home
+        </Link>
+        {PAGES.map((p) => (
+          <Link
+            aria-current={current(p.href)}
+            href={p.href}
+            key={p.href}
+            onClick={() => setOpen(false)}
+            prefetch={false}
+          >
+            {p.label} <small>{p.note}</small>
+          </Link>
+        ))}
+        {!home && (
+          <div className="sheet-wallet">
+            <WalletButton />
+          </div>
+        )}
+      </nav>
     </header>
   );
+}
+
+/** Kept for the pages that still import the old names. */
+export const LandingHeader = SiteHeader;
+export type TerminalPage = 'trade' | 'futures' | 'options' | 'hedge';
+export function TerminalHeader(_props: { current?: TerminalPage }) {
+  return <SiteHeader />;
 }

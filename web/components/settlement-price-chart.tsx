@@ -300,7 +300,7 @@ export function SettlementPriceChart({
     const down = token('--down', '#ef4444');
     const warning = token('--warning', '#e8a33d');
     const chart1 = token('--chart-1', '#5b8def');
-    const mono = token('--font-geist-mono', 'ui-monospace, monospace');
+    const mono = token('--font-host', 'ui-sans-serif, system-ui, sans-serif');
 
     const chart = createChart(container, {
       autoSize: true,
@@ -309,6 +309,8 @@ export function SettlementPriceChart({
         textColor: muted,
         fontFamily: mono,
         fontSize: 10,
+        // the library's logo is off; the page credits TradingView in text under the chart
+        attributionLogo: false,
       },
       grid: {
         vertLines: { visible: false },

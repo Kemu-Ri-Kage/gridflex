@@ -1,0 +1,18 @@
+{
+  "metricId": "ERCOT_HBNORTH_DA_AVG",
+  "dayKey": 20261111,
+  "marketDay": "2026-11-11",
+  "marketDayStartUtc": 1794376800,
+  "marketDayEndUtc": 1794463200,
+  "value": 4034,
+  "sourceHash": "731f6ea084ee1c8fca2b0ba3b5df28f278813b8f6ce4022cb275c4533a3c706a",
+  "sourceFiles": [
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-11-08__2026-11-09.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-11-09__2026-11-10.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-11-10__2026-11-11.json",
+    "ercot_spp_day_ahead_hourly__HB_NORTH__2026-11-11__2026-11-12.json"
+  ],
+  "hashAlgorithm": "sha256",
+  "computedAt": "2026-11-11T00:25:22.842842+00:00",
+  "hoursUsed": 24
+}

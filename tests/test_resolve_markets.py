@@ -1,6 +1,6 @@
 """resolve_markets.py: which markets get resolved, and the live-mode guards.
 
-The chain is faked at resolve_markets' own seams (list_market_states,
+The chain is faked at resolve_markets' own seams (list_market_addresses, read_market_states,
 resolve_market, still_unsettled, make_web3), so no RPC call is made.
 """
 
@@ -226,7 +226,10 @@ class TestMain(unittest.TestCase):
         self.patches = [
             patch.object(rm, "load_addresses", return_value=ADDRESSES),
             patch.object(rm, "make_web3", return_value=self.w3),
-            patch.object(rm, "list_market_states", side_effect=lambda w3, a, block: self.states),
+            patch.object(rm, "list_market_addresses",
+                         side_effect=lambda w3, a, block: [(s.address, s.legacy_factory) for s in self.states]),
+            patch.object(rm, "read_market_states", side_effect=lambda w3, a, listed, block: [
+                s for s in self.states if (s.address, s.legacy_factory) in listed]),
             patch.object(rm, "resolve_market", self.resolve),
             patch.object(rm, "still_unsettled", return_value=True),
             patch.dict("os.environ", {"FINALIZER_PRIVATE_KEY": TEST_KEY}, clear=False),
@@ -264,7 +267,8 @@ class TestMain(unittest.TestCase):
         code, out, err = self.main()
         self.assertEqual(code, 1)
         self.assertIn("Wrong chain: got 1, expected 1952", err)
-        rm.list_market_states.assert_not_called()
+        rm.list_market_addresses.assert_not_called()
+        rm.read_market_states.assert_not_called()
         self.assertIn("resolve_markets summary", out)
 
     def test_live_requires_typed_yes(self):
@@ -322,7 +326,8 @@ class TestMain(unittest.TestCase):
 
     def test_every_read_is_pinned_to_the_snapshot_block(self):
         self.main()
-        rm.list_market_states.assert_called_once_with(self.w3, ADDRESSES, 41622200)
+        rm.list_market_addresses.assert_called_once_with(self.w3, ADDRESSES, 41622200)
+        self.assertEqual(rm.read_market_states.call_args.args[3], 41622200)
 
     def test_a_failed_transaction_still_prints_the_summary(self):
         self.resolve.side_effect = PublisherError("resolve: transaction reverted; aborting.")
@@ -331,7 +336,7 @@ class TestMain(unittest.TestCase):
         self.assertIn("resolve_markets summary", out)
 
     def test_an_unexpected_error_still_prints_the_summary(self):
-        rm.list_market_states.side_effect = ConnectionError("rpc down")
+        rm.list_market_addresses.side_effect = ConnectionError("rpc down")
         out = io.StringIO()
         with contextlib.redirect_stdout(out), self.assertRaises(ConnectionError):
             rm.main([])
@@ -347,6 +352,27 @@ class TestMain(unittest.TestCase):
         code, _, err = self.main("--market", "0x" + "99" * 20)
         self.assertEqual(code, 1)
         self.assertIn("not listed by MarketFactory", err)
+        rm.read_market_states.assert_not_called()
+
+    def test_market_filter_reads_only_the_selected_markets(self):
+        # Regression: every listed market used to be read (~9 pinned calls
+        # each) before --market was applied, ~17 minutes on the public RPC.
+        self.main("--market", self.states[1].address, "--market", self.states[4].address)
+        listed = rm.read_market_states.call_args.args[2]
+        self.assertEqual([a for a, _ in listed], [self.states[1].address, self.states[4].address])
+
+
+class TestListAndReadMarkets(unittest.TestCase):
+    def test_legacy_factories_are_listed_and_tagged(self):
+        current, legacy = "0x" + "aa" * 20, "0x" + "bb" * 20
+        w3 = MagicMock()
+        lists = {ADDRESSES["factory"]: [current], legacy: [legacy]}
+        w3.eth.contract.side_effect = lambda address, abi: MagicMock(
+            functions=MagicMock(getMarkets=lambda: MagicMock(call=lambda block_identifier: lists[address])))
+        addresses = {**ADDRESSES, "legacyFactories": [legacy]}
+        listed = rm.list_market_addresses(w3, addresses, 7)
+        self.assertEqual(listed, [(rm.Web3.to_checksum_address(current), None),
+                                  (rm.Web3.to_checksum_address(legacy), legacy)])
 
 
 if __name__ == "__main__":

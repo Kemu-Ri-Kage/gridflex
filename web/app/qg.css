@@ -491,3 +491,15 @@ tr.at td{background:#0d0d0d;color:var(--paper)}
   .surfwrap .chint{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition-duration:0s!important;animation:none!important}[data-reveal]{opacity:1;transform:none}}
+
+/* ticket details on the real site */
+.qty .num input{min-width:2ch;background:transparent;border:0;outline:0;font-size:48px;font-weight:500;letter-spacing:-.03em;line-height:1;padding:0;color:var(--paper)}
+.ticket details.limit{font-size:14px;color:var(--mist);border-top:1px solid var(--line);padding-top:16px}
+.ticket details.limit summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:12px}
+.ticket details.limit summary::-webkit-details-marker{display:none}
+.ticket details.limit summary::after{content:"Change";color:var(--paper);text-decoration:underline;text-underline-offset:3px}
+.ticket details.limit[open] summary::after{content:"Done"}
+.ticket details.limit .fld{margin-top:12px}
+.go:disabled,.pill:disabled{opacity:.42;cursor:not-allowed;filter:none;transform:none}
+.fine.no,.fine .no{color:var(--loss)}
+.chg .no{color:var(--loss)}

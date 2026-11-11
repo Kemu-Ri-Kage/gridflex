@@ -104,12 +104,26 @@ export function OptionsTerminal() {
   const [day, setDay] = useState<number | null>(null);
   const [pick, setPick] = useState<{ strikeCents: number; isCall: boolean } | null>(null);
   const [size, setSize] = useState('10');
+
+  // the hedge planner links here with ?type=&strike=&size= to start with its option
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const type = q.get('type');
+    const strike = Number(q.get('strike'));
+    const s = q.get('size');
+    const t = setTimeout(() => {
+      if (s && Number(s) > 0) setSize(s);
+      if ((type === 'call' || type === 'put') && strike > 0) setPick({ strikeCents: strike * 100, isCall: type === 'call' });
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
   const expiry = board?.expiries.find((e) => e.dayKey === day) ?? board?.expiries[0] ?? null;
   const rows = expiry?.rows ?? [];
   const forward = model?.forward ?? 40;
   const sigma = model?.sigma ?? 10;
   const defaultStrike = rows.length ? rows.reduce((a, r) => (Math.abs(r.strikeCents / 100 - (forward + 5)) < Math.abs(a.strikeCents / 100 - (forward + 5)) ? r : a), rows[0]).strikeCents : null;
-  const sel = pick ?? (defaultStrike === null ? null : { strikeCents: defaultStrike, isCall: true });
+  const picked = pick && rows.some((r) => r.strikeCents === pick.strikeCents) ? pick : null;
+  const sel = picked ?? (defaultStrike === null ? null : { strikeCents: defaultStrike, isCall: pick?.isCall ?? true });
   const row = sel ? rows.find((r) => r.strikeCents === sel.strikeCents) ?? null : null;
 
   return (

@@ -38,6 +38,19 @@ export function FuturesTerminal() {
   const [readError, setReadError] = useState<string>();
   const { live, stale } = useLivePrice();
   const [size, setSize] = useState('10');
+  const [initialSide, setInitialSide] = useState<Side>();
+
+  // the hedge planner links here with ?side=&size= to start the ticket with its trade
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const s = q.get('size');
+    const sd = q.get('side');
+    const t = setTimeout(() => {
+      if (s && Number(s) > 0) setSize(s);
+      if (sd === 'long' || sd === 'short') setInitialSide(sd);
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!perp || !feed) return;
@@ -147,6 +160,7 @@ export function FuturesTerminal() {
         <Ticket
           collateral={collateral}
           indexCents={indexCents}
+          initialSide={initialSide}
           market={market}
           onPlaced={() => void refresh()}
           perp={perp}
@@ -346,6 +360,7 @@ function Ticket({
   collateral,
   market,
   indexCents,
+  initialSide,
   writer,
   size,
   setSize,
@@ -355,6 +370,7 @@ function Ticket({
   collateral?: Address;
   market: PerpMarket | null;
   indexCents: number | null;
+  initialSide?: Side;
   writer: ReturnType<typeof useContractWriter>;
   size: string;
   setSize: (s: string) => void;
@@ -362,6 +378,11 @@ function Ticket({
 }) {
   const [side, setSide] = useState<Side>('long');
   const [limit, setLimit] = useState('');
+  useEffect(() => {
+    if (!initialSide) return;
+    const t = setTimeout(() => setSide(initialSide), 0);
+    return () => clearTimeout(t);
+  }, [initialSide]);
   const band = market?.band ?? BAND;
   const feeBps = market?.feeBps ?? 10;
   // a sensible default limit: $2 either side of the price

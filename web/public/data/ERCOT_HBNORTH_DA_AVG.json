@@ -2973,5 +2973,12 @@
     "sourceHash": "731f6ea084ee1c8fca2b0ba3b5df28f278813b8f6ce4022cb275c4533a3c706a",
     "txHash": null,
     "value": 4034
+  },
+  {
+    "dayKey": 20261112,
+    "marketDay": "2026-11-12",
+    "sourceHash": "93826c6e4150338c4b259661ecc5d2f55cd1238e6b161cf2fc51a68a83621876",
+    "txHash": null,
+    "value": 3893
   }
 ]

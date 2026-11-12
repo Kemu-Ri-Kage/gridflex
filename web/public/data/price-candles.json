@@ -3343,6 +3343,14 @@
       "high": 8262,
       "low": 1313,
       "open": 3528
+    },
+    {
+      "average": 3893,
+      "close": 3595,
+      "dayKey": 20261112,
+      "high": 8151,
+      "low": 1205,
+      "open": 4453
     }
   ],
   "metricId": "ERCOT_HBNORTH_DA_AVG",
@@ -3357,31 +3365,31 @@
     },
     {
       "dayKey": 20260926,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-price/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20260927,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-price/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20260928,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-price/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20260929,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-price/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20260930,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-price/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20261001,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-price/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20261002,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-price/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20261101,

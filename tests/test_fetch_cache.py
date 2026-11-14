@@ -5,13 +5,14 @@ re-fetched chunk never destroys bytes a published hash was computed from;
 and a reading already onchain is never rewritten by a later run.
 """
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import hashlib
 import json
 import tempfile
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pandas as pd
 
@@ -458,6 +459,8 @@ class TestWhatARefreshFetches(unittest.TestCase):
             patch.object(fetch_ercot, "fuel_shares", return_value={}),
             patch.object(fetch_ercot, "METRICS_DIR", Path(self.tmp.name)),
             patch.object(fetch_ercot, "PUBLISH_LEDGER", Path(self.tmp.name) / "none.json"),
+            # S10: the oracle read is mocked too; these tests never reach the chain.
+            patch.object(fetch_ercot, "onchain_readings", return_value={}),
             patch("builtins.print"),
         ]
         for one in self.patches:
@@ -531,6 +534,126 @@ class TestWhatTheCandleBuilderFetches(unittest.TestCase):
     def test_west_hub_is_behind_its_own_flag(self):
         locations = {loc for _, loc in self.run_main("--west-hub")}
         self.assertEqual(locations, {"HB_NORTH", "HB_WEST"})
+
+
+class TestOnchainGuard(unittest.TestCase):
+    """A fetch asks GridOracle itself which days are published, so a day that
+    is on chain keeps its committed file even when this checkout's ledger
+    doesn't know about it yet (the 9 Oct break, daily-settle spec §8)."""
+
+    HB = "ERCOT_HBNORTH_DA_AVG"
+    DAY = date(2026, 10, 9)
+
+    def setUp(self):
+        import publish
+        self.publish = publish
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.metrics = self.root / "metrics"
+        self.metrics.mkdir()
+        self.path = self.metrics / f"{self.HB}__{self.DAY}.json"
+        self.w3 = MagicMock()
+        self.w3.eth.chain_id = 1952
+        for target, attr, kwargs in [
+            (fetch_ercot, "METRICS_DIR", {"new": self.metrics}),
+            (fetch_ercot, "PUBLISH_LEDGER", {"new": self.root / "publish-ledger.json"}),
+            (fetch_ercot.time, "sleep", {}),
+            (publish, "load_deployment", {"return_value": (1952, "0x" + "11" * 20)}),
+            (publish, "load_contract", {"return_value": MagicMock()}),
+        ]:
+            p = patch.object(target, attr, **kwargs)
+            p.start()
+            self.addCleanup(p.stop)
+        p = patch.object(publish, "make_web3", return_value=self.w3)
+        self.make_web3 = p.start()
+        self.addCleanup(p.stop)
+
+    def chain(self, onchain):
+        """Fake GridOracle holding {(metricId, dayKey): value}."""
+        def reading(contract, probe):
+            value = onchain.get((probe.metric_id, probe.day_key))
+            if value is None:
+                return None
+            return {"value": value, "sourceHash": "aa" * 32, "publishedAt": 1, "finalized": True}
+        return patch.object(self.publish, "chain_reading", side_effect=reading)
+
+    def write(self, value, published):
+        return fetch_ercot.write_metric(
+            self.HB, self.DAY, value, "new-hash", ["new.json"], 1, 2, published=published)
+
+    def merged(self, days=None):
+        days = days if days is not None else [self.DAY]
+        return {**fetch_ercot.published_readings(),
+                **fetch_ercot.onchain_readings([self.HB], days)}
+
+    def test_a_day_onchain_but_missing_from_the_ledger_keeps_its_file(self):
+        self.path.write_text(json.dumps({"value": 4555, "sourceHash": "onchain-hash"}))
+        before = self.path.read_bytes()
+        with self.chain({(self.HB, 20261009): 4555}):
+            published = self.merged()
+        self.assertIsNone(self.write(4555, published))
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_a_published_day_without_a_file_is_not_recreated(self):
+        with self.chain({(self.HB, 20261009): 4555}):
+            published = self.merged()
+        with patch("builtins.print") as mock_print:
+            self.assertIsNone(self.write(4555, published))
+        self.assertFalse(self.path.exists())
+        self.assertIn("restore it from git", mock_print.call_args.args[0])
+
+    def test_a_recovered_ledger_row_without_txhash_is_protected_by_the_chain(self):
+        (self.root / "publish-ledger.json").write_text(json.dumps(
+            {f"{self.HB}:20261009": {"value": 4555, "txHash": None}}))
+        self.path.write_text(json.dumps({"value": 4555, "sourceHash": "onchain-hash"}))
+        with self.chain({(self.HB, 20261009): 4555}):
+            published = self.merged()
+        self.assertIsNone(self.write(4555, published))
+        self.assertEqual(json.loads(self.path.read_text())["sourceHash"], "onchain-hash")
+
+    def test_the_chain_value_wins_over_the_ledger(self):
+        (self.root / "publish-ledger.json").write_text(json.dumps(
+            {f"{self.HB}:20261009": {"value": 3957, "txHash": "0xabc"}}))
+        self.path.write_text(json.dumps({"value": 4000, "sourceHash": "onchain-hash"}))
+        with self.chain({(self.HB, 20261009): 4000}):
+            published = self.merged()
+        with patch("builtins.print") as mock_print:
+            self.assertIsNone(self.write(4000, published))
+        mock_print.assert_not_called()
+
+    def test_one_read_per_publishable_metric_and_day(self):
+        days = [self.DAY + timedelta(days=i) for i in range(4)]
+        with self.chain({}) as chain_reading:
+            self.assertEqual(
+                fetch_ercot.onchain_readings([self.HB, "ERCOT_FUELMIX_SOLAR"], days), {})
+        self.assertEqual(chain_reading.call_count, 4)
+        self.assertEqual({c.args[1].metric_id for c in chain_reading.call_args_list}, {self.HB})
+
+    def test_no_publishable_metric_makes_no_rpc_call(self):
+        self.assertEqual(fetch_ercot.onchain_readings(["ERCOT_FUELMIX_SOLAR"], [self.DAY]), {})
+        self.make_web3.assert_not_called()
+
+    def test_an_unreachable_oracle_stops_the_run(self):
+        type(self.w3.eth).chain_id = PropertyMock(side_effect=ConnectionError("down"))
+        with self.assertRaises(SystemExit) as raised:
+            fetch_ercot.onchain_readings([self.HB], [self.DAY])
+        self.assertIn("Nothing was fetched", str(raised.exception))
+
+    def test_the_wrong_chain_stops_the_run(self):
+        self.w3.eth.chain_id = 1
+        with self.assertRaises(SystemExit) as raised:
+            fetch_ercot.onchain_readings([self.HB], [self.DAY])
+        self.assertIn("Wrong chain", str(raised.exception))
+
+    def test_main_reads_the_oracle_before_any_gridstatus_request(self):
+        with patch("sys.argv", ["fetch_ercot.py"]), \
+                patch.object(fetch_ercot, "onchain_readings", side_effect=SystemExit("stop")), \
+                patch.object(fetch_ercot, "get_client") as get_client, \
+                patch("builtins.print"):
+            with self.assertRaises(SystemExit):
+                fetch_ercot.main()
+        get_client.assert_not_called()
 
 
 if __name__ == "__main__":

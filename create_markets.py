@@ -81,6 +81,7 @@ from web3 import Web3
 from web3.exceptions import BadFunctionCallOutput, TimeExhausted
 from web3.logs import DISCARD  # the receipt's token Transfer/Approval logs aren't MarketCreated
 
+from chain_guard import assert_addresses_match_pins, oracle_identity
 from finalize import (
     DEMO_MARKETS_PATH,
     SUMMARY_TABLE_COLUMNS,
@@ -351,6 +352,8 @@ def load_addresses() -> dict[str, Any]:
             raise PublisherError(
                 f"Invalid legacyDeployments.MarketFactory entry in {ADDRESSES_PATH}: {entry!r}"
             ) from exc
+    # The reviewed pins decide these addresses, not the data branch.
+    assert_addresses_match_pins(chain_id, oracle, factory, collateral, legacy)
     return {
         "chainId": chain_id,
         "oracle": oracle,
@@ -737,6 +740,53 @@ def send_tx(w3: Web3, account, function, label: str, log_path: Path) -> tuple[An
     return receipt, receipt.gasUsed * gas_price
 
 
+IN_FLIGHT_CHECKS = 3
+IN_FLIGHT_RETRY_SECONDS = 5
+
+
+def assert_nothing_in_flight(w3: Web3, address: str) -> None:
+    """Refuse to send while an earlier transaction from this signer is still
+    pending: a create that timed out may yet land, and sending another now
+    could make the same market twice. The RPC is load-balanced, so the two
+    counts can come from different nodes; pending *below* latest is that lag
+    (see send_tx), not a pending transaction. "may still be in flight" is a
+    stop word for daily_settle.sh."""
+    for attempt in range(IN_FLIGHT_CHECKS):
+        pending = w3.eth.get_transaction_count(address, "pending")
+        latest = w3.eth.get_transaction_count(address, "latest")
+        if pending <= latest:
+            return
+        if attempt < IN_FLIGHT_CHECKS - 1:
+            time.sleep(IN_FLIGHT_RETRY_SECONDS)
+    raise PublisherError(
+        f"A transaction from {address} may still be in flight (pending nonce {pending}, "
+        f"latest {latest}); nothing was sent. Wait until it lands or drops, then run again."
+    )
+
+
+def untracked_same_day(
+    eligible: list[Evaluation], existing_pairs: dict[str, str], ledger: dict[str, dict[str, Any]]
+) -> list[str]:
+    """For the unattended run: markets already on chain for the metric and day
+    of a market about to be created, at another strike, that the ledger does
+    not know. A part-finished earlier run whose ledger never got committed
+    leaves exactly this (ladder strikes are recomputed from recent prices, so
+    they can differ), and creating more would grow the ladder unseen."""
+    known = {
+        Web3.to_checksum_address(entry["market"])
+        for entry in ledger.values() if isinstance(entry, dict) and entry.get("market")
+    }
+    found = []
+    for evaluation in eligible:
+        candidate = evaluation.candidate
+        prefix = f"{candidate.metric_hash.hex()}:{candidate.day_key}:"
+        for key, address in sorted(existing_pairs.items()):
+            if key.startswith(prefix) and Web3.to_checksum_address(address) not in known:
+                found.append(f"{candidate.metric_id} {candidate.day_key}: {address} at strike "
+                             f"{key.rsplit(':', 1)[1]}")
+    return found
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -1108,10 +1158,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--initial-liquidity-musdt", type=float, default=DEFAULT_INITIAL_LIQUIDITY / 10**6,
         help="initial pool liquidity in whole mUSDT per market (default 10000)",
     )
+    parser.add_argument(
+        "--yes", action="store_true",
+        help="skip the typed confirmation (the daily settle job only); needs --live and "
+        "at least one --market",
+    )
     return parser
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    if getattr(args, "yes", False):
+        # An unattended run creates only the rows it names - never "every
+        # row", which would also start the replay markets' clocks.
+        if not args.live:
+            raise PublisherError("--yes only makes sense with --live.")
+        if not args.market:
+            raise PublisherError("--yes needs at least one --market row.")
     if args.check and args.live:
         raise PublisherError("Use --check and --live as separate commands.")
     if args.limit is not None and args.limit <= 0:
@@ -1239,9 +1301,21 @@ def main(argv: list[str] | None = None) -> int:
             print("Nothing to create. No transactions were sent.")
             return 0
         refuse_unnamed_replays(eligible, args.market)
+        if args.yes:
+            untracked = untracked_same_day(eligible, pairs, ledger)
+            if untracked:
+                raise PublisherError(
+                    "Markets for these days are already on chain but not in the ledger, so an "
+                    "earlier run may have stopped part-way; a person must look before more are "
+                    "created: " + "; ".join(untracked)
+                )
+            # Before any key is read: unattended creation only against the
+            # pinned GridOracleV2 (the factory's markets settle on it).
+            oracle_identity(w3, addresses["oracle"])
 
-        account = load_finalizer_account()
+        account = load_finalizer_account(unattended=args.yes)
         chain_id, balance = preflight(w3, addresses, account)
+        assert_nothing_in_flight(w3, account.address)
         initial_liquidity = int(round(args.initial_liquidity_musdt * 10**6))
 
         live_banner(
@@ -1253,7 +1327,9 @@ def main(argv: list[str] | None = None) -> int:
             for evaluation in to_backfill:
                 print(f"    #{evaluation.candidate.row} {evaluation.candidate.label} -> "
                       f"{evaluation.existing_address}")
-        if input('\nType "yes" to continue: ').strip() != "yes":
+        if args.yes:
+            print("\nConfirmed by --yes (unattended run).")
+        elif input('\nType "yes" to continue: ').strip() != "yes":
             print("Cancelled. No transactions were sent.")
             return 0
 

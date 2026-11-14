@@ -1,0 +1,22 @@
+{
+  "chainId": 1952,
+  "oracleV1": "0x970cefFC0e75bCa245F3337715992ad520A4D561",
+  "v1Reporter": "0x27Aad02480f1DC01ebCb53fd7321a4629BCbe902",
+  "factory": "0xE52189873eb34A5cdbeE5ACAD2d227F2a65CC3A9",
+  "legacyFactories": [
+    "0xE4d35CE22E74A8BA656D74245E2173C93b430243"
+  ],
+  "collateral": "0xA5A5e9eB64d4a9414AA09d887E284d8F2b3b217A",
+  "metricIds": [
+    "ERCOT_HBNORTH_DA_AVG",
+    "ERCOT_WEST_NORTH_DA_BASIS",
+    "ERCOT_LOAD_WEIGHTED_DA_INDEX",
+    "ERCOT_HBWEST_NEG_INTERVALS"
+  ],
+  "oracleV2": null,
+  "oracleV2CodeHash": null,
+  "v2Reporter": null,
+  "v2Guardian": null,
+  "v2Owner": null,
+  "settler": null
+}

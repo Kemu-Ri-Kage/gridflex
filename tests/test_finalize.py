@@ -1,3 +1,4 @@
+import net_guard  # noqa: F401  (tests never reach the network)
 import contextlib
 import io
 import json
@@ -633,6 +634,49 @@ class TestDryRunAndLiveConfirmation(BaseFinalizeTest):
         mock_attempt.assert_not_called()
         self.assertIn("Cancelled", buffer.getvalue())
         self.assertEqual(exit_code, 0)
+
+    def test_an_unattended_run_finalizes_without_asking(self):
+        now = 1_800_000_000
+        current = chain_row(100, "11" * 32, now - 4000, False)
+        with patch.object(finalize, "collect_readings", return_value=(self.readings, [])), \
+                patch.object(finalize, "chain_reading", return_value=current), \
+                patch.object(finalize.time, "time", return_value=now), \
+                patch.object(finalize, "ledger_entry_from_chain", return_value={"status": "confirmed"}), \
+                patch.object(finalize, "load_ledger", return_value={}), \
+                patch.object(finalize, "save_ledger"), \
+                patch.object(finalize, "build_error_selectors", return_value={}), \
+                patch.object(finalize, "load_finalizer_account",
+                             return_value=MagicMock(address="0xF")) as load_key, \
+                patch.object(finalize, "attempt_finalize",
+                             return_value=("FINALIZED", "", 1000, 11)) as mock_attempt, \
+                patch("builtins.input", side_effect=AssertionError("--yes must not prompt")):
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                with patch.object(finalize, "oracle_identity") as check_identity:
+                    exit_code = finalize.main(["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG",
+                                               "--start", "20260908", "--end", "20260914", "--limit", "7"])
+        check_identity.assert_called_once()
+        load_key.assert_called_once_with(unattended=True)
+        mock_attempt.assert_called_once()
+        self.assertIn("Confirmed by --yes", buffer.getvalue())
+        self.assertEqual(exit_code, 0)
+
+    def test_yes_is_kept_narrow(self):
+        def check(argv):
+            finalize.validate_args(finalize.build_parser().parse_args(argv))
+        good = ["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG", "--start", "20260908",
+                "--end", "20260914", "--limit", "7"]
+        check(good)
+        for broken, reason in [
+            ([a for a in good if a != "--live"], "--live"),
+            (["--live", "--yes", "--start", "20260908", "--end", "20260914", "--limit", "7"], "one --metric"),
+            (["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG", "--end", "20260914", "--limit", "7"], "--start"),
+            # S6: the last planned day bounds the run too.
+            (["--live", "--yes", "--metric", "ERCOT_HBNORTH_DA_AVG", "--start", "20260908", "--limit", "7"], "--end"),
+            (good[:-1] + ["8"], "at most 7"),
+        ]:
+            with self.subTest(reason=reason), self.assertRaisesRegex(publish.PublisherError, reason):
+                check(broken)
 
     def test_nothing_to_finalize_skips_key_loading_and_confirmation(self):
         with patch.object(finalize, "collect_readings", return_value=(self.readings, [])), \

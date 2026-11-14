@@ -252,6 +252,28 @@
     "txHash": "0x9019a6a7d0ea7678c067c38825fb2ebcef24cecf96282e36120046867a17db6f",
     "value": 4423
   },
+  "ERCOT_HBNORTH_DA_AVG:20261110": {
+    "blockNumber": 45894497,
+    "dayKey": 20261110,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 176,
+    "sourceHash": "5dc86961d67906e330c09ba5d8ebcc6e439a426f7aee354da9330f9f066aa00a",
+    "status": "confirmed",
+    "submittedAt": "2026-11-10T23:28:52Z",
+    "txHash": "0xa1fd599073aacb66ee46e8a806176ac3146262b6db1a628ad38179e8102a6c08",
+    "value": 3824
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261111": {
+    "blockNumber": 46199712,
+    "dayKey": 20261111,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 181,
+    "sourceHash": "731f6ea084ee1c8fca2b0ba3b5df28f278813b8f6ce4022cb275c4533a3c706a",
+    "status": "confirmed",
+    "submittedAt": "2026-11-14T12:15:48Z",
+    "txHash": "0xeb79c7c23223327829fd92d6064b38eee18bee5c2b00d5d79c4841b4916393d1",
+    "value": 4034
+  },
   "ERCOT_HBWEST_NEG_INTERVALS:20250910": {
     "blockNumber": 41033816,
     "dayKey": 20250910,

@@ -758,9 +758,8 @@ class TestDemoMarketsDocument(unittest.TestCase):
     def setUp(self):
         self.candidates = create_markets.parse_demo_markets_candidates()
 
-    # Rows 1-59 are frozen (they name deployed markets and history); later
-    # rows are the weekly ladder, data the settle job appends, so they are
-    # only checked for shape (audit finding S3, decision D9).
+    # Rows 1-59 exist on main. The data branch adds hand-written rows 60-80;
+    # after those, the daily settle job appends rows checked by shape.
     FROZEN_ROWS = [
                 (1, "replay", "ERCOT_HBNORTH_DA_AVG", 20250911, 2500),
                 (2, "live", "ERCOT_HBNORTH_DA_AVG", 20260926, 4500),
@@ -824,23 +823,46 @@ class TestDemoMarketsDocument(unittest.TestCase):
                 (57, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 3000),
                 (58, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 4000),
                 (59, "live", "ERCOT_HBNORTH_DA_AVG", 20261020, 5000),
+                (60, "live", "ERCOT_HBNORTH_DA_AVG", 20261109, 2500),
+                (61, "live", "ERCOT_HBNORTH_DA_AVG", 20261109, 3500),
+                (62, "live", "ERCOT_HBNORTH_DA_AVG", 20261109, 4500),
+                (63, "live", "ERCOT_HBNORTH_DA_AVG", 20261110, 2500),
+                (64, "live", "ERCOT_HBNORTH_DA_AVG", 20261110, 3500),
+                (65, "live", "ERCOT_HBNORTH_DA_AVG", 20261110, 4500),
+                (66, "live", "ERCOT_HBNORTH_DA_AVG", 20261111, 2500),
+                (67, "live", "ERCOT_HBNORTH_DA_AVG", 20261111, 3500),
+                (68, "live", "ERCOT_HBNORTH_DA_AVG", 20261111, 4500),
+                (69, "live", "ERCOT_HBNORTH_DA_AVG", 20261112, 2500),
+                (70, "live", "ERCOT_HBNORTH_DA_AVG", 20261112, 3500),
+                (71, "live", "ERCOT_HBNORTH_DA_AVG", 20261112, 4500),
+                (72, "live", "ERCOT_HBNORTH_DA_AVG", 20261113, 2500),
+                (73, "live", "ERCOT_HBNORTH_DA_AVG", 20261113, 3500),
+                (74, "live", "ERCOT_HBNORTH_DA_AVG", 20261113, 4500),
+                (75, "live", "ERCOT_HBNORTH_DA_AVG", 20261114, 2500),
+                (76, "live", "ERCOT_HBNORTH_DA_AVG", 20261114, 3500),
+                (77, "live", "ERCOT_HBNORTH_DA_AVG", 20261114, 4500),
+                (78, "live", "ERCOT_HBNORTH_DA_AVG", 20261115, 2500),
+                (79, "live", "ERCOT_HBNORTH_DA_AVG", 20261115, 3500),
+                (80, "live", "ERCOT_HBNORTH_DA_AVG", 20261115, 4500),
     ]
 
-    def test_the_frozen_rows_1_to_59_are_exactly_as_deployed(self):
+    def test_hand_written_rows_are_exact_where_present(self):
+        self.assertGreaterEqual(len(self.candidates), 59)
+        count = min(len(self.candidates), len(self.FROZEN_ROWS))
         self.assertEqual(
-            [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates[:59]],
-            self.FROZEN_ROWS,
+            [(c.row, c.kind, c.metric_id, c.day_key, c.threshold) for c in self.candidates[:count]],
+            self.FROZEN_ROWS[:count],
         )
 
     def test_later_ladder_rows_are_well_formed(self):
-        later = self.candidates[59:]
-        self.assertEqual([c.row for c in later], list(range(60, 60 + len(later))))
+        later = self.candidates[len(self.FROZEN_ROWS):]
+        self.assertEqual([c.row for c in later], list(range(81, 81 + len(later))))
         for c in later:
             with self.subTest(row=c.row):
                 self.assertEqual((c.kind, c.metric_id), ("live", "ERCOT_HBNORTH_DA_AVG"))
                 self.assertEqual(c.threshold % 500, 0)
-                self.assertGreater(c.threshold, 0)
-                self.assertGreater(c.day_key, 20261020)
+                self.assertGreaterEqual(c.threshold, 500)
+                self.assertGreater(c.day_key, 20261115)
 
     def test_trading_close_column_matches_what_the_script_computes(self):
         text = create_markets.DEMO_MARKETS_PATH.read_text(encoding="utf-8")
@@ -1118,7 +1140,8 @@ class TestMainDryRunByKind(unittest.TestCase):
         self.assertIn("DRY RUN ONLY", output)
 
     def test_unknown_market_row_is_an_error(self):
-        exit_code, _, err = self.run_main(["--market", "99"])
+        missing = len(create_markets.parse_demo_markets_candidates()) + 1
+        exit_code, _, err = self.run_main(["--market", str(missing)])
         self.assertEqual(exit_code, 1)
         self.assertIn("no such row", err)
 

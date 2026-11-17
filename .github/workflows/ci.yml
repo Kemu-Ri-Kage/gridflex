@@ -29,7 +29,8 @@ jobs:
           python-version: "3.12"
 
       - name: Install Python packages (hash-pinned wheels only)
-        run: pip install --require-hashes --only-binary=:all: --no-deps -r requirements.lock
+        run: |
+          pip install --require-hashes --only-binary=:all: --no-deps -r requirements.lock
 
       - name: Python tests (network refused by tests/net_guard.py; RPC on a closed port)
         env:

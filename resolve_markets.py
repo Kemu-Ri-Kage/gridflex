@@ -214,17 +214,31 @@ def list_market_states(w3: Web3, addresses: dict[str, Any], block_number: int) -
     block_number. A redeploy replaces the factory address but the old
     factory's markets stay on chain and must remain resolvable
     (shared/merge-set-spec.md §8.1)."""
-    binary_market_abi = load_abi("BinaryMarket")
+    return read_market_states(w3, addresses, list_market_addresses(w3, addresses, block_number), block_number)
+
+
+def list_market_addresses(w3: Web3, addresses: dict[str, Any], block_number: int) -> list[tuple[str, str | None]]:
+    """List factory markets at one block before reading individual states."""
     factory_abi = load_abi("MarketFactory")
-    oracle = w3.eth.contract(address=addresses["oracle"], abi=load_abi("GridOracle"))
     factories: list[tuple[str, str | None]] = [(addresses["factory"], None)]
     factories += [(legacy, legacy) for legacy in addresses.get("legacyFactories", [])]
-    states = []
+    listed = []
     for factory_address, legacy in factories:
         factory = w3.eth.contract(address=factory_address, abi=factory_abi)
         for address in pinned_call(factory.functions.getMarkets(), block_number):
-            states.append(read_market(w3, oracle, address, binary_market_abi, block_number, legacy))
-            time.sleep(RPC_COURTESY_SLEEP)
+            listed.append((Web3.to_checksum_address(address), legacy))
+    return listed
+
+
+def read_market_states(w3: Web3, addresses: dict[str, Any], listed: list[tuple[str, str | None]],
+                       block_number: int) -> list[MarketState]:
+    """Read only selected market states, pinned to the factory snapshot block."""
+    binary_market_abi = load_abi("BinaryMarket")
+    oracle = w3.eth.contract(address=addresses["oracle"], abi=load_abi("GridOracle"))
+    states = []
+    for address, legacy in listed:
+        states.append(read_market(w3, oracle, address, binary_market_abi, block_number, legacy))
+        time.sleep(RPC_COURTESY_SLEEP)
     return states
 
 
@@ -369,14 +383,15 @@ def run(args: argparse.Namespace, summary: Summary) -> int:
     chain_guard(w3)
 
     block_number, now = chain_snapshot(w3)
-    states = list_market_states(w3, addresses, block_number)
-    summary.listed = len(states)
+    listed = list_market_addresses(w3, addresses, block_number)
+    summary.listed = len(listed)
     if args.market:
         wanted = {Web3.to_checksum_address(a) for a in args.market}
-        unknown = wanted - {s.address for s in states}
+        unknown = wanted - {address for address, _ in listed}
         if unknown:
             raise PublisherError(f"--market {sorted(unknown)}: not listed by MarketFactory {addresses['factory']}.")
-        states = [s for s in states if s.address in wanted]
+        listed = [(address, legacy) for address, legacy in listed if address in wanted]
+    states = read_market_states(w3, addresses, listed, block_number)
 
     print(f"GRIDFLEX resolve_markets - {len(states)} market(s) at block {block_number}, "
           f"chain time {format_close(now)}\n")

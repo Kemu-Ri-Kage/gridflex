@@ -73,6 +73,10 @@
 set -Eeuo pipefail
 
 main() {
+# field() fills these through printf -v. Declare them here so their scope is
+# explicit to Bash and to shellcheck; field() must still set each before use.
+local verified='' fetch_needed='' publish_days='' publish_end=''
+local finalize_days='' ladder_short='' alerts=''
 live=0
 chain=0
 forced_dry=0
@@ -184,6 +188,8 @@ fail() {
   exit 1
 }
 
+# Invoked indirectly by the ERR trap below.
+# shellcheck disable=SC2329
 on_error() {
   local code=$?
   [[ "${BASH_SUBSHELL:-0}" == 0 ]] || exit "$code"
@@ -193,6 +199,8 @@ on_error() {
   exit "$code"
 }
 
+# Invoked indirectly by the EXIT trap below.
+# shellcheck disable=SC2329
 cleanup() {
   rmdir "$lock_dir" 2> /dev/null || true
 }

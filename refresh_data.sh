@@ -3,6 +3,10 @@
 #
 #   ./refresh_data.sh              fetch, rebuild, commit, push, build, deploy
 #   ./refresh_data.sh --no-deploy  everything except the deploy
+#   ./refresh_data.sh --no-build   fetch, rebuild the feed data, commit and
+#                                  push, then stop: no pnpm build, no deploy
+#                                  (the daily settle job: the site is built
+#                                  in a separate job, away from the keys)
 #   ./refresh_data.sh --requests-lifted
 #                                  skip only the GridStatus request-count
 #                                  check (see below); rows are still checked
@@ -11,6 +15,17 @@
 #                                  push, build and deploy (candles are left
 #                                  as they are - rebuilding them re-fetches
 #                                  the recent days). Needs no API key.
+#   ./refresh_data.sh --no-push    commit but do not push (the daily settle
+#                                  job pushes the exact commit it checked)
+#   ./refresh_data.sh --no-commit  commit and push nothing: build and deploy
+#                                  only if the rebuilt data equals the commit
+#                                  (the deploy job, on the pushed commit)
+#
+# Every new or changed metric file is validated before anything is staged,
+# committed, pushed or deployed (daily-settle spec §14, audit finding S7):
+# the file's structure, the price band (-$50..$1,000/MWh, decision D4) and,
+# after a fetch, its sourceHash and value recomputed from data/raw. Any
+# failure exits non-zero with nothing committed.
 #
 # Fetches only what the site and the live markets use, one GridStatus request
 # per dataset (three in all), each spanning every day the cache can't answer:
@@ -49,15 +64,21 @@
 set -euo pipefail
 
 deploy=1
+build=1
 fetch=1
+commit=1
+push=1
 budget_args=()
 for arg in "$@"; do
   case "$arg" in
     --no-deploy) deploy=0 ;;
+    --no-build) build=0 deploy=0 ;;
     --no-fetch) fetch=0 ;;
+    --no-push) push=0 ;;
+    --no-commit) commit=0 push=0 ;;
     --requests-lifted) budget_args+=(--requests-lifted) ;;
     -h | --help)
-      sed -n '2,48p' "$0"
+      sed -n '2,64p' "$0"
       exit 0
       ;;
     *)
@@ -85,6 +106,10 @@ git_remote="${GIT_REMOTE:-origin}"
 # fetch_ercot.py treats as not yet final. Days older than that which were
 # never fetched are filled by --fill-gaps.
 fetch_days=3
+
+# The price band a new or changed price file must lie in, cents/MWh (D4).
+range_min="${REFRESH_RANGE_MIN_CENTS:--5000}"
+range_max="${REFRESH_RANGE_MAX_CENTS:-100000}"
 
 # The files this script regenerates, and so the only ones it commits.
 data_paths=(data/metrics web/public/data web/lib/generated)
@@ -130,26 +155,26 @@ run_log="$(mktemp)"
 trap 'rm -f "$run_log"' EXIT
 
 if [[ "$fetch" == 1 ]]; then
-  echo "[0/6] Checking the GridStatus allowance"
+  echo "[0/7] Checking the GridStatus allowance"
   if ! "$python_bin" refresh_budget.py ${budget_args[@]+"${budget_args[@]}"}; then
     echo "Nothing fetched. Run with --no-fetch to rebuild from data/metrics without GridStatus." >&2
     exit 1
   fi
 
   echo
-  echo "[1/6] Fetching ERCOT prices"
+  echo "[1/7] Fetching ERCOT prices"
   "$python_bin" fetch_ercot.py --days "$fetch_days" --fill-gaps | tee "$run_log"
 
   echo
-  echo "[2/6] Rebuilding candle data"
+  echo "[2/7] Rebuilding candle data"
   "$python_bin" build_candles.py | tee -a "$run_log"
 else
-  echo "[1/6] Fetch skipped (--no-fetch)"
-  echo "[2/6] Candles left as they are (--no-fetch)"
+  echo "[1/7] Fetch skipped (--no-fetch)"
+  echo "[2/7] Candles left as they are (--no-fetch)"
 fi
 
 echo
-echo "[3/6] Rebuilding feed data"
+echo "[3/7] Rebuilding feed data"
 "$python_bin" build_feed_data.py
 
 # Sum a "<label>: N" line across the fetch and candle steps (0 when none
@@ -162,35 +187,79 @@ rows_used="$(run_total 'GridStatus rows fetched this run')"
 requests_used="$(run_total 'GridStatus requests this run')"
 
 echo
-echo "[4/6] Committing and pushing the data on $branch"
-git add -A -- "${data_paths[@]}"
-if git diff --cached --quiet -- "${data_paths[@]}"; then
-  echo "No data changed; nothing to commit."
-else
-  # --only (the pathspec) commits the data paths alone, whatever else is staged.
-  git commit --quiet -m "Refresh market data, $(date -u +%Y-%m-%d)" -- "${data_paths[@]}"
-  git log -1 --format='  %h %s'
-fi
-git push --quiet "$git_remote" "HEAD:refs/heads/$branch"
-
-leftover="$(git status --porcelain --untracked-files=all -- "${build_paths[@]}")"
-if [[ -n "$leftover" ]]; then
-  echo "Not deploying: these build inputs differ from the commit:" >&2
-  echo "$leftover" >&2
+echo "[4/7] Validating the new and changed metric files"
+# Before anything is staged: nothing unvalidated is committed or deployed.
+changed_metrics=()
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  status="${line:0:2}"
+  path="${line:3}"
+  if [[ "$status" == *D* ]]; then
+    echo "Refusing: $path was deleted; a refresh never deletes a metric file." >&2
+    exit 1
+  fi
+  changed_metrics+=("$path")
+done < <(git status --porcelain --untracked-files=all --no-renames -- data/metrics)
+"$python_bin" scripts/validate_metrics.py > /dev/null || {
+  echo "Refusing: data/metrics holds an invalid file (scripts/validate_metrics.py); nothing committed." >&2
   exit 1
-fi
-commit="$(git rev-parse --short HEAD)"
-
-echo
-echo "[5/6] Building the site from $commit"
-(cd "$repo_root/web" && "$pnpm_bin" build)
-
-echo
-if [[ "$deploy" == 1 ]]; then
-  echo "[6/6] Deploying $commit"
-  (cd "$repo_root/web" && "$pnpm_bin" exec wrangler deploy --config dist/server/wrangler.json)
+}
+if ((${#changed_metrics[@]})); then
+  validate_args=(--files "${changed_metrics[@]}" --range-min "$range_min" --range-max "$range_max")
+  [[ "$fetch" == 1 ]] && validate_args+=(--provenance)
+  "$python_bin" scripts/validate_metrics.py "${validate_args[@]}" || {
+    echo "Refusing: a new or changed metric file failed validation; nothing committed." >&2
+    exit 1
+  }
+  echo "Validated ${#changed_metrics[@]} new or changed metric file(s)."
 else
-  echo "[6/6] Deploy skipped (--no-deploy)"
+  echo "No metric file changed."
+fi
+
+echo
+if [[ "$commit" == 1 ]]; then
+  echo "[5/7] Committing the data on $branch"
+  git add -A -- "${data_paths[@]}"
+  if git diff --cached --quiet -- "${data_paths[@]}"; then
+    echo "No data changed; nothing to commit."
+  else
+    # --only (the pathspec) commits the data paths alone, whatever else is staged.
+    git commit --quiet -m "Refresh market data, $(date -u +%Y-%m-%d)" -- "${data_paths[@]}"
+    git log -1 --format='  %h %s'
+  fi
+  if [[ "$push" == 1 ]]; then
+    git push --quiet "$git_remote" "HEAD:refs/heads/$branch"
+  else
+    echo "  not pushed (--no-push)"
+  fi
+else
+  echo "[5/7] Nothing committed (--no-commit)"
+fi
+
+if [[ "$build" == 1 ]]; then
+  leftover="$(git status --porcelain --untracked-files=all -- "${build_paths[@]}")"
+  if [[ -n "$leftover" ]]; then
+    echo "Not deploying: these build inputs differ from the commit:" >&2
+    echo "$leftover" >&2
+    exit 1
+  fi
+  commit="$(git rev-parse --short HEAD)"
+
+  echo
+  echo "[6/7] Building the site from $commit"
+  (cd "$repo_root/web" && "$pnpm_bin" build)
+
+  echo
+  if [[ "$deploy" == 1 ]]; then
+    echo "[7/7] Deploying $commit"
+    (cd "$repo_root/web" && "$pnpm_bin" exec wrangler deploy --config dist/server/wrangler.json)
+  else
+    echo "[7/7] Deploy skipped (--no-deploy)"
+  fi
+else
+  echo
+  echo "[6/7] Build skipped (--no-build)"
+  echo "[7/7] Deploy skipped (--no-build)"
 fi
 
 echo

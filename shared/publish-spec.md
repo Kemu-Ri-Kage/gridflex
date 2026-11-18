@@ -260,7 +260,21 @@ Type "yes" to continue:
 The signer address shown is always the address *derived* from whichever key
 source is configured (§5) — never the raw key or keystore password. This
 banner is the deliberate, single moment where an hour-long job actually
-starts; there is no `--yes`/`--force` flag to skip it.
+starts. There is no `--force` flag.
+
+**Unattended mode (`--yes`, added Nov 2026 for the daily settle job,
+`docs/specs/2026-10-13-daily-settle.md` §9A).** `--yes` replaces the typed
+"yes" for scheduled runs only, and is deliberately narrow:
+- only with `--live`;
+- exactly one `--metric`, both `--start` and `--end`, and `--limit` of at
+  most 7 (`UNATTENDED_MAX_READINGS`);
+- the keystore password comes from `REPORTER_KEYSTORE_PASSWORD_FILE` (the
+  job passes a pipe), never typed and never in the environment; with no
+  file the run stops instead of reading empty input;
+- a reading whose on-chain value would be **corrected** stops the run with
+  a `CORRECTION` error. Corrections stay interactive.
+
+The banner still prints, followed by "Confirmed by --yes (unattended run)."
 
 ### 2.6 Resume after an interrupted run
 
@@ -704,7 +718,9 @@ Path/gitignore decisions:
 
 - Publishing `ERCOT_FUELMIX_<FUEL>` — no frozen `metricId` hash exists;
   would require extending `shared/oracle-interface.md` first.
-- Any unattended scheduling (cron, always-on process) for either script.
+- Scheduling inside either script. Unattended runs are driven from outside
+  by the daily settle job (`daily_settle.sh`), which calls the scripts with
+  `--yes` under the limits in §2.5.
 - Redeploying `GridOracle` with a different `reporter` or `disputeWindow` —
   both are immutable constructor parameters; changing either means a new
   deployment, a `shared/addresses.json` update, and is out of scope here.

@@ -1,3 +1,4 @@
+import net_guard  # noqa: F401  (tests never reach the network)
 import json
 import tempfile
 import unittest

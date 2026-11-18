@@ -16,6 +16,7 @@ Run:
     python3 -m unittest tests.test_market_day -v
 """
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import os
 import sys
 import unittest

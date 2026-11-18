@@ -1,5 +1,10 @@
 # Daily settle: implementation spec for one scheduled job
 
+> **6 Nov 2026: read §13 first.** David's security audit found three real
+> problems in the first version. §13 says what changed: code from main
+> only, nothing live by default, no retried market creation, and the
+> reporter key of the first oracle never goes into automation.
+
 Status: draft. Nothing in the repo was changed, committed, pushed, deployed or sent. All `file:line` references are to `~/Desktop/gridflex` on `feat/judging-sprint` at `7fe8540`. Nothing here touches David's files (`contracts/` and the four web components).
 
 ---
@@ -128,7 +133,7 @@ Notes:
 ## 6. Keys and secrets
 
 There are now **two signing wallets on the job host**:
-- **Reporter:** today's `0x27Aad0…`, which also deploys the contracts. It signs only `submitReading`.
+- **Reporter:** ~~today's `0x27Aad0…`~~ **superseded (§13): a brand-new key that is GridOracleV2's reporter. `0x27Aad0…` never goes into the job; it becomes v2's offline owner.** It signs only `submitReading`.
 - **A new "settler" wallet:** a fresh Foundry keystore funded with about 0.02 test OKB. It signs `finalize()` and `resolve()`, which are open to anyone (`GridOracle.sol:84-90`; `resolve_markets.py:10-16`).
 
 Your own finalizer key stays off David's host. This replaces the "two people, two machines" rule in `shared/publish-spec.md:31-60`, and that section needs a short update.
@@ -174,10 +179,10 @@ Rules that stay in force:
    - **ladder running out:** no market day after tomorrow
    - **low gas:** reporter or settler below 0.005 OKB (balances read as in `state_report.py:250-255`)
 4. **The dispute window keeps a person in the loop.** After publishing, Telegram receives: "Published 15 Oct: $31.20/MWh. Finalizes at 01:31 UTC." It also says how to stop it:
-   - GitHub: `gh variable set SETTLE_HOLD --body 1` and cancel the run
-   - Mac: `touch ~/.gridflex-settle-hold`
+   - GitHub: create the branch `settle-hold` (`git push origin HEAD:refs/heads/settle-hold`), or `gh run cancel <id>`
+   - A local run also honours `touch ~/.gridflex-settle-hold`
 
-   The job checks the hold again right before finalizing.
+   The job reads the hold again before publishing, after the wait (before finalizing), before resolving and before creating markets; an unreadable hold counts as a hold (§14.5).
 5. **GitHub's own email** on failed scheduled runs, as a backup.
 
 ---
@@ -348,7 +353,7 @@ How to stop each one (`CLAUDE.md:92-93` requires saying this):
 6. **You:** create the Cloudflare API token, share `GRIDSTATUS_API_KEY` through the chosen secret store (never in chat or a file in the repo), and create the healthchecks.io check and the Telegram bot.
 7. **David (GitHub path):** Settings → Environments → `settle` → deployment branches: `main` only. Add the secrets from §6. Then **you** approve one push to `main` that contains only `.github/workflows/daily-settle.yml`.
    **David (Mac path instead):** clone into `~/gridflex-settle`, add the Keychain items, `launchctl bootstrap gui/$(id -u) …plist`, and do one manual run with `launchctl kickstart -k …`. Click "Always Allow" on the Keychain prompt.
-8. **Two nights of dry runs:** Run workflow with `dry_run` ticked (or `SETTLE_DRY_RUN=1`). Compare the plan with what you do by hand that night. Check that the alert fires by setting `SETTLE_HOLD` with a fake overdue market.
+8. **Two nights of dry runs** (superseded by §13.4): Run workflow with `dry_run` ticked (or `SETTLE_DRY_RUN=1`). Compare the plan with what you do by hand that night. Check that the alert fires by setting `SETTLE_HOLD` with a fake overdue market.
 9. **Go live:** turn off the dry run and watch the first night's Telegram messages. Then stop the manual fetch-and-publish routine. If someone runs `refresh_data.sh` by hand after that, the guard keeps it safe.
 
 ---
@@ -376,3 +381,216 @@ How to stop each one (`CLAUDE.md:92-93` requires saying this):
 3. **Settler wallet.** Use a new dedicated wallet for finalize and resolve (recommended), or let the reporter sign them too?
 4. **Range hold.** Is holding finalization for a person when a value is outside −$50 to $1,000/MWh acceptable?
 5. **Raw files behind published hashes.** These stay in `data/raw/` on your Mac (76 MB, gitignored); keep them. Going forward they live in the job's cache. Should each published day's chunk files also be kept as a 90-day artifact?
+
+---
+
+## 13. Security fixes after David's audit (6 Nov 2026)
+
+*Parts of this section are superseded by §14 (the second audit, 8 Nov):
+the run no longer merges or pulls `origin/main`, the three address files
+are no longer free data, and the `guardian()` probe is replaced by a full
+identity check.*
+
+David's independent review of `feat/daily-settle` found three real
+problems. All three are fixed on `fix/settle-hardening`, and so are the
+other gaps found while fixing them.
+
+### 13.1 What was wrong, and what changed
+
+| Problem | Fix |
+|---|---|
+| **The reporter key could be reached from an unprotected branch.** The workflow sat on `main` (whose Environment holds the secrets), but checked out `feat/judging-sprint` and ran *its* code with them. Anyone who could push that branch could read the key. | The job still works on `feat/judging-sprint`, where the data lives. Before any secret is read, it merges `origin/main` in and runs **main's own copy** of `ops/code-matches-main.sh` (`git show origin/main:… \| bash`). That refuses the run unless the branch differs from main in data files alone: metric and ledger JSON, `web/public/data/*.json`, `web/lib/generated/*.json`, `shared/addresses.json` and `shared/demo-markets.md`, all plain files. So the code that can see a key is code on main, and main is protected (§13.3). |
+| **Dry run failed open.** `SETTLE_DRY_RUN` defaulted to `0`, so a missing or deleted variable meant live. | `daily_settle.sh` is a dry run unless given `--live`, and chain transactions also need `--chain`. No environment variable can make it live. The workflow passes `--live` only when the repository variable `SETTLE_LIVE` is exactly `yes`, and `--chain` only when `SETTLE_CHAIN` is too. Otherwise no keystore is written and no password is passed. |
+| **Creating markets could repeat a transaction.** `chain_step` retried a failed `create_markets.py` once. A create that timed out but still landed would then be sent again. | The create step runs **once**. Whatever it made is saved per market and committed even when it fails, then the run stops for a person. `create_markets.py` also refuses to send while the signer has a transaction pending ("may still be in flight", a stop word). In `--yes` mode it refuses when the chain has a market for the same day at another strike that the ledger doesn't know. |
+| The sync step switched branches mid-run, which changes the script under bash while it runs. | It refuses unless the right branch is already checked out. |
+| Python packages installed unpinned, so a new release could run in the job with the keys. | `requirements.lock`: exact versions with hashes, wheels only (`--only-binary=:all:`), nothing newer than two weeks when locked. |
+| The site build (hundreds of npm packages) ran in the same job as the chain keys. | Two jobs. **settle** runs Python only and has the chain keys. **deploy** gets only the Cloudflare token, installs npm packages with `--ignore-scripts`, re-runs the code guard, and builds. `refresh_data.sh --no-build` lets the settle job fetch without building. |
+| Nothing stopped the job sending to the first oracle once the chain was switched on. | `settle_due.py` asks the oracle for `guardian()`, which only GridOracleV2 has. With `--chain`, `daily_settle.sh` stops at step 2 unless that answers, before any key is read. |
+| Actions pinned by tag. | Every action is pinned to a full commit SHA (checked to be months old). Default token permission is `contents: read`. |
+
+### 13.2 The reporter key
+
+The first `GridOracle`'s reporter is permanent: it is `immutable`, the
+oracle has no owner and no pause, and anyone can finalize. A leaked key
+means a permanently compromised oracle. **So it never goes into GitHub.**
+The plan is in `shared/oracle-v2.md` (branch `feat/oracle-v2`):
+
+1. David settles the stuck 14–20 Oct markets by hand from his laptop, the
+   last use of that key as reporter. After that the first oracle is
+   retired.
+2. Deploy `GridOracleV2`:
+   - an offline owner (the old deployer key) can replace the reporter;
+   - a guardian can pause the oracle and void a reading;
+   - no reading is accepted before its day has ended.
+3. A **brand-new** key, made only for the job, is v2's reporter. If it
+   leaks, the guardian pauses and voids and the owner replaces it: two
+   transactions.
+4. `scripts/switch_oracle.py` retires v1 in `shared/addresses.json`, and
+   the next ladder is created on v2.
+
+Until v2 is live, the job can run with `SETTLE_LIVE=yes` and no
+`SETTLE_CHAIN`. It keeps the site's prices fresh and posts any chain work
+that is due to Telegram, and holds no chain key at all.
+
+### 13.3 GitHub settings this depends on
+
+- **Protect `main`:** Settings → Rules → Rulesets → New branch ruleset.
+  Target `main`. Enable *Restrict deletions*, *Block force pushes* and
+  *Require a pull request before merging* with 1 approval, so no single
+  account can change the code that sees the keys. No bypass list.
+- **Environment `settle`:** deployment branches `main` only.
+- The repository is public: forks' pull requests never get these secrets,
+  and no workflow uses `pull_request_target`.
+
+### 13.4 Rollout from here
+
+1. Review and merge `fix/settle-hardening`, then `feat/oracle-v2`, into
+   `main` by pull request. Then merge `main` into `feat/judging-sprint`.
+2. Protect `main` and set the Environment (§13.3). Add
+   `GRIDSTATUS_API_KEY`, the Cloudflare pair and the Telegram/healthchecks
+   secrets, **no chain keys yet**.
+3. Run the workflow by hand with *live* unticked: a dry run. Then set
+   `SETTLE_LIVE=yes`, so the site's prices refresh 4× a day and chain
+   work goes to Telegram.
+4. When v2 is deployed and switched over (`shared/oracle-v2.md`), add the
+   new reporter's and settler's keystores and passwords. Watch two nights
+   of plans, live but without `SETTLE_CHAIN`, against what is really due.
+5. `gh variable set SETTLE_CHAIN --body yes`. Then watch the first
+   night's Telegram messages.
+
+## 14. Corrective round after the second audit (8 Nov 2026)
+
+The audit of `6042707` found that the code check could be bypassed (S1),
+that main was unprotected (S2), that contract addresses were free data (S3),
+and nine smaller gaps (S4-S14). This round closes each one with the smallest
+change that does, keeps runs fail-closed, and keeps Stage A (data and site)
+and Stage B (chain) apart.
+
+### 14.1 One reviewed commit per run (S1)
+
+- The code a run executes is the code of `$GITHUB_SHA`, the exact main
+  commit GitHub started it for. `origin/main`, which can move during a run,
+  is never used.
+- `ops/settle-preflight.sh` (main's copy, `git show "$GITHUB_SHA":… | bash`)
+  merges that exact commit into `feat/judging-sprint`, runs main's
+  `ops/code-matches-main.sh --allow-verified "$GITHUB_SHA"`, then
+  `scripts/verify_data.py --base "$GITHUB_SHA"`, and records
+  `SETTLE_CODE_SHA` and `SETTLE_CHECKED_HEAD`.
+- `daily_settle.sh` never fetches or pulls. A live run refuses without
+  those two values. Before every chain step, every commit and every push it
+  checks that HEAD is the checked commit plus its own single data commits,
+  that the code still matches, that the address files are as verified, and
+  that nothing outside the data paths changed in the working tree. A
+  rejected push fails the run; nothing is pulled.
+- The script body is one function, so bash has parsed all of it before
+  anything runs: editing the file on disk mid-run changes nothing.
+- Python packages are installed from main's `requirements.lock`
+  (`git show "$GITHUB_SHA":requirements.lock`), before any branch code runs.
+- The deploy job checks out exactly `needs.settle.outputs.sha`, runs the
+  preflight in check-only mode, and builds with `refresh_data.sh --no-fetch
+  --no-commit`, which refuses unless the rebuilt data equals that commit.
+
+### 14.2 Reviewed pins and verified data (S3, S4)
+
+- `shared/pins.json` (main only; the code check treats it as code) pins the
+  chain, the first oracle and its reporter, the factory, the legacy
+  factories, the collateral and the metric names. The GridOracleV2 fields
+  (`oracleV2`, `oracleV2CodeHash`, `v2Reporter`, `v2Guardian`, `v2Owner`)
+  and `settler` stay `null` until the oracle-v2 switch pull request sets them
+  all together.
+- Every address loader (`create_markets.load_addresses`,
+  `publish.load_deployment`, and through them every chain script and the
+  fetch) refuses an `addresses.json` whose oracle, factory, collateral or
+  legacy factories differ from the pins.
+- `shared/addresses.json`, `shared/demo-markets.md` and
+  `web/public/data/addresses.json` may differ from main only with
+  `verify_data.py`'s approval: core keys unchanged, markets append-only, each
+  appended market listed by the pinned factory with the pinned oracle,
+  collateral and metric and the same terms on chain, the ledger and the
+  table appended one to one, and the site's copy equal to main's or to
+  `write_addresses()` of the verified file.
+- `chain_guard.oracle_identity()` replaces the `guardian()` probe. Every
+  unattended (`--yes`) send in publish, finalize, resolve and create calls it
+  before any key is read: the v2 pins must be set; the chain must be the
+  pinned one; the address must be the pinned v2 and not v1; there must be
+  bytecode whose keccak256 is the pinned hash; `guardian()`, `reporter()` and
+  `owner()` must each return one 32-byte word with a non-zero address equal to
+  its pin. Publish also checks the decrypted key is `reporter()` before
+  sending. `settle_due.py` reports the result as `oracleVerified`.
+- Interactive (typed `yes`) runs keep the address pins but not the v2
+  identity, so an operator can still settle on the first oracle by hand.
+
+### 14.3 Every chain step scoped (S6)
+
+- `settle_due.py` plans only ledger markets that `addresses.json` lists with
+  the same terms, that a pinned factory lists, and whose own `oracle()`,
+  `metricId()`, `dayKey()`, `threshold()`, `resolveAfter()` and
+  `disputeWindow()` agree. Anything else is reported as `unverifiedMarkets`,
+  an alert that stops a chain run.
+- publish gets `--day` for each planned day, finalize `--start` and `--end`,
+  and resolve `--market` for each planned market. `resolve_markets.py --yes`
+  needs `--market`, and skips (and under `--yes` refuses) any market whose
+  `oracle()` is not the pinned one.
+- The ladder creates only the rows `extend_ladder.py` added in this run (not
+  in the committed table, at most 21), and re-runs `verify_data.py` before
+  pushing what it created.
+
+### 14.4 Data validated before it is published (S7)
+
+- `refresh_data.sh` validates every new or changed metric file before it
+  stages anything: structure, the -$50..$1,000/MWh band for price metrics,
+  and after a fetch the provenance check below. Any failure exits non-zero
+  with nothing committed. `--no-push` and `--no-commit` let the settle job
+  push only its checked commit and the deploy job build only that commit.
+- A failed fetch puts the tree back to the bound commit and the run goes on
+  with committed data. `settle_due.py` reads metric files, the market ledger
+  and `addresses.json` from `git show HEAD:` and refuses when they are dirty.
+- Provenance (`scripts/validate_metrics.py --provenance`): `sourceHash` must
+  equal sha256 over `data/raw/<sourceFiles>` in order, and the value and day
+  bounds must equal `fetch_ercot.day_ahead_average()` of those raw rows.
+  `publish.py --yes` applies it, and the range, to every reading before any
+  key is read; a failure says `PROVENANCE`, a stop word.
+
+### 14.5 Holds, failures, leaks (S5, S8, S9)
+
+- The hold is the branch `settle-hold` (`git push origin
+  HEAD:refs/heads/settle-hold`). It is read with `git ls-remote` at the start,
+  before publishing, after the dispute-window wait, before resolving and
+  before creating markets. If it can't be read during a live run, that is a
+  hold. `SETTLE_HOLD=1` is now only a start-of-run hold.
+- `set -Eeuo pipefail`; command output is captured synchronously
+  (`cmd | redact | tee`), so a stop word printed as the last byte is seen;
+  every plan field read fails the run when the plan is missing or unreadable.
+  New stop words: `still pending`, `reverted`, `PROVENANCE`,
+  `not in the ledger`, `ORACLE IDENTITY`, `not the pinned oracle`.
+- No artifact upload. Healthchecks gets `step=<name> exit=<code>` only.
+  Everything printed, every step's output file and every Telegram text goes
+  through `ops/redact.sh`, which removes the values of every secret the job
+  can hold and anything shaped like a bot token or a ping URL.
+
+### 14.6 Low items (S10-S14) and Stage separation
+
+- S10: `tests/net_guard.py`, imported by every test module, refuses any
+  non-localhost socket; the fetch tests mock the oracle read.
+- S11: the workflow passes the raw variables to bash and compares them with
+  `== "yes"`; `YES`, `Yes` and `yes ` are dry runs.
+- S12: a live `workflow_dispatch` also needs `github.actor` in the
+  repository variable `SETTLE_OPERATORS` (comma-separated logins). Scheduled
+  runs are unaffected.
+- S13: pnpm comes from `web/package.json` `packageManager` (`pnpm@12.9.1`,
+  the version installed locally); `scripts/check_pnpm_pin.py` checks it
+  against the lockfile in CI.
+- S14: `publish.py`'s dry path recovers `submitted` rows with the pinned
+  reporter address and never loads a key.
+- Stage B stays off: the workflow refuses `SETTLE_CHAIN=yes` while main's
+  pins have no GridOracleV2, the keystore steps run only with `CHAIN=1`, and
+  Stage A never passes `--chain`.
+
+### 14.7 The oracle-v2 switch pull request
+
+When GridOracleV2 is deployed, the switch pull request to main must set, in
+one change: `oracleV2`, `oracleV2CodeHash` (`cast keccak $(cast code <addr>)`),
+`v2Reporter`, `v2Guardian`, `v2Owner` and `settler` in `shared/pins.json`, and
+`GridOracle` in `shared/addresses.json`. `shared/oracle-v2.md` (on
+`feat/oracle-v2`) should gain this step when that branch is merged.
+

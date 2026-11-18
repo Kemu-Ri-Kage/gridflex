@@ -1,0 +1,19 @@
+# Everything on main is code and needs a code owner's review (audit finding
+# S2), including shared/pins.json, the workflows, ops/, scripts/, every .sh
+# and .py, requirements.lock, contracts/ and web/. Decision D1: who reviews.
+*                                   @Kemu-Ri-Kage @teslenkoplaton
+
+# The only exceptions are the data files the settle job writes on
+# feat/judging-sprint (ops/code-matches-main.sh); they carry no owner rule.
+/data/metrics/
+/data/publish-ledger.json
+/data/market-ledger.json
+/web/public/data/*.json
+/web/public/data/candles/
+/web/lib/generated/
+
+# Address-bearing data stays owned: on main it changes only by review, and
+# on the data branch only as verify_data.py allows.
+/shared/addresses.json              @Kemu-Ri-Kage @teslenkoplaton
+/shared/demo-markets.md             @Kemu-Ri-Kage @teslenkoplaton
+/web/public/data/addresses.json     @Kemu-Ri-Kage @teslenkoplaton

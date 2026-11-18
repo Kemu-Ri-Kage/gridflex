@@ -1,9 +1,11 @@
 """resolve_markets.py: which markets get resolved, and the live-mode guards.
 
-The chain is faked at resolve_markets' own seams (list_market_states,
+The chain is faked at resolve_markets' own seams (list_market_addresses,
+read_market_states,
 resolve_market, still_unsettled, make_web3), so no RPC call is made.
 """
 
+import net_guard  # noqa: F401  (tests never reach the network)
 import contextlib
 import io
 import unittest
@@ -164,9 +166,12 @@ class TestOutcomeFromTheReceipt(unittest.TestCase):
 
 
 class TestReadMarket(unittest.TestCase):
-    def contracts(self, published_at, finalized):
+    ORACLE = Web3.to_checksum_address("0x" + "11" * 20)
+
+    def contracts(self, published_at, finalized, market_oracle=None):
         w3 = MagicMock()
         m = w3.eth.contract.return_value.functions
+        m.oracle.return_value.call.return_value = market_oracle or self.ORACLE
         m.metricId.return_value.call.return_value = bytes.fromhex(HBNORTH)
         m.dayKey.return_value.call.return_value = 20260908
         m.threshold.return_value.call.return_value = 3000
@@ -175,6 +180,7 @@ class TestReadMarket(unittest.TestCase):
         m.cancelled.return_value.call.return_value = False
         m.yesWon.return_value.call.return_value = False
         oracle = MagicMock()
+        oracle.address = self.ORACLE
         oracle.functions.getReading.return_value.call.return_value = (
             bytes.fromhex(HBNORTH), 20260908, 0, 0, 3957, b"\x00" * 32, published_at, finalized)
         oracle.functions.isFinal.return_value.call.return_value = finalized
@@ -192,10 +198,18 @@ class TestReadMarket(unittest.TestCase):
         rm.read_market(w3, oracle, "0x" + "44" * 20, [], 41622133)
         fns = w3.eth.contract.return_value.functions
         calls = [getattr(fns, n).return_value.call for n in
-                 ("metricId", "dayKey", "threshold", "resolveAfter", "resolved", "cancelled", "yesWon")]
+                 ("oracle", "metricId", "dayKey", "threshold", "resolveAfter", "resolved", "cancelled", "yesWon")]
         calls += [oracle.functions.getReading.return_value.call, oracle.functions.isFinal.return_value.call]
         for call in calls:
             call.assert_called_once_with(block_identifier=41622133)
+
+    def test_a_market_on_another_oracle_is_marked_foreign(self):
+        # S6: the permissionless factory lists markets that settle elsewhere.
+        w3, oracle = self.contracts(published_at=1789000000, finalized=True,
+                                    market_oracle="0x" + "66" * 20)
+        state = rm.read_market(w3, oracle, "0x" + "44" * 20, [], 41622133)
+        self.assertTrue(state.foreign_oracle)
+        self.assertEqual(rm.classify(state, NOW), rm.STATUS_FOREIGN_ORACLE)
 
     def test_unpublished_reading(self):
         w3, oracle = self.contracts(published_at=0, finalized=False)
@@ -226,7 +240,10 @@ class TestMain(unittest.TestCase):
         self.patches = [
             patch.object(rm, "load_addresses", return_value=ADDRESSES),
             patch.object(rm, "make_web3", return_value=self.w3),
-            patch.object(rm, "list_market_states", side_effect=lambda w3, a, block: self.states),
+            patch.object(rm, "list_market_addresses",
+                         side_effect=lambda w3, a, block: [(s.address, s.legacy_factory) for s in self.states]),
+            patch.object(rm, "read_market_states", side_effect=lambda w3, a, listed, block: [
+                s for s in self.states if (s.address, s.legacy_factory) in listed]),
             patch.object(rm, "resolve_market", self.resolve),
             patch.object(rm, "still_unsettled", return_value=True),
             patch.dict("os.environ", {"FINALIZER_PRIVATE_KEY": TEST_KEY}, clear=False),
@@ -264,7 +281,8 @@ class TestMain(unittest.TestCase):
         code, out, err = self.main()
         self.assertEqual(code, 1)
         self.assertIn("Wrong chain: got 1, expected 1952", err)
-        rm.list_market_states.assert_not_called()
+        rm.list_market_addresses.assert_not_called()
+        rm.read_market_states.assert_not_called()
         self.assertIn("resolve_markets summary", out)
 
     def test_live_requires_typed_yes(self):
@@ -273,6 +291,57 @@ class TestMain(unittest.TestCase):
         self.resolve.assert_not_called()
         self.assertIn("cancelled at confirmation", out)
         self.assertIn("resolve_markets summary", out)
+
+    def planned(self, *states):
+        args = []
+        for state in states:
+            args += ["--market", state.address]
+        return args
+
+    def test_an_unattended_run_resolves_without_asking(self):
+        with patch.object(rm, "oracle_identity") as check_identity:
+            code, out, _ = self.main("--live", "--yes", *self.planned(*self.states[:2]))
+        self.assertEqual(code, 0)
+        check_identity.assert_called_once()
+        self.prompt.assert_not_called()
+        self.assertIn("Confirmed by --yes", out)
+        self.assertEqual(self.resolve.call_count, 2)
+
+    def test_an_unattended_run_resolves_exactly_the_planned_markets(self):
+        with patch.object(rm, "oracle_identity"):
+            code, _, _ = self.main("--live", "--yes", *self.planned(self.states[1]))
+        self.assertEqual(code, 0)
+        self.assertEqual([c.args[2] for c in self.resolve.call_args_list], [self.states[1].address])
+
+    def test_an_unattended_run_needs_a_market_list(self):
+        code, _, err = self.main("--live", "--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("--yes needs at least one --market", err)
+        self.resolve.assert_not_called()
+
+    def test_an_unattended_run_with_a_foreign_market_fails_before_any_key(self):
+        self.states.append(market(6, foreign_oracle=True))
+        with patch.object(rm, "oracle_identity"), patch.object(rm, "load_finalizer_account") as load_key:
+            code, _, err = self.main("--live", "--yes", *self.planned(self.states[0], self.states[5]))
+        self.assertEqual(code, 1)
+        self.assertIn("not the pinned oracle", err)
+        load_key.assert_not_called()
+        self.resolve.assert_not_called()
+
+    def test_an_unattended_run_to_an_unverified_oracle_reads_no_key(self):
+        # S4: the committed pins have no GridOracleV2, so --yes stops first.
+        with patch.object(rm, "load_finalizer_account") as load_key:
+            code, _, err = self.main("--live", "--yes", *self.planned(self.states[0]))
+        self.assertEqual(code, 1)
+        self.assertIn("ORACLE IDENTITY", err)
+        load_key.assert_not_called()
+        self.resolve.assert_not_called()
+
+    def test_yes_without_live_is_refused(self):
+        code, _, err = self.main("--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("--yes only makes sense with --live", err)
+        self.resolve.assert_not_called()
 
     def test_live_resolves_only_candidates(self):
         code, out, _ = self.main("--live")
@@ -322,7 +391,8 @@ class TestMain(unittest.TestCase):
 
     def test_every_read_is_pinned_to_the_snapshot_block(self):
         self.main()
-        rm.list_market_states.assert_called_once_with(self.w3, ADDRESSES, 41622200)
+        rm.list_market_addresses.assert_called_once_with(self.w3, ADDRESSES, 41622200)
+        self.assertEqual(rm.read_market_states.call_args.args[3], 41622200)
 
     def test_a_failed_transaction_still_prints_the_summary(self):
         self.resolve.side_effect = PublisherError("resolve: transaction reverted; aborting.")
@@ -331,7 +401,7 @@ class TestMain(unittest.TestCase):
         self.assertIn("resolve_markets summary", out)
 
     def test_an_unexpected_error_still_prints_the_summary(self):
-        rm.list_market_states.side_effect = ConnectionError("rpc down")
+        rm.list_market_addresses.side_effect = ConnectionError("rpc down")
         out = io.StringIO()
         with contextlib.redirect_stdout(out), self.assertRaises(ConnectionError):
             rm.main([])
@@ -347,6 +417,26 @@ class TestMain(unittest.TestCase):
         code, _, err = self.main("--market", "0x" + "99" * 20)
         self.assertEqual(code, 1)
         self.assertIn("not listed by MarketFactory", err)
+        rm.read_market_states.assert_not_called()
+
+    def test_market_filter_reads_only_the_selected_markets(self):
+        self.main("--market", self.states[1].address, "--market", self.states[4].address)
+        listed = rm.read_market_states.call_args.args[2]
+        self.assertEqual([address for address, _ in listed],
+                         [self.states[1].address, self.states[4].address])
+
+
+class TestListAndReadMarkets(unittest.TestCase):
+    def test_legacy_factories_are_listed_and_tagged(self):
+        current, legacy = "0x" + "aa" * 20, "0x" + "bb" * 20
+        w3 = MagicMock()
+        lists = {ADDRESSES["factory"]: [current], legacy: [legacy]}
+        w3.eth.contract.side_effect = lambda address, abi: MagicMock(
+            functions=MagicMock(getMarkets=lambda: MagicMock(call=lambda block_identifier: lists[address])))
+        addresses = {**ADDRESSES, "legacyFactories": [legacy]}
+        listed = rm.list_market_addresses(w3, addresses, 7)
+        self.assertEqual(listed, [(rm.Web3.to_checksum_address(current), None),
+                                  (rm.Web3.to_checksum_address(legacy), legacy)])
 
 
 if __name__ == "__main__":

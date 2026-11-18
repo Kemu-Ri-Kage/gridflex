@@ -1,8 +1,24 @@
 #!/usr/bin/env python3
-"""Validate committed metric JSONs without API credentials or raw files."""
+"""Validate metric JSONs before they are committed, pushed, deployed or
+published on chain (daily-settle spec §14, audit finding S7).
+
+  python scripts/validate_metrics.py                  every file, structure only
+  python scripts/validate_metrics.py --files A B      only these files
+  python scripts/validate_metrics.py --range-min -5000 --range-max 100000
+                                                      also bound the price metrics
+                                                      (cents per MWh)
+  python scripts/validate_metrics.py --provenance     also recompute sourceHash
+                                                      from data/raw/<sourceFiles>
+                                                      and the value from those rows
+
+Exit 0 only when every checked file passes. Structure needs no API
+credentials or raw files; --provenance needs the raw cache.
+"""
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import re
 import sys
@@ -13,6 +29,24 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 METRICS_DIR = ROOT / "data" / "metrics"
+RAW_DIR = ROOT / "data" / "raw"
+# Price metrics, in cents per MWh, that the range check bounds. The default
+# band is the one settle_due.py holds finalizing on (decision D4).
+PRICE_METRICS = {"ERCOT_HBNORTH_DA_AVG", "ERCOT_LOAD_WEIGHTED_DA_INDEX", "ERCOT_WEST_NORTH_DA_BASIS"}
+RANGE_MIN_CENTS = -5_000      # -$50/MWh
+RANGE_MAX_CENTS = 100_000     # $1,000/MWh
+# Metrics whose sourceHash is sha256 over the raw files themselves, so it
+# can be recomputed; derived metrics hash other hashes and cannot.
+PROVENANCE_METRICS = {"ERCOT_HBNORTH_DA_AVG"}
+RAW_NAME_RE = re.compile(r"^[A-Za-z0-9_]+__[A-Za-z0-9_]+__\d{4}-\d{2}-\d{2}__\d{4}-\d{2}-\d{2}\.json$")
+
+
+class ProvenanceError(ValueError):
+    """The file can't be traced to the raw data it claims. The message always
+    starts with PROVENANCE, a stop word for the settle job."""
+
+    def __init__(self, reason: str):
+        super().__init__(f"PROVENANCE: {reason}")
 CENTRAL = ZoneInfo("America/Chicago")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED = {
@@ -121,8 +155,75 @@ def validate(path: Path) -> tuple[str, int]:
     return metric_id, day_key
 
 
-def main() -> int:
-    files = sorted(METRICS_DIR.glob("*.json"))
+def check_range(path: Path, low: int = RANGE_MIN_CENTS, high: int = RANGE_MAX_CENTS) -> None:
+    """A price metric outside low..high cents/MWh is refused."""
+    record = json.loads(path.read_text(encoding="utf-8"))
+    if record.get("metricId") in PRICE_METRICS and not low <= record["value"] <= high:
+        raise ValueError(f"value {record['value']} is outside {low}..{high} cents/MWh")
+
+
+def verify_provenance(path: Path, raw_dir: Path | None = None) -> None:
+    """Recompute the file's sourceHash from raw_dir/<sourceFiles>, in order,
+    and its value and day bounds from those raw rows, exactly as
+    fetch_ercot.py computed them. Any gap or difference is a ProvenanceError."""
+    raw_dir = raw_dir or RAW_DIR
+    try:
+        metric_id, day_key = validate(path)
+    except ValueError as exc:
+        raise ProvenanceError(f"{path.name} is not a valid metric file ({exc})") from exc
+    record = json.loads(path.read_text(encoding="utf-8"))
+    if metric_id not in PROVENANCE_METRICS:
+        raise ProvenanceError(f"{metric_id} has no reproducible sourceHash")
+    digest = hashlib.sha256()
+    paths = []
+    for name in record["sourceFiles"]:
+        if not RAW_NAME_RE.fullmatch(name):
+            raise ProvenanceError(f"{path.name}: source file name {name!r} is not a raw cache file")
+        source = raw_dir / name
+        if not source.is_file():
+            raise ProvenanceError(f"{path.name}: raw file {name} is missing from {raw_dir}")
+        digest.update(source.read_bytes())
+        paths.append(source)
+    if digest.hexdigest() != record["sourceHash"]:
+        raise ProvenanceError(f"{path.name}: sourceHash does not reproduce from its raw files")
+
+    # The value itself, from the same rows, by fetch_ercot's own function.
+    import pandas as pd  # noqa: PLC0415 - only --provenance needs pandas
+    sys.path.insert(0, str(ROOT))
+    import fetch_ercot  # noqa: PLC0415
+
+    frames = [pd.read_json(p, orient="records") for p in paths]
+    frames = [f for f in frames if len(f)]
+    if not frames:
+        raise ProvenanceError(f"{path.name}: its raw files hold no rows")
+    days = fetch_ercot.day_ahead_average(pd.concat(frames, ignore_index=True))
+    day = _date_from_day_key(day_key)
+    computed = days.get(day)
+    if computed is None:
+        raise ProvenanceError(f"{path.name}: its raw files have no complete day {day}")
+    if (computed["value"], computed["start_utc"], computed["end_utc"]) != (
+            record["value"], record["marketDayStartUtc"], record["marketDayEndUtc"]):
+        raise ProvenanceError(
+            f"{path.name}: value {record['value']} does not match {computed['value']} recomputed from raw")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--files", nargs="+", type=Path, help="check only these metric files")
+    parser.add_argument("--range-min", type=int, help="lowest allowed price, cents/MWh")
+    parser.add_argument("--range-max", type=int, help="highest allowed price, cents/MWh")
+    parser.add_argument("--provenance", action="store_true",
+                        help="recompute sourceHash and value from data/raw")
+    parser.add_argument("--raw-dir", type=Path, default=None, help="raw cache (default data/raw)")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if (args.range_min is None) != (args.range_max is None):
+        print("--range-min and --range-max go together", file=sys.stderr)
+        return 2
+    files = sorted(args.files) if args.files else sorted(METRICS_DIR.glob("*.json"))
     if not files:
         print(f"No metric files found in {METRICS_DIR}", file=sys.stderr)
         return 1
@@ -135,6 +236,10 @@ def main() -> int:
             if key in seen:
                 raise ValueError(f"duplicate metric day: {key[0]} @ {key[1]}")
             seen.add(key)
+            if args.range_min is not None:
+                check_range(path, args.range_min, args.range_max)
+            if args.provenance and key[0] in PROVENANCE_METRICS:
+                verify_provenance(path, args.raw_dir)
         except ValueError as exc:
             failures.append(f"{path.name}: {exc}")
 

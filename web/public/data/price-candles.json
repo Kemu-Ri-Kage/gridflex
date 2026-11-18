@@ -3351,6 +3351,54 @@
       "high": 8151,
       "low": 1205,
       "open": 4453
+    },
+    {
+      "average": 3021,
+      "close": 2258,
+      "dayKey": 20261113,
+      "high": 5103,
+      "low": 1215,
+      "open": 4253
+    },
+    {
+      "average": 2218,
+      "close": 2840,
+      "dayKey": 20261114,
+      "high": 2864,
+      "low": 1242,
+      "open": 2524
+    },
+    {
+      "average": 3754,
+      "close": 6022,
+      "dayKey": 20261115,
+      "high": 6022,
+      "low": 2522,
+      "open": 2522
+    },
+    {
+      "average": 5354,
+      "close": 3520,
+      "dayKey": 20261116,
+      "high": 7440,
+      "low": 3134,
+      "open": 5681
+    },
+    {
+      "average": 2361,
+      "close": 2156,
+      "dayKey": 20261117,
+      "high": 4339,
+      "low": 400,
+      "open": 3473
+    },
+    {
+      "average": 2557,
+      "close": 2895,
+      "dayKey": 20261118,
+      "high": 5163,
+      "low": 1065,
+      "open": 1833
     }
   ],
   "metricId": "ERCOT_HBNORTH_DA_AVG",
@@ -3365,31 +3413,31 @@
     },
     {
       "dayKey": 20260926,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/3a07ccba-5edc-4c47-bcee-39479c4cb7e5/scratchpad/js/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20260927,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/3a07ccba-5edc-4c47-bcee-39479c4cb7e5/scratchpad/js/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20260928,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/3a07ccba-5edc-4c47-bcee-39479c4cb7e5/scratchpad/js/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20260929,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/3a07ccba-5edc-4c47-bcee-39479c4cb7e5/scratchpad/js/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20260930,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/3a07ccba-5edc-4c47-bcee-39479c4cb7e5/scratchpad/js/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20261001,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/3a07ccba-5edc-4c47-bcee-39479c4cb7e5/scratchpad/js/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20261002,
-      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/086c912e-335a-457c-a94f-16fab3d1ca68/scratchpad/wt-fetch12/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
+      "reason": "File /private/tmp/claude-501/-Users-platonteslenko-Hedging/3a07ccba-5edc-4c47-bcee-39479c4cb7e5/scratchpad/js/data/raw/ercot_spp_day_ahead_hourly__HB_NORTH__2026-09-25__2026-10-01.json does not exist"
     },
     {
       "dayKey": 20261101,

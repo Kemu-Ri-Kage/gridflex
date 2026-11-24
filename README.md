@@ -1,20 +1,28 @@
 # GRIDFLEX
 
-**A YES/NO market on whether Texas power will cost more than a strike price on
-a given day, settled automatically against the official published price.**
+**Four ways to trade one price: the daily price of Texas power, published on
+chain from the grid operator's own figures and settled in public.**
 
-Bitcoin miners in Texas pay that price, and electricity is their single
-largest cost. They have no way to hedge it onchain: ICE sells that hedge to
-institutions, through a futures broker, with margin to post. AI data centres now compete for the same power, and the
-Texas power price averaged $39.91/MWh over 10–23 September 2026, up 32.5% on
-the same days of 2025 ($30.12; from our
-[metric files](data/metrics/)). GRIDFLEX lists that price onchain as a
-YES/NO contract, at any size.
+Bitcoin miners and AI data centres in Texas pay the ERCOT North Hub price,
+and electricity is their single largest cost. It can move several-fold in a
+day, and on 26 January 2026 the day's average was 24 times a typical day.
+Institutions hedge it on ICE, CME and Nodal, through a futures broker, with
+margin to post. GRIDFLEX publishes the price on chain with a fingerprint of
+its source files and builds simple, fully backed contracts on it, at any size.
 
-Live on X Layer testnet, settled in MockUSDT.
+| | What it is | Status |
+|---|---|---|
+| **Yes / No** | Will tomorrow average above a strike? A share pays 1 mUSDT if right. | Live on X Layer testnet since September 2026: 72 markets created, settled against the oracle ([below](#what-works-today)) |
+| **Hedge** | Turns a power bill that moves every hour into one number you know today. | Hedge planner live on the site; hedge quotes in the [price API](#the-price-api-for-agents-okx-ai) |
+| **Futures** | Long or short on the live price, every 5 minutes, no expiry. Fully backed, so nothing is liquidated. | Contracts and price feed built and tested; opening on testnet |
+| **Options** | Calls and puts on a day's average. The most you can lose is what you pay. | Contracts and quote bot built and tested; opening on testnet |
 
-- **Live site:** <https://gridflex-web.teslenko-platon.workers.dev>
-- **Demo video:** <https://www.youtube.com/watch?v=9nZG6C00s3I>
+X Layer testnet and test money (MockUSDT) only. Nothing here is offered for
+real money.
+
+- **Live site:** <https://gridflex.dev>
+- **Film (4 min):** <https://youtu.be/PKY4Y8EqxmQ>
+- **Product walkthrough (Sep 2026, Yes/No markets):** <https://www.youtube.com/watch?v=9nZG6C00s3I>
 
 ---
 
@@ -79,7 +87,7 @@ with blocks and raw values, is in
 
 ### Every market
 
-The factory has created fifty-one markets (`marketCount()` reads `51`).
+The factory has created seventy-two markets (`marketCount()` reads `72`).
 
 The first seventeen have all settled: a ladder of next-day strikes from 26 Sep
 to 2 Oct 2026, each resolved against the price published to the oracle for
@@ -105,9 +113,10 @@ its day, and two earlier demonstrations.
 | Will Texas power cost more than $30 on 8 Sep 2026? | $39.57/MWh | **YES** | [`0x1b89e1dC…B8c1`](https://www.oklink.com/x-layer-testnet/address/0x1b89e1dC5e5449b230fa7BF60A08972C05FAB8c1) |
 | Will West Texas power cost more than North Texas power on 12 Aug 2026? | −$10.32/MWh | **NO** | [`0x62D65F4e…BE07`](https://www.oklink.com/x-layer-testnet/address/0x62D65F4e15CdC15EC4A1cf707EE6ba4A5cF4BE07) |
 
-The other thirty-four run from 8 to 20 Oct: $35 on 8 Oct; $35, $40 and $45
+The next thirty-four run from 8 to 20 Oct: $35 on 8 Oct; $35, $40 and $45
 on each day from 9 to 12 Oct; and $30, $40 and $50 on each day from 14 to
-20 Oct. Each trades until 12:30 Texas time the day before and settles the
+20 Oct. The last twenty-one run from 9 to 15 Nov: $25, $35 and $45 on each
+day. Each trades until 12:30 Texas time the day before and settles the
 same way (8 and 9 Oct settled YES); the terminal and
 [`/api/v1/markets?status=all`](https://gridflex-web.teslenko-platon.workers.dev/api/v1/markets?status=all)
 show where each one stands.

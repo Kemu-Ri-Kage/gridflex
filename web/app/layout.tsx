@@ -1,27 +1,26 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Host_Grotesk } from 'next/font/google';
 
 import { Web3Provider } from '@/components/web3-provider';
 
 import './globals.css';
+import './qg.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+// One family for words and numbers (shared/design-brief.md, "Quiet grid"):
+// Host Grotesk with tabular figures.
+const hostGrotesk = Host_Grotesk({
+  variable: '--font-host',
   subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+  weight: ['400', '500', '600'],
 });
 
 export const metadata: Metadata = {
-  title: 'GRIDFLEX — Texas power derivatives',
+  title: 'GRIDFLEX — trade the price of Texas power',
   description:
     'On-chain energy derivatives, no broker: cash-settled digital options on the Texas power price, hedged from a wallet and settled against prices published onchain with a hash of their source.',
   // A text-only link card for X and Telegram (no image: GRIDFLEX has no logo).
   openGraph: {
-    title: 'GRIDFLEX — Texas power derivatives',
+    title: 'GRIDFLEX — trade the price of Texas power',
     description:
       'On-chain energy derivatives, no broker: cash-settled digital options on the Texas power price, settled on X Layer against prices published onchain with a hash of their source.',
     url: 'https://gridflex-web.teslenko-platon.workers.dev',
@@ -43,9 +42,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html className={hostGrotesk.variable} lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className="qg antialiased"
       >
         <Web3Provider>{children}</Web3Provider>
       </body>

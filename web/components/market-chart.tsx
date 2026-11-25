@@ -58,6 +58,13 @@ export function MarketChart() {
           <CandlestickChart />
         )}
       </div>
+      <p className="px-3 pb-2 text-[11px] text-muted-foreground">
+        Chart library by{' '}
+        <a className="underline underline-offset-2 hover:text-foreground" href="https://www.tradingview.com/" rel="noopener" target="_blank">
+          TradingView
+        </a>
+        .
+      </p>
     </div>
   );
 }

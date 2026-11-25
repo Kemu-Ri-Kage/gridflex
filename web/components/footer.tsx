@@ -1,76 +1,60 @@
 'use client';
 
+import Link from 'next/link';
+
 import { explorerAddressUrl } from '@/lib/explorer';
 import { useAddresses } from '@/lib/site-data';
 
 const REPO_URL = 'https://github.com/Kemu-Ri-Kage/gridflex';
 const GRIDSTATUS_URL = 'https://www.gridstatus.io';
-const VIDEO_URL = 'https://www.youtube.com/watch?v=9nZG6C00s3I';
 
-function truncateAddress(address: string): string {
+function short(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
 /**
- * Shared by both pages. `variant` controls container width (landing's
- * 1440px vs the terminal's wider 1920px) and whether hover links get the
- * landing page's 150-250ms micro-interaction transition - the terminal
- * gets none, per design-brief.md §13's "no decorative motion at all" rule,
- * which this one shared component would otherwise violate on /trade.
+ * The same quiet footer on every page: the pages, where the prices come from,
+ * the contracts for anyone who wants to check them, and the one disclaimer.
+ * `variant` is kept for the pages that still pass it.
  */
-export function Footer({ variant }: { variant: 'landing' | 'terminal' }) {
+export function Footer(_props: { variant?: 'landing' | 'terminal' }) {
   const addresses = useAddresses();
-  const maxWidth = variant === 'landing' ? 'max-w-[1440px]' : 'max-w-[1920px]';
-  // inline-flex + min-h-8 gives every link a 32px-tall tap target
-  // (WCAG 2.5.8 asks for 24px) without changing the footer's type size.
-  const linkClass =
-    'inline-flex min-h-8 items-center text-muted-foreground hover:text-foreground' +
-    (variant === 'landing' ? ' transition-colors duration-200' : '');
-
-  const contracts: { label: string; address?: string }[] = [
-    { label: 'GridOracle', address: addresses?.GridOracle },
-    { label: 'MarketFactory', address: addresses?.MarketFactory },
-    { label: 'MockUSDT', address: addresses?.MockUSDT },
-  ];
+  const contracts = [
+    { label: 'Price oracle', address: addresses?.GridOracle },
+    { label: 'Market factory', address: addresses?.MarketFactory },
+    { label: 'Test dollars', address: addresses?.MockUSDT },
+  ].filter((c): c is { label: string; address: string } => Boolean(c.address));
 
   return (
-    <footer className="border-t border-border">
-      <div
-        className={`mx-auto flex flex-col ${maxWidth} px-4 py-4 font-mono text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}
-      >
-        <div className="flex flex-wrap items-center gap-x-4">
-          {contracts.map((c) =>
-            c.address ? (
-              <a
-                className={linkClass}
-                href={explorerAddressUrl(c.address)}
-                key={c.label}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {c.label} {truncateAddress(c.address)}
-              </a>
-            ) : (
-              <span className="inline-flex min-h-8 items-center text-muted-foreground/50" key={c.label}>
-                {c.label} loading…
-              </span>
-            ),
+    <footer className="site-foot">
+      <div className="wrap">
+        <nav aria-label="Footer" className="fnav">
+          <Link href="/futures" prefetch={false}>Futures</Link>
+          <Link href="/options" prefetch={false}>Options</Link>
+          <Link href="/hedge" prefetch={false}>Hedge</Link>
+          <Link href="/trade" prefetch={false}>Yes / No</Link>
+          <Link href="/proof" prefetch={false}>Proof</Link>
+          <a href="/api/v1" rel="noreferrer" target="_blank">API for agents</a>
+          <a href={REPO_URL} rel="noreferrer" target="_blank">Source</a>
+        </nav>
+        <p>
+          Prices are ERCOT North Hub figures via{' '}
+          <a href={GRIDSTATUS_URL} rel="noreferrer" target="_blank">GridStatus</a>. X Layer
+          testnet, test money only.
+          {contracts.length > 0 && (
+            <>
+              {' '}
+              {contracts.map((c, i) => (
+                <span key={c.label}>
+                  {i > 0 && ' · '}
+                  <a href={explorerAddressUrl(c.address)} rel="noreferrer" target="_blank">
+                    {c.label} {short(c.address)}
+                  </a>
+                </span>
+              ))}
+            </>
           )}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4">
-          <a className={linkClass} href="/api/v1" rel="noreferrer" target="_blank">
-            API for agents · OKX AI #13881
-          </a>
-          <a className={linkClass} href={VIDEO_URL} rel="noreferrer" target="_blank">
-            Demo video
-          </a>
-          <a className={linkClass} href={GRIDSTATUS_URL} rel="noreferrer" target="_blank">
-            Data: GridStatus
-          </a>
-          <a className={linkClass} href={REPO_URL} rel="noreferrer" target="_blank">
-            Source on GitHub
-          </a>
-        </div>
+        </p>
       </div>
     </footer>
   );

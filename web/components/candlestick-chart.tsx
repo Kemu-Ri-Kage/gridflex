@@ -145,7 +145,7 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
     colorsRef.current.up = up;
     colorsRef.current.down = down;
     const monoFont =
-      styles.getPropertyValue('--font-geist-mono').trim() || 'ui-monospace, monospace';
+      styles.getPropertyValue('--font-host').trim() || 'ui-sans-serif, system-ui, sans-serif';
 
     const chart = createChart(container, {
       autoSize: true,
@@ -154,6 +154,8 @@ export function CandlestickChart({ strikeDollars }: { strikeDollars?: number }) 
         textColor: muted,
         fontFamily: monoFont,
         fontSize: 11,
+        // the library's logo is off; the page credits TradingView in text under the chart
+        attributionLogo: false,
       },
       grid: {
         vertLines: { color: border, style: LineStyle.Dotted },

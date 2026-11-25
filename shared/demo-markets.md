@@ -211,6 +211,27 @@ those strikes: see "Choosing the ladder strikes" below.
 | 57 | `ERCOT_HBNORTH_DA_AVG` | > $30 | `20261020` | 2026-10-20 | live | 2026-10-19 12:30 CDT (Texas) / 18:30 BST (London) |
 | 58 | `ERCOT_HBNORTH_DA_AVG` | > $40 | `20261020` | 2026-10-20 | live | 2026-10-19 12:30 CDT (Texas) / 18:30 BST (London) |
 | 59 | `ERCOT_HBNORTH_DA_AVG` | > $50 | `20261020` | 2026-10-20 | live | 2026-10-19 12:30 CDT (Texas) / 18:30 BST (London) |
+| 60 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20261109` | 2026-11-09 | live | 2026-11-08 12:30 CST (Texas) / 18:30 GMT (London) |
+| 61 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20261109` | 2026-11-09 | live | 2026-11-08 12:30 CST (Texas) / 18:30 GMT (London) |
+| 62 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261109` | 2026-11-09 | live | 2026-11-08 12:30 CST (Texas) / 18:30 GMT (London) |
+| 63 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20261110` | 2026-11-10 | live | 2026-11-09 12:30 CST (Texas) / 18:30 GMT (London) |
+| 64 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20261110` | 2026-11-10 | live | 2026-11-09 12:30 CST (Texas) / 18:30 GMT (London) |
+| 65 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261110` | 2026-11-10 | live | 2026-11-09 12:30 CST (Texas) / 18:30 GMT (London) |
+| 66 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20261111` | 2026-11-11 | live | 2026-11-10 12:30 CST (Texas) / 18:30 GMT (London) |
+| 67 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20261111` | 2026-11-11 | live | 2026-11-10 12:30 CST (Texas) / 18:30 GMT (London) |
+| 68 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261111` | 2026-11-11 | live | 2026-11-10 12:30 CST (Texas) / 18:30 GMT (London) |
+| 69 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20261112` | 2026-11-12 | live | 2026-11-11 12:30 CST (Texas) / 18:30 GMT (London) |
+| 70 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20261112` | 2026-11-12 | live | 2026-11-11 12:30 CST (Texas) / 18:30 GMT (London) |
+| 71 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261112` | 2026-11-12 | live | 2026-11-11 12:30 CST (Texas) / 18:30 GMT (London) |
+| 72 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20261113` | 2026-11-13 | live | 2026-11-12 12:30 CST (Texas) / 18:30 GMT (London) |
+| 73 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20261113` | 2026-11-13 | live | 2026-11-12 12:30 CST (Texas) / 18:30 GMT (London) |
+| 74 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261113` | 2026-11-13 | live | 2026-11-12 12:30 CST (Texas) / 18:30 GMT (London) |
+| 75 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20261114` | 2026-11-14 | live | 2026-11-13 12:30 CST (Texas) / 18:30 GMT (London) |
+| 76 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20261114` | 2026-11-14 | live | 2026-11-13 12:30 CST (Texas) / 18:30 GMT (London) |
+| 77 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261114` | 2026-11-14 | live | 2026-11-13 12:30 CST (Texas) / 18:30 GMT (London) |
+| 78 | `ERCOT_HBNORTH_DA_AVG` | > $25 | `20261115` | 2026-11-15 | live | 2026-11-14 12:30 CST (Texas) / 18:30 GMT (London) |
+| 79 | `ERCOT_HBNORTH_DA_AVG` | > $35 | `20261115` | 2026-11-15 | live | 2026-11-14 12:30 CST (Texas) / 18:30 GMT (London) |
+| 80 | `ERCOT_HBNORTH_DA_AVG` | > $45 | `20261115` | 2026-11-15 | live | 2026-11-14 12:30 CST (Texas) / 18:30 GMT (London) |
 
 Rows 18-38 are the 6-12 Oct ladder. Rows 18-23 and 25-26 were never created: they weren't sent before their trading close, after which the factory refuses them (`InvalidResolveTime`) and `create_markets.py` skips them. Row 24 was created on 7 Oct and rows 27-38 the same evening. Rows 39-59 are the 14-20 Oct ladder at $30, $40 and $50: the ten days to 12 Oct averaged between $18.72 and $59.70, so these strikes split outcomes better than $35-45.
 

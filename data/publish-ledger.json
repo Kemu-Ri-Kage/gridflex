@@ -164,6 +164,94 @@
     "txHash": "0x1aa6a0baf98cb93b13f23997fab5f8725c8c51884dc6c2a52936bb2768a92b3a",
     "value": 3010
   },
+  "ERCOT_HBNORTH_DA_AVG:20261014": {
+    "blockNumber": 45608303,
+    "dayKey": 20261014,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 73,
+    "sourceHash": "6db74270ac5137e0a1d3e6812340f1e739091d26b8ab3f25b2906e84a3f1e93e",
+    "status": "confirmed",
+    "submittedAt": "2026-11-07T15:58:58Z",
+    "txHash": "0xba0c82685a534d8508fbc848f093c31d71aabbc9db21277ed41a0a69ef9c251d",
+    "value": 5635
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261015": {
+    "blockNumber": 45608306,
+    "dayKey": 20261015,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 74,
+    "sourceHash": "6db74270ac5137e0a1d3e6812340f1e739091d26b8ab3f25b2906e84a3f1e93e",
+    "status": "finalized",
+    "submittedAt": "2026-11-07T15:59:01Z",
+    "txHash": "0x77d30e826afaa15c85806cab575d388dc148a0b382d7e2196a863647abfacf2e",
+    "value": 3949
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261016": {
+    "blockNumber": 45608309,
+    "dayKey": 20261016,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 75,
+    "sourceHash": "6db74270ac5137e0a1d3e6812340f1e739091d26b8ab3f25b2906e84a3f1e93e",
+    "status": "finalized",
+    "submittedAt": "2026-11-07T15:59:05Z",
+    "txHash": "0xb3bc4e9e49a54c690cf4fb261275957cd365e81a31cecb7a0173494ced7aab8d",
+    "value": 1669
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261017": {
+    "blockNumber": 45608313,
+    "dayKey": 20261017,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 76,
+    "sourceHash": "6db74270ac5137e0a1d3e6812340f1e739091d26b8ab3f25b2906e84a3f1e93e",
+    "status": "finalized",
+    "submittedAt": "2026-11-07T15:59:09Z",
+    "txHash": "0xef5fe21064b174f379b8476849c72628dac4513b5e5f7dadb234892a917e48fa",
+    "value": 2840
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261018": {
+    "blockNumber": 45608316,
+    "dayKey": 20261018,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 77,
+    "sourceHash": "6db74270ac5137e0a1d3e6812340f1e739091d26b8ab3f25b2906e84a3f1e93e",
+    "status": "finalized",
+    "submittedAt": "2026-11-07T15:59:12Z",
+    "txHash": "0xfee11509e6784ae96de6d4934fc04b81f0dc2488203b7a0a5edc250672e60300",
+    "value": 2306
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261019": {
+    "blockNumber": 45608320,
+    "dayKey": 20261019,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 78,
+    "sourceHash": "6db74270ac5137e0a1d3e6812340f1e739091d26b8ab3f25b2906e84a3f1e93e",
+    "status": "finalized",
+    "submittedAt": "2026-11-07T15:59:16Z",
+    "txHash": "0xe864599b7a44da47be038e42216f1566c2e0bfff01d7323c56a1bc5e820efba2",
+    "value": 2341
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261020": {
+    "blockNumber": 45608324,
+    "dayKey": 20261020,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 79,
+    "sourceHash": "6db74270ac5137e0a1d3e6812340f1e739091d26b8ab3f25b2906e84a3f1e93e",
+    "status": "finalized",
+    "submittedAt": "2026-11-07T15:59:19Z",
+    "txHash": "0x0f594151b966f5d0e5e77de0977b49beaaf26ae326a1ad8c3610f8d79126fb03",
+    "value": 2838
+  },
+  "ERCOT_HBNORTH_DA_AVG:20261109": {
+    "blockNumber": 45849275,
+    "dayKey": 20261109,
+    "metricId": "ERCOT_HBNORTH_DA_AVG",
+    "nonce": 171,
+    "sourceHash": "10fb34620fe6243bf87f0edbeeda729b41ba41d9b4d3b7a4c7886daed0f594c2",
+    "status": "finalized",
+    "submittedAt": "2026-11-10T10:55:10Z",
+    "txHash": "0x9019a6a7d0ea7678c067c38825fb2ebcef24cecf96282e36120046867a17db6f",
+    "value": 4423
+  },
   "ERCOT_HBWEST_NEG_INTERVALS:20250910": {
     "blockNumber": 41033816,
     "dayKey": 20250910,

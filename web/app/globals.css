@@ -7,8 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-host);
+  --font-mono: var(--font-host);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -56,54 +56,56 @@
 }
 
 body {
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-host), Arial, Helvetica, sans-serif;
 }
 
 :root {
-  --background: #0a0b0d;
-  --foreground: #e7e9ed;
-  --card: #111318;
-  --card-foreground: #e7e9ed;
-  --popover: #111318;
-  --popover-foreground: #e7e9ed;
-  --primary: #e7e9ed;
-  --primary-foreground: #0a0b0d;
-  --secondary: #171a20;
-  --secondary-foreground: #e7e9ed;
-  --muted: #171a20;
-  --muted-foreground: #9aa1ac;
-  --accent: #1d2129;
-  --accent-foreground: #e7e9ed;
-  --destructive: #ef4444;
-  --destructive-foreground: #fff5f5;
-  --border: #262a33;
-  --input: #262a33;
-  --ring: #5b6270;
-  /* Signal colors: up/down are inline text/number colors; mismatch is a
+  /* "Quiet grid" (shared/design-brief.md): true black, warm paper text,
+     one family, colour only where it means something. */
+  --background: #000000;
+  --foreground: #f3f2ee;
+  --card: #0f0f0f;
+  --card-foreground: #f3f2ee;
+  --popover: #141414;
+  --popover-foreground: #f3f2ee;
+  --primary: #f3f2ee;
+  --primary-foreground: #000000;
+  --secondary: #181818;
+  --secondary-foreground: #f3f2ee;
+  --muted: #181818;
+  --muted-foreground: #93918b;
+  --accent: #181818;
+  --accent-foreground: #f3f2ee;
+  --destructive: #ff6470;
+  --destructive-foreground: #000000;
+  --border: #232323;
+  --input: #2f2f2f;
+  --ring: #93918b;
+  /* Signal colours: up/down are inline text/number colours; mismatch is a
      solid-fill block treatment only, never used inline — a data mismatch
      must never be styleable the same way as a transient check or a price
      tick (see shared/feed-spec.md §4/§6). */
-  --up: #1fce7a;
-  --down: #ef4444;
-  --warning: #e8a33d;
+  --up: #35d39a;
+  --down: #ff6470;
+  --warning: #f4b860;
   --mismatch: #7f1d1d;
   --mismatch-foreground: #ffe9e9;
   --mismatch-accent: #ff3b30;
   /* Dataviz series — neutral, not tied to up/down semantics. */
-  --chart-1: #5b8def;
-  --chart-2: #9aa1ac;
-  --chart-3: #e8a33d;
-  --chart-4: #1fce7a;
-  --chart-5: #ef4444;
-  --radius: 0.125rem;
-  --sidebar: #111318;
-  --sidebar-foreground: #e7e9ed;
-  --sidebar-primary: #e7e9ed;
-  --sidebar-primary-foreground: #0a0b0d;
-  --sidebar-accent: #171a20;
-  --sidebar-accent-foreground: #e7e9ed;
-  --sidebar-border: #262a33;
-  --sidebar-ring: #5b6270;
+  --chart-1: #7aa7ff;
+  --chart-2: #93918b;
+  --chart-3: #f4b860;
+  --chart-4: #35d39a;
+  --chart-5: #ff6470;
+  --radius: 0.75rem;
+  --sidebar: #0f0f0f;
+  --sidebar-foreground: #f3f2ee;
+  --sidebar-primary: #f3f2ee;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #181818;
+  --sidebar-accent-foreground: #f3f2ee;
+  --sidebar-border: #232323;
+  --sidebar-ring: #93918b;
 }
 
 @layer base {
@@ -238,4 +240,19 @@ body {
    runs) while taking it out of the rendered text. */
 #recharts_measurement_span {
   visibility: hidden;
+}
+
+/* Quiet grid, read into the older terminal components (the Yes/No screen):
+   they were drawn with mono capitals and 2px corners. Sentence case, normal
+   tracking and rounded corners bring them into the one family without
+   touching their markup. */
+.qg .uppercase {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.qg [class*='tracking-[0.1'] {
+  letter-spacing: 0;
+}
+.qg [class*='rounded-[2px]'] {
+  border-radius: 10px;
 }

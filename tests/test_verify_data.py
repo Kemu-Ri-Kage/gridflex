@@ -77,6 +77,7 @@ class VerifyDataTest(unittest.TestCase):
             target = self.repo / path
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / path, target)
+        self.without_fixture()
         self.commit("main")
         self.base = run(["git", "rev-parse", "HEAD"], self.repo)
         run(["git", "checkout", "--quiet", "-b", "feat/data"], self.repo)
@@ -95,6 +96,25 @@ class VerifyDataTest(unittest.TestCase):
     def commit(self, message):
         run(["git", "add", "-A"], self.repo)
         run(["git", "commit", "--quiet", "--allow-empty", "-m", message], self.repo)
+
+    def without_fixture(self):
+        """The base is main as it stood before the Nov 9-15 append. Once main
+        itself holds those markets (the Quiet Grid site PR brings in
+        feat/judging-sprint's data), take them back out so the data commit can
+        append them again."""
+        listed = {m["market"].lower() for m in FIXTURE["markets"]}
+        addresses = self.read("shared/addresses.json")
+        kept = [m for m in addresses["markets"] if m["market"].lower() not in listed]
+        if len(kept) != len(addresses["markets"]):
+            self.write("shared/addresses.json", {**addresses, "markets": kept})
+        ledger = self.read("data/market-ledger.json")
+        if any(key in ledger for key in FIXTURE["ledger"]):
+            self.write("data/market-ledger.json",
+                       {k: v for k, v in ledger.items() if k not in FIXTURE["ledger"]})
+        rows = set(FIXTURE["demoRows"])
+        lines = (self.repo / "shared/demo-markets.md").read_text().splitlines()
+        if rows.intersection(lines):
+            self.write("shared/demo-markets.md", "\n".join(l for l in lines if l not in rows) + "\n")
 
     def append(self, markets, ledger, rows):
         addresses = self.read("shared/addresses.json")
